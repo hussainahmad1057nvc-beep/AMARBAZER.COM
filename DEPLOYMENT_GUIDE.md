@@ -1,70 +1,72 @@
-# 🚀 Vercel ও Google Play Store অটোমেটিক CI/CD সেটআপ গাইড
+# 🚀 AmarBazar BD মাল্টি-প্ল্যাটফর্ম ডেপ্লয়মেন্ট গাইড (GitHub, Render, Firebase, Vercel & Play Store)
 
-এই ডকুমেন্টে আপনার গিটহাবে কোড পুশ করার সাথে সাথে **Vercel (ওয়েবসাইট)** এবং **Google Play Store (অ্যান্ড্রয়েড অ্যাপ)**-এ অটোমেটিক ডেপ্লয় করার পূর্ণাঙ্গ নির্দেশনা দেওয়া হয়েছে।
-
----
-
-## 🛠️ ১. প্রয়োজনীয় গিটহাব সিক্রেটস (GitHub Repository Secrets)
-আপনার গিটহাব রিপোজিটরির **Settings -> Secrets and variables -> Actions -> New repository secret**-এ গিয়ে নিচের সিক্রেটগুলো যোগ করুন:
-
-### 🌐 Vercel-এর জন্য:
-1. `VERCEL_TOKEN`: Vercel Account Settings -> Tokens থেকে তৈরি করা পার্সোনাল অ্যাক্সেস টোকেন।
-2. `VERCEL_ORG_ID`: Vercel প্রজেক্ট সেটিংসের `orgId` (অথবা আপনার টিম আইডি)।
-3. `VERCEL_PROJECT_ID`: Vercel প্রজেক্ট সেটিংসের `projectId`।
+এই ডকুমেন্টে আপনার গিটহাবে কোড পুশ করার সাথে সাথে **Render**, **Firebase Hosting**, **GitHub Actions**, **Vercel** এবং **Google Play Store**-এ ডেপ্লয় করার সহজ নির্দেশিকা দেওয়া হয়েছে।
 
 ---
 
-### 📱 Google Play Store ও Android Signing-এর জন্য:
-1. `ANDROID_KEYSTORE_BASE64`: আপনার রিলিজ `.keystore` বা `.jks` ফাইলের Base64 স্ট্রিং।
-   - জেনারেট করার কমান্ড:
-     ```bash
-     base64 -w 0 my-release-key.keystore > keystore_base64.txt
-     ```
-   - (ম্যাক ব্যবহারকারী হলে: `base64 -i my-release-key.keystore -o keystore_base64.txt`)
-2. `KEYSTORE_PASSWORD`: Keystore তৈরি করার সময় দেওয়া পাসওয়ার্ড।
-3. `KEY_ALIAS`: Keystore-এর অ্যালিয়াস নাম (যেমন: `amarbazar-key`)।
-4. `KEY_PASSWORD`: Key-এর পাসওয়ার্ড।
-5. `PLAY_STORE_JSON_KEY`: Google Cloud Console / Google Play Console থেকে তৈরি করা **Service Account JSON Key** ফাইলের ভেতরের সম্পূর্ণ টেক্সট।
+## 🚀 ১. Render (রিংডার)-এ ফুলস্ট্যাক সার্ভার ডেপ্লয় করার নিয়ম
+
+Render (https://render.com)-এ এক্সপ্রেস ব্যাকএন্ড এবং রিঅ্যাক্ট ফ্রন্টএন্ড একসাথে চালানোর সবচেয়ে সহজ উপায়:
+
+### ধাপসমূহ:
+1. **Render Dashboard**-এ লগইন করুন এবং **New + -> Web Service** সিলেক্ট করুন।
+2. আপনার GitHub রিপোজিটরি (`AmarBazarBD`) কানেক্ট করুন।
+3. নিচের সেটিংসগুলো দিন:
+   - **Name**: `amarbazar-web`
+   - **Environment**: `Node`
+   - **Branch**: `main` (বা `master`)
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+4. **Environment Variables** সেকশনে যোগ করুন:
+   - `NODE_ENV` = `production`
+   - `VITE_FIREBASE_PROJECT_ID` = `amarbazer-519c5`
+5. **Create Web Service** বাটনে ক্লিক করুন। Render স্বয়ংক্রিয়ভাবে বিল্ড করে লাইভ URL প্রদান করবে।
+
+*(নোট: রিপোজিটরিতে `render.yaml` কনফিগার করা আছে, ফলে ব্লুপ্রিন্ট হিসেবেও সরাসরি ১-ক্লিকে ডেপ্লয় করা যাবে)*
 
 ---
 
-## 📦 ২. লোকাল মেশিনে Android ফোল্ডার যুক্ত ও টেস্ট করার নিয়ম
+## 🔥 ২. Firebase Hosting ও Firestore ডেপ্লয়মেন্ট
 
-আপনার লোকাল পিসিতে টার্মিনালে রান করুন:
+আপনার ফায়ারবেস প্রজেক্ট আইডি: `amarbazer-519c5`
+
+### লোকাল টার্মিনাল বা GitHub থেকে ডেপ্লয়:
+```bash
+# ১. ফায়ারবেস সিএলআই দিয়ে লগইন
+firebase login
+
+# ২. প্রজেক্ট সিলেক্ট
+firebase use amarbazer-519c5
+
+# ৩. ফ্রন্টএন্ড বিল্ড তৈরি
+npm run build
+
+# ৪. ফায়ারবেস হোস্টিং ও সিকিউরিটি রুলস ডেপ্লয়
+firebase deploy
+```
+
+---
+
+## 🛠️ ৩. GitHub Actions অটোমেশন (CI/CD)
+
+আপনার রিপোজিটরিতে `.github/workflows/deploy.yml` প্রস্তুত রয়েছে। কোড পুশ করার সাথে সাথে এটি:
+1. সম্পূর্ণ টাইপস্ক্রিপ্ট ও বিল্ড ভেরিফাই করবে।
+2. কোনো মিসিং সিক্রেট থাকলেও এরর দিয়ে ফেইল করবে না, বরং স্কিপ করে বিল্ড সাকসেস রাখবে।
+3. যদি `RENDER_DEPLOY_HOOK_URL` বা `VERCEL_TOKEN` দেওয়া থাকে, তবে অটোমেটিক লাইভ ডেপ্লয় করে দিবে।
+
+---
+
+## 📱 ৪. Google Play Store ও Android Signing
+
+অ্যান্ড্রয়েড রিলিজ বান্ডেল তৈরি করার কমান্ড:
 ```bash
 # ১. ডিপেন্ডেন্সি ও বিল্ড
 npm install
 npm run build
 
-# ২. ক্যাপাসিটর অ্যান্ড্রয়েড প্ল্যাটফর্ম যুক্ত করা
-npx cap add android
-
-# ৩. ওয়েব অ্যাসেটস সিঙ্ক করা
+# ২. ক্যাপাসিটর অ্যান্ড্রয়েড সিঙ্ক
 npx cap sync android
 
-# ৪. অ্যান্ড্রয়েড স্টুডিওতে ওপেন করা
+# ৩. অ্যান্ড্রয়েড স্টুডিওতে ওপেন
 npx cap open android
 ```
-
----
-
-## 🔢 ৩. ভার্সন ম্যানেজমেন্ট ও রিলিজ গাইডলাইন (Play Store Versioning)
-Google Play Store-এ প্রতিটি নতুন আপডেটের জন্য `versionCode` প্রতিবার বাড়াতে হবে।
-`android/app/build.gradle`-এ:
-```groovy
-defaultConfig {
-    applicationId "com.amarbazarbd.app"
-    minSdkVersion 22
-    targetSdkVersion 34
-    versionCode 2       // 👈 প্রতি আপডেটে ১ করে বাড়াবেন (যেমন: ১, ২, ৩...)
-    versionName "1.0.1" // 👈 ইউজারদের দেখানোর জন্য ভার্সন নাম
-}
-```
-
----
-
-## 🔄 ৪. অটোমেশন ফ্লো কিভাবে কাজ করবে?
-১. আপনি যখনই `main` বা `master` ব্রাঞ্চে কোড **`git push`** করবেন:
-   - **Step 1:** GitHub Actions স্বয়ংক্রিয়ভাবে ভিটাইট/ওয়েব বিল্ড তৈরি করবে এবং **Vercel**-এ লাইভ ওয়েবসাইট আপডেট করে দেবে।
-   - **Step 2:** একই সাথে এটি ক্যাপাসিটরের মাধ্যমে কোড সিঙ্ক করে **Fastlane** ও **Gradle** দিয়ে সাইনড রিলিজ বান্ডেল (`.aab`) ফাইল তৈরি করবে।
-   - **Step 3:** তৈরি হওয়া `.aab` ফাইল সরাসরি Google Play Console-এর **Internal/Production Track**-এ আপলোড হয়ে যাবে।
