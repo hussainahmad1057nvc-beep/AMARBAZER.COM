@@ -9,7 +9,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import { hasPermission } from '../../lib/permissions';
-import { Product, Order, WithdrawalRequest, SellerStore } from '../../types';
+import { Product, Order, WithdrawalRequest, SellerStore, ProductVariant, VariantPriceDetails } from '../../types';
 import { getTranslation } from '../../translations';
 import { StoreDirectory } from '../dashboard/StoreDirectory';
 import { InventoryWorkspace } from '../dashboard/InventoryWorkspace';
@@ -105,7 +105,7 @@ export const SellerDashboard: React.FC = () => {
 
   // Subscription simulated checkout state
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<'starter' | 'business' | 'enterprise' | null>(null);
+  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<'starter' | 'business' | 'enterprise' | 'gcs_subscription' | 'firebase_subscription' | string | null>(null);
   const [checkoutMethod, setCheckoutMethod] = useState<'bkash' | 'nagad' | 'rocket'>('bkash');
   const [checkoutPhone, setCheckoutPhone] = useState('01700000000');
   const [checkoutOtp, setCheckoutOtp] = useState('123456');
@@ -144,15 +144,15 @@ export const SellerDashboard: React.FC = () => {
   const [newWarranty, setNewWarranty] = useState('No Warranty');
 
   // Variant Pricing & Bulk Offers (Add Product)
-  const [newVariants, setNewVariants] = useState<{ name: string; options: string[] }[]>([]);
-  const [newVariantPrices, setNewVariantPrices] = useState<Record<string, number>>({});
+  const [newVariants, setNewVariants] = useState<ProductVariant[]>([]);
+  const [newVariantPrices, setNewVariantPrices] = useState<Record<string, number | VariantPriceDetails>>({});
   const [newBulkOffers, setNewBulkOffers] = useState<{ minQuantity: number; discountPercent?: number; discountAmount?: number }[]>([]);
   const [newVarGroupName, setNewVarGroupName] = useState('');
   const [newVarOptionsInput, setNewVarOptionsInput] = useState('');
 
   // Variant Pricing & Bulk Offers (Edit Product)
-  const [editVariants, setEditVariants] = useState<{ name: string; options: string[] }[]>([]);
-  const [editVariantPrices, setEditVariantPrices] = useState<Record<string, number>>({});
+  const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
+  const [editVariantPrices, setEditVariantPrices] = useState<Record<string, number | VariantPriceDetails>>({});
   const [editBulkOffers, setEditBulkOffers] = useState<{ minQuantity: number; discountPercent?: number; discountAmount?: number }[]>([]);
   const [editVarGroupName, setEditVarGroupName] = useState('');
   const [editVarOptionsInput, setEditVarOptionsInput] = useState('');
@@ -177,7 +177,7 @@ export const SellerDashboard: React.FC = () => {
   const [isStoreOpen, setIsStoreOpen] = useState(true);
 
   // Dynamic Cloud Storage states
-  const [settingsStorageType, setSettingsStorageType] = useState<'central' | 'google_cloud' | 'firebase'>('central');
+  const [settingsStorageType, setSettingsStorageType] = useState<'central' | 'google_cloud' | 'firebase' | string>('central');
   const [settingsStorageCredentials, setSettingsStorageCredentials] = useState('');
   const [isTestingStorage, setIsTestingStorage] = useState(false);
   const [storageTestMessage, setStorageTestMessage] = useState<{ success: boolean; text: string } | null>(null);
@@ -999,7 +999,8 @@ export const SellerDashboard: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {group.options.map((opt, optIdx) => {
                       const priceKey = `${group.name}:${opt}`;
-                      const optPrice = prices[priceKey] || '';
+                      const rawPrice = prices[priceKey];
+                      const optPrice: number | string = typeof rawPrice === 'number' ? rawPrice : (typeof rawPrice === 'object' && rawPrice !== null ? (rawPrice.price ?? '') : '');
                       
                       return (
                         <div key={optIdx} className="flex items-center gap-2 bg-slate-50/50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800/50">
@@ -1921,7 +1922,8 @@ export const SellerDashboard: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {group.options.map((opt, optIdx) => {
                       const priceKey = `${group.name}:${opt}`;
-                      const optPrice = prices[priceKey] || '';
+                      const rawPrice = prices[priceKey];
+                      const optPrice: number | string = typeof rawPrice === 'number' ? rawPrice : (typeof rawPrice === 'object' && rawPrice !== null ? (rawPrice.price ?? '') : '');
                       
                       return (
                         <div key={optIdx} className="flex items-center gap-2 bg-slate-50/50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800/50">
@@ -2131,8 +2133,7 @@ export const SellerDashboard: React.FC = () => {
       )}
 
       {/* Navigation Tabs */}
-      {activeTab !== 'subscription' && (
-        <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-1 text-xs font-bold">
+      <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-1 text-xs font-bold">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2.5 rounded-xl transition flex items-center space-x-1.5 shrink-0 ${
@@ -2275,7 +2276,6 @@ export const SellerDashboard: React.FC = () => {
             </button>
           )}
         </div>
-      )}
 
       {/* OVERVIEW TAB */}
       {activeTab === 'store_directory' && (

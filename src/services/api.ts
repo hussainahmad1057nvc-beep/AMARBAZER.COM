@@ -1,6 +1,7 @@
 import { Product, Category, Coupon, Order, SellerStore, User, WithdrawalRequest, SystemSettings, SellerStaffMember, AdminStaffMember, SellerPermissionConfig } from '../types';
 import { nativeBridge } from './nativeBridge';
 import { firebaseDb, testFirestoreConnection } from '../lib/firebase';
+import { safeStorage } from '../lib/safeStorage';
 import { INITIAL_USERS, INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 
 function normalizeInput(str?: string): string {
@@ -53,11 +54,8 @@ const STORAGE_KEY_SELLERS = 'amarbazar_sellers_store';
 
 export function getDeletedProductIds(): Set<string> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_DELETED_PRODUCTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return new Set(parsed);
-    }
+    const parsed = safeStorage.getJSON<string[]>(STORAGE_KEY_DELETED_PRODUCTS, []);
+    if (Array.isArray(parsed)) return new Set(parsed);
   } catch (e) {}
   return new Set();
 }
@@ -66,7 +64,7 @@ export function markProductDeleted(id: string) {
   try {
     const set = getDeletedProductIds();
     set.add(id);
-    localStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
+    safeStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
   } catch (e) {}
 }
 
@@ -75,54 +73,45 @@ export function unmarkProductDeleted(id: string) {
     const set = getDeletedProductIds();
     if (set.has(id)) {
       set.delete(id);
-      localStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
+      safeStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
     }
   } catch (e) {}
 }
 
 function getLocalSellers(): SellerStore[] {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_SELLERS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
+    const parsed = safeStorage.getJSON<SellerStore[]>(STORAGE_KEY_SELLERS, []);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch (e) {}
   return INITIAL_SELLERS;
 }
 
 function saveLocalSellers(sellers: SellerStore[]) {
   try {
-    localStorage.setItem(STORAGE_KEY_SELLERS, JSON.stringify(sellers));
+    safeStorage.setItem(STORAGE_KEY_SELLERS, JSON.stringify(sellers));
   } catch (e) {}
 }
 
 function getLocalCategories(): Category[] {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
+    const parsed = safeStorage.getJSON<Category[]>(STORAGE_KEY_CATEGORIES, []);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch (e) {}
   return INITIAL_CATEGORIES;
 }
 
 function saveLocalCategories(cats: Category[]) {
   try {
-    localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats));
+    safeStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats));
   } catch (e) {}
 }
 
 function getLocalProducts(): Product[] {
   const deletedSet = getDeletedProductIds();
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter(p => !deletedSet.has(p.id));
-      }
+    const parsed = safeStorage.getJSON<Product[]>(STORAGE_KEY_PRODUCTS, []);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter(p => !deletedSet.has(p.id));
     }
   } catch (e) {}
   return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
@@ -132,7 +121,7 @@ function saveLocalProducts(products: Product[]) {
   const deletedSet = getDeletedProductIds();
   const filtered = products.filter(p => !deletedSet.has(p.id));
   try {
-    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
+    safeStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: filtered }));

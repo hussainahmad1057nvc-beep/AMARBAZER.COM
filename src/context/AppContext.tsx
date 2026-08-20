@@ -3,6 +3,7 @@ import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role,
 import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 import { api, getDeletedProductIds } from '../services/api';
 import { firebaseDb } from '../lib/firebase';
+import { safeStorage } from '../lib/safeStorage';
 import { applyLiveLanguage } from '../services/languageService';
 import { applyLiveCurrency, formatCurrencyAmount } from '../services/currencyService';
 
@@ -42,10 +43,10 @@ interface AppContextType {
   toggleWishlist: (productId: string) => void;
   
   // Modals & Panels
-  activePanel: 'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing';
-  setActivePanel: (panel: 'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing') => void;
-  sellerActiveTab: 'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription';
-  setSellerActiveTab: (tab: 'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription') => void;
+  activePanel: 'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing' | 'seller_applications' | 'product_approvals';
+  setActivePanel: (panel: 'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing' | 'seller_applications' | 'product_approvals') => void;
+  sellerActiveTab: 'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription' | 'store_directory' | 'inventory_manager';
+  setSellerActiveTab: (tab: 'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription' | 'store_directory' | 'inventory_manager') => void;
   selectedProduct: Product | null;
   setSelectedProduct: (product: Product | null) => void;
   sharingProduct: Product | null;
@@ -480,59 +481,42 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
+    return safeStorage.getJSON<User | null>('currentUser', null);
   });
   const [activeRole, setActiveRole] = useState<Role>(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.role || 'customer';
-      } catch (e) {}
-    }
-    return 'customer';
+    const parsed = safeStorage.getJSON<any>('currentUser', null);
+    return parsed?.role || 'customer';
   });
   const [language, setLanguage] = useState<Language>(() => {
-    const saved = localStorage.getItem('language') as Language;
+    const saved = safeStorage.getItem('language') as Language;
     return saved ? saved : 'bn';
   });
   const [currency, setCurrency] = useState<CurrencyCode>(() => {
-    const saved = localStorage.getItem('app_currency') as CurrencyCode;
+    const saved = safeStorage.getItem('app_currency') as CurrencyCode;
     return saved ? saved : 'BDT';
   });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('theme');
+    const saved = safeStorage.getItem('theme');
     return saved === 'dark' ? 'dark' : 'light';
   });
   const [colorPalette, setColorPalette] = useState<ColorPalette>(() => {
-    const saved = localStorage.getItem('colorPalette') as ColorPalette;
+    const saved = safeStorage.getItem('colorPalette') as ColorPalette;
     return saved ? saved : 'amber';
   });
   const [customColorHex, setCustomColorHex] = useState<string>(() => {
-    return localStorage.getItem('customColorHex') || '#e11d48';
+    return safeStorage.getItem('customColorHex') || '#e11d48';
   });
-  const [activePanel, setActivePanel] = useState<'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing'>(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.role === 'admin') return 'admin';
-        if (parsed.role === 'seller') return 'seller';
-        return 'customer';
-      } catch (e) {}
+  const [activePanel, setActivePanel] = useState<'customer' | 'seller' | 'admin' | 'settings' | 'dashboard_home' | 'store_directory' | 'inventory_workspace' | 'product_reviews' | 'customer_messages' | 'register_vendor' | 'customer_profile' | 'outlets' | 'subscription_pricing' | 'seller_applications' | 'product_approvals'>(() => {
+    const parsed = safeStorage.getJSON<any>('currentUser', null);
+    if (parsed) {
+      if (parsed.role === 'admin') return 'admin';
+      if (parsed.role === 'seller') return 'seller';
+      return 'customer';
     }
     return 'customer';
   });
 
-  const [sellerActiveTab, setSellerActiveTab] = useState<'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription'>('overview');
+  const [sellerActiveTab, setSellerActiveTab] = useState<'overview' | 'products' | 'orders' | 'withdrawals' | 'roles_permissions' | 'settings' | 'subscription' | 'store_directory' | 'inventory_manager'>('overview');
 
   const [isCustomerOnlyMode, setIsCustomerOnlyMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -550,7 +534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isCustomerOnlyMode]);
 
   useEffect(() => {
-    localStorage.setItem('language', language);
+    safeStorage.setItem('language', language);
     applyLiveLanguage(language);
   }, [language]);
 
@@ -563,18 +547,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    localStorage.setItem('theme', theme);
+    safeStorage.setItem('theme', theme);
   }, [theme]);
 
   const [products, setProducts] = useState<Product[]>(() => {
     const deletedSet = getDeletedProductIds();
     try {
-      const saved = localStorage.getItem('amarbazar_products_store');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(p => !deletedSet.has(p.id));
-        }
+      const parsed = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(p => !deletedSet.has(p.id));
       }
     } catch (e) {}
     return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
@@ -768,9 +749,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (currentUser) {
       setActiveRole(currentUser.role);
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      safeStorage.setItem('currentUser', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('currentUser');
+      safeStorage.removeItem('currentUser');
       setActiveRole('customer');
       setActivePanel('customer');
       setSelectedSellerId(null);
@@ -794,8 +775,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Handle Color Palette dynamic variable binding
   useEffect(() => {
-    localStorage.setItem('colorPalette', colorPalette);
-    localStorage.setItem('customColorHex', customColorHex);
+    safeStorage.setItem('colorPalette', colorPalette);
+    safeStorage.setItem('customColorHex', customColorHex);
     let shades: Record<string, string>;
     if (colorPalette === 'custom') {
       shades = generateShadesFromHex(customColorHex);

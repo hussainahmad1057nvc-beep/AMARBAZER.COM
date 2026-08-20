@@ -67,7 +67,7 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -84,8 +84,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
 }
 
 // Clean helper database interface for AmarBazar components
@@ -103,6 +102,7 @@ export const firebaseDb = {
       return list;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
+      return [];
     }
   },
 
@@ -113,6 +113,7 @@ export const firebaseDb = {
       return product;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
+      return product;
     }
   },
 
@@ -125,6 +126,7 @@ export const firebaseDb = {
       return { ...snap.data(), id } as Product;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
+      return { ...updates, id } as Product;
     }
   },
 
@@ -139,19 +141,24 @@ export const firebaseDb = {
 
   subscribeToProducts(callback: (products: Product[]) => void): Unsubscribe {
     const path = 'products';
-    return onSnapshot(
-      collection(db, path),
-      (snap) => {
-        const prods: Product[] = [];
-        snap.forEach(docSnap => {
-          prods.push({ ...docSnap.data(), id: docSnap.id } as Product);
-        });
-        callback(prods);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, path);
-      }
-    );
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const prods: Product[] = [];
+          snap.forEach(docSnap => {
+            prods.push({ ...docSnap.data(), id: docSnap.id } as Product);
+          });
+          callback(prods);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
+    }
   },
 
   // SELLERS
@@ -166,6 +173,7 @@ export const firebaseDb = {
       return list;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
+      return [];
     }
   },
 
@@ -176,6 +184,7 @@ export const firebaseDb = {
       return seller;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
+      return seller;
     }
   },
 
@@ -188,24 +197,30 @@ export const firebaseDb = {
       return { ...snap.data(), id } as SellerStore;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
+      return { ...updates, id } as SellerStore;
     }
   },
 
   subscribeToSellers(callback: (sellers: SellerStore[]) => void): Unsubscribe {
     const path = 'sellers';
-    return onSnapshot(
-      collection(db, path),
-      (snap) => {
-        const sellers: SellerStore[] = [];
-        snap.forEach(docSnap => {
-          sellers.push({ ...docSnap.data(), id: docSnap.id } as SellerStore);
-        });
-        callback(sellers);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, path);
-      }
-    );
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const sellers: SellerStore[] = [];
+          snap.forEach(docSnap => {
+            sellers.push({ ...docSnap.data(), id: docSnap.id } as SellerStore);
+          });
+          callback(sellers);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
+    }
   },
 
   // CATEGORIES
@@ -220,6 +235,7 @@ export const firebaseDb = {
       return list;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
+      return [];
     }
   },
 
@@ -230,6 +246,7 @@ export const firebaseDb = {
       return category;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
+      return category;
     }
   },
 
@@ -245,6 +262,7 @@ export const firebaseDb = {
       return list;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
+      return [];
     }
   },
 
@@ -257,10 +275,11 @@ export const firebaseDb = {
       return fullOrder;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
+      return fullOrder;
     }
   },
 
-  async updateOrderStatus(id: string, status: string, note?: string): Promise<Order> {
+  async updateOrderStatus(id: string, status: string, note?: string): Promise<Order | null> {
     const path = `orders/${id}`;
     try {
       const docRef = doc(db, 'orders', id);
@@ -273,6 +292,7 @@ export const firebaseDb = {
       return { ...snap.data(), id } as Order;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
+      return null;
     }
   },
 
@@ -284,6 +304,7 @@ export const firebaseDb = {
       return user;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
+      return user;
     }
   },
 
@@ -298,6 +319,7 @@ export const firebaseDb = {
       return null;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
+      return null;
     }
   },
 

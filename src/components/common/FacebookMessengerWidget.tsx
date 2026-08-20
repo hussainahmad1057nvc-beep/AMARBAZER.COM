@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../services/api';
 import { 
   Send, X, Minimize2, Maximize2, ExternalLink, 
   Sparkles, Bot, CheckCheck, Phone, ShoppingBag, 
@@ -20,7 +21,14 @@ interface ChatMessage {
 }
 
 export function FacebookMessengerWidget() {
-  const { language, products, orders, setActivePanel, systemSettings } = useApp();
+  const { language, products, setActivePanel, systemSettings } = useApp();
+  const [orders, setOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.getOrders().then(res => {
+      if (Array.isArray(res)) setOrders(res);
+    }).catch(() => {});
+  }, []);
   
   // Selected Live Channel: 'whatsapp' or 'messenger'
   const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'messenger'>('whatsapp');
@@ -495,8 +503,7 @@ export function FacebookMessengerWidget() {
                   backgroundImage: activeChannel === 'whatsapp' 
                     ? 'radial-gradient(#128C7E 0.5px, transparent 0.5px)' 
                     : undefined,
-                  backgroundSize: activeChannel === 'whatsapp' ? '12px 12px' : undefined,
-                  backgroundOpacity: 0.05
+                  backgroundSize: activeChannel === 'whatsapp' ? '12px 12px' : undefined
                 }}
               >
                 {messages.map((msg) => (
