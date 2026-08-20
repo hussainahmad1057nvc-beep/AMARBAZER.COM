@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -15,25 +15,7 @@ export default defineConfig(() => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 2000,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor-react';
-              }
-              if (id.includes('firebase')) {
-                return 'vendor-firebase';
-              }
-              if (id.includes('lucide-react')) {
-                return 'vendor-icons';
-              }
-              return 'vendor';
-            }
-          },
-        },
-      },
+      chunkSizeWarningLimit: 3000,
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
