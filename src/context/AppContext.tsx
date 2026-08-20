@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice } from '../types';
 import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
-import { api } from '../services/api';
+import { api, getDeletedProductIds } from '../services/api';
+import { firebaseDb } from '../lib/firebase';
 import { applyLiveLanguage } from '../services/languageService';
 import { applyLiveCurrency, formatCurrencyAmount } from '../services/currencyService';
 
@@ -565,7 +566,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    const deletedSet = getDeletedProductIds();
+    try {
+      const saved = localStorage.getItem('amarbazar_products_store');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(p => !deletedSet.has(p.id));
+        }
+      }
+    } catch (e) {}
+    return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
+  });
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>(['prod-102']);
@@ -627,8 +640,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshProducts = async () => {
     try {
       const data = await api.getProducts();
-      if (data && Array.isArray(data) && data.length > 0) {
-        setProducts(data);
+      if (data && Array.isArray(data)) {
+        const deletedSet = getDeletedProductIds();
+        setProducts(data.filter(p => !deletedSet.has(p.id)));
       }
     } catch (e) {
       console.log('Using local products fallback');
@@ -638,7 +652,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteProduct = async (id: string): Promise<boolean> => {
     // 1. Instantly remove from React memory state
     setProducts(prev => prev.filter(p => p.id !== id));
-    // 2. Persist in api / local storage / backend
+    // 2. Persist in api / local storage / Firebase Firestore / backend
     try {
       await api.deleteProduct(id);
       return true;
@@ -652,14 +666,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const created = await api.createProduct(productData);
       setProducts(prev => [created, ...prev.filter(p => p.id !== created.id)]);
-      api.getProducts().then(fresh => {
-        if (fresh && fresh.length > 0) {
-          setProducts(prev => {
-            const hasCreated = fresh.some(p => p.id === created.id);
-            return hasCreated ? fresh : [created, ...fresh.filter(p => p.id !== created.id)];
-          });
-        }
-      }).catch(() => {});
       return created;
     } catch (err) {
       console.error('Error creating product:', err);
@@ -702,13 +708,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshCategories();
     refreshSystemSettings();
 
-    // 1. Periodic background sync (every 3 seconds) across all open phones and laptops
+    // 1. Real-time Firebase Firestore listener for instant synchronization across all devices
+    let unsubscribeProducts: (() => void) | null = null;
+    try {
+      unsubscribeProducts = firebaseDb.subscribeToProducts((fbProds) => {
+        if (fbProds && Array.isArray(fbProds)) {
+          const deletedSet = getDeletedProductIds();
+          const liveList = fbProds.filter(p => !deletedSet.has(p.id));
+          if (liveList.length > 0) {
+            setProducts(liveList);
+            try {
+              localStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
+            } catch (e) {}
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Firebase real-time subscription error:', e);
+    }
+
+    // 2. Periodic background sync (every 3 seconds) across all open phones and laptops
     const interval = setInterval(() => {
       refreshProducts();
       refreshCategories();
     }, 3000);
 
-    // 2. Sync immediately on tab focus, visibility change, storage change, custom product update event, pageshow or reconnection
+    // 3. Sync immediately on tab focus, visibility change, storage change, custom product update event, pageshow or reconnection
     const handleSync = () => {
       refreshProducts();
       refreshCategories();
@@ -722,6 +747,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     document.addEventListener('visibilitychange', handleSync);
 
     return () => {
+      if (unsubscribeProducts) {
+        try {
+          unsubscribeProducts();
+        } catch (e) {}
+      }
       clearInterval(interval);
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('storage', handleSync);

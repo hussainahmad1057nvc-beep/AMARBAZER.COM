@@ -3,10 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "prestart": "node -e \"const fs=require('fs'); if(!fs.existsSync('dist/server.cjs')) { console.log('Auto-building project for production...'); require('child_process').execSync('npm run build', {stdio:'inherit'}); }\"",
     "start": "node dist/server.cjs",
     "build:web": "vite build",
     "build:android": "vite build && npx cap sync android",

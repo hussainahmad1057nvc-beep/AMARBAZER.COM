@@ -20,7 +20,8 @@ import { storageManager } from '../../lib/storageManager';
 export const SellerDashboard: React.FC = () => {
   const { 
     currentUser, setCurrentUser, activeRole, language, products, categories, 
-    refreshProducts, systemSettings, sellerActiveTab, setSellerActiveTab 
+    refreshProducts, deleteProduct: appDeleteProduct, createProduct: appCreateProduct,
+    systemSettings, sellerActiveTab, setSellerActiveTab 
   } = useApp();
 
   const effectiveUser = currentUser?.role === 'customer' && activeRole !== 'customer' 
@@ -550,7 +551,7 @@ export const SellerDashboard: React.FC = () => {
     if (!newTitle || !newPrice || !storeInfo) return;
 
     try {
-      await api.createProduct({
+      await appCreateProduct({
         title: newTitle,
         titleBn: newTitleBn || newTitle,
         price: Number(newPrice),
@@ -738,10 +739,12 @@ export const SellerDashboard: React.FC = () => {
         : 'Access Denied: You do not have permission to delete products!');
       return;
     }
-    if (confirm('Are you sure you want to delete this product listing?')) {
-      await api.deleteProduct(id);
+    const confirmMsg = language === 'bn' ? 'আপনি কি নিশ্চিত যে এই পণ্যটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this product listing?';
+    if (confirm(confirmMsg)) {
+      setSellerProducts(prev => prev.filter(p => p.id !== id));
+      await appDeleteProduct(id);
       fetchData();
-      refreshProducts();
+      await refreshProducts();
     }
   };
 

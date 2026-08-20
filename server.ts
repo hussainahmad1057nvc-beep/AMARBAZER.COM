@@ -1810,7 +1810,13 @@ Do not wrap your response in markdown formatting or write "json" or backticks, j
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use('/assets', express.static(path.join(distPath, 'assets'), {
+      maxAge: '1y',
+      immutable: true
+    }));
+    app.use(express.static(distPath, {
+      maxAge: '1h'
+    }));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

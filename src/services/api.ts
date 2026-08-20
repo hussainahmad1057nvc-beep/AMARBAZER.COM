@@ -46,9 +46,39 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 const STORAGE_KEY_PRODUCTS = 'amarbazar_products_store';
+const STORAGE_KEY_DELETED_PRODUCTS = 'amarbazar_deleted_product_ids';
 const STORAGE_KEY_ORDERS = 'amarbazar_orders_store';
 const STORAGE_KEY_CATEGORIES = 'amarbazar_categories_store';
 const STORAGE_KEY_SELLERS = 'amarbazar_sellers_store';
+
+export function getDeletedProductIds(): Set<string> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DELETED_PRODUCTS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function markProductDeleted(id: string) {
+  try {
+    const set = getDeletedProductIds();
+    set.add(id);
+    localStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
+  } catch (e) {}
+}
+
+export function unmarkProductDeleted(id: string) {
+  try {
+    const set = getDeletedProductIds();
+    if (set.has(id)) {
+      set.delete(id);
+      localStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
+    }
+  } catch (e) {}
+}
 
 function getLocalSellers(): SellerStore[] {
   try {
@@ -85,22 +115,27 @@ function saveLocalCategories(cats: Category[]) {
 }
 
 function getLocalProducts(): Product[] {
+  const deletedSet = getDeletedProductIds();
   try {
     const saved = localStorage.getItem(STORAGE_KEY_PRODUCTS);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(p => !deletedSet.has(p.id));
+      }
     }
   } catch (e) {}
-  return INITIAL_PRODUCTS;
+  return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
 }
 
 function saveLocalProducts(products: Product[]) {
+  const deletedSet = getDeletedProductIds();
+  const filtered = products.filter(p => !deletedSet.has(p.id));
   try {
-    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('storage'));
-      window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: products }));
+      window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: filtered }));
     }
   } catch (e) {}
 }
@@ -211,33 +246,52 @@ export const api = {
 
   // Products
   getProducts: async (params?: Record<string, string>): Promise<Product[]> => {
+    const deletedSet = getDeletedProductIds();
     const q = params ? '?' + new URLSearchParams(params).toString() : '';
 
-    let localList = getLocalProducts();
-    if (localList.length === 0) {
+    let localList = getLocalProducts().filter(p => !deletedSet.has(p.id));
+    if (localList.length === 0 && deletedSet.size === 0) {
       localList = INITIAL_PRODUCTS;
       saveLocalProducts(INITIAL_PRODUCTS);
     }
 
     let prodsMap = new Map<string, Product>();
-    // Seed with local items
+    // Seed with local items that are not deleted
     for (const p of localList) {
-      prodsMap.set(p.id, p);
+      if (!deletedSet.has(p.id)) {
+        prodsMap.set(p.id, p);
+      }
     }
 
-    // 1. Try to fetch from Backend Server API (/api/products)
+    // 1. Fetch from Firebase Firestore directly (Fast cloud truth)
+    try {
+      const fbProducts = await firebaseDb.getProducts();
+      if (fbProducts && Array.isArray(fbProducts) && fbProducts.length > 0) {
+        for (const fbp of fbProducts) {
+          if (!deletedSet.has(fbp.id)) {
+            prodsMap.set(fbp.id, fbp);
+          }
+        }
+      }
+    } catch (e) {
+      // Firebase notice handled
+    }
+
+    // 2. Fetch from Backend Server API (/api/products)
     try {
       const serverProducts = await fetchJson<Product[]>(`/api/products${q}`);
       if (serverProducts && Array.isArray(serverProducts) && serverProducts.length > 0) {
         for (const sp of serverProducts) {
-          const existing = prodsMap.get(sp.id);
-          if (!existing) {
-            prodsMap.set(sp.id, sp);
-          } else {
-            const spTime = new Date(sp.createdAt || 0).getTime();
-            const localTime = new Date(existing.createdAt || 0).getTime();
-            if (spTime >= localTime) {
-              prodsMap.set(sp.id, { ...existing, ...sp });
+          if (!deletedSet.has(sp.id)) {
+            const existing = prodsMap.get(sp.id);
+            if (!existing) {
+              prodsMap.set(sp.id, sp);
+            } else {
+              const spTime = new Date(sp.createdAt || 0).getTime();
+              const localTime = new Date(existing.createdAt || 0).getTime();
+              if (spTime >= localTime) {
+                prodsMap.set(sp.id, { ...existing, ...sp });
+              }
             }
           }
         }
@@ -246,28 +300,7 @@ export const api = {
       // Backend request skipped
     }
 
-    // 2. Fetch and merge from Firebase Firestore
-    try {
-      const fbProducts = await firebaseDb.getProducts();
-      if (fbProducts && Array.isArray(fbProducts) && fbProducts.length > 0) {
-        for (const fbp of fbProducts) {
-          const existing = prodsMap.get(fbp.id);
-          if (!existing) {
-            prodsMap.set(fbp.id, fbp);
-          } else {
-            const fbpTime = new Date(fbp.createdAt || 0).getTime();
-            const localTime = new Date(existing.createdAt || 0).getTime();
-            if (fbpTime >= localTime) {
-              prodsMap.set(fbp.id, { ...existing, ...fbp });
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Firebase getProducts notice:', e);
-    }
-
-    const mergedList = Array.from(prodsMap.values());
+    const mergedList = Array.from(prodsMap.values()).filter(p => !deletedSet.has(p.id));
     if (mergedList.length > 0 && (!params || Object.keys(params).length === 0)) {
       saveLocalProducts(mergedList);
     }
@@ -287,23 +320,32 @@ export const api = {
   },
 
   getProductById: async (id: string): Promise<Product> => {
+    const deletedSet = getDeletedProductIds();
+    if (deletedSet.has(id)) {
+      throw new Error('Product was deleted');
+    }
     const localList = getLocalProducts();
-    const localFound = localList.find(p => p.id === id);
+    const localFound = localList.find(p => p.id === id && !deletedSet.has(p.id));
     if (localFound) return localFound;
 
     try {
-      return await fetchJson<Product>(`/api/products/${id}`);
+      const p = await fetchJson<Product>(`/api/products/${id}`);
+      if (p && !deletedSet.has(p.id)) return p;
     } catch (err) {
       const list = await firebaseDb.getProducts();
-      const found = list?.find(p => p.id === id);
+      const found = list?.find(p => p.id === id && !deletedSet.has(p.id));
       if (found) return found;
       throw err;
     }
+    throw new Error('Product not found');
   },
 
   createProduct: async (product: Partial<Product>): Promise<Product> => {
+    const newId = product.id || `prod-${Date.now()}`;
+    unmarkProductDeleted(newId);
+
     const newProd: Product = {
-      id: product.id || `prod-${Date.now()}`,
+      id: newId,
       title: product.title || 'New Product',
       titleBn: product.titleBn || product.title || 'নতুন পণ্য',
       slug: product.slug || ((product.title || 'prod').toLowerCase().replace(/\s+/g, '-')),
@@ -357,28 +399,26 @@ export const api = {
     }
     saveLocalProducts(updatedList);
 
-    // 2. Synchronize with backend API server
+    // 2. Push directly to Firebase Firestore for instant live multi-device broadcast
+    try {
+      await firebaseDb.insertProduct(newProd);
+    } catch (err) {
+      console.warn('Firebase product insert notice:', err);
+    }
+
+    // 3. Synchronize with backend API server
     try {
       await fetchJson<Product>('/api/products', { method: 'POST', body: JSON.stringify(newProd) });
     } catch (err) {
       console.warn('Backend API product sync notice:', err);
     }
 
-    // 3. Push directly to Firebase Firestore
-    let finalProd = newProd;
-    try {
-      const fbSaved = await firebaseDb.insertProduct(newProd);
-      if (fbSaved) {
-        finalProd = fbSaved;
-      }
-    } catch (err) {
-      console.warn('Direct Firebase product insert notice:', err);
-    }
-
-    return finalProd;
+    return newProd;
   },
 
   updateProduct: async (id: string, product: Partial<Product>): Promise<Product> => {
+    unmarkProductDeleted(id);
+
     // 1. Instantly update local cache
     const localList = getLocalProducts();
     const idx = localList.findIndex(p => p.id === id);
@@ -390,44 +430,44 @@ export const api = {
       saveLocalProducts(updatedList);
     }
 
-    // 2. Sync with backend API server
+    // 2. Direct Firebase Firestore update for live multi-device broadcast
+    try {
+      await firebaseDb.updateProduct(id, updatedProd);
+    } catch (err) {
+      console.warn('Firebase product update notice:', err);
+    }
+
+    // 3. Sync with backend API server
     try {
       await fetchJson<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(updatedProd) });
     } catch (err) {
       console.warn('Backend API product update notice:', err);
     }
 
-    // 3. Direct Firebase Firestore update
-    try {
-      const fbUpdated = await firebaseDb.updateProduct(id, updatedProd);
-      if (fbUpdated) {
-        updatedProd = fbUpdated;
-      }
-    } catch (err) {
-      console.warn('Direct Firebase product update notice:', err);
-    }
-
     return updatedProd;
   },
 
   deleteProduct: async (id: string): Promise<{ success: boolean }> => {
-    // 1. Immediately remove from local storage
+    // 1. Permanently mark deleted
+    markProductDeleted(id);
+
+    // 2. Instantly remove from local storage
     const localList = getLocalProducts();
     const filtered = localList.filter(p => p.id !== id);
     saveLocalProducts(filtered);
 
-    // 2. Delete from backend API
+    // 3. Delete from Firebase Firestore (instant live broadcast to other devices)
+    try {
+      await firebaseDb.deleteProduct(id);
+    } catch (err) {
+      console.warn('Firebase deleteProduct notice:', err);
+    }
+
+    // 4. Delete from backend API
     try {
       await fetchJson<{ success: boolean }>(`/api/products/${id}`, { method: 'DELETE' });
     } catch (err) {
       console.warn('Backend API product delete notice:', err);
-    }
-
-    // 3. Delete from Firebase Firestore
-    try {
-      await firebaseDb.deleteProduct(id);
-    } catch (err) {
-      console.warn('Firebase deleteProduct error:', err);
     }
 
     return { success: true };
