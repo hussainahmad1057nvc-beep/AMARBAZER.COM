@@ -699,7 +699,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (liveList.length > 0) {
             setProducts(liveList);
             try {
-              localStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
+              safeStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
             } catch (e) {}
           }
         }
@@ -708,21 +708,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Firebase real-time subscription error:', e);
     }
 
-    // 2. Periodic background sync (every 3 seconds) across all open phones and laptops
+    // 2. Periodic gentle background sync (every 30 seconds) across all open devices
     const interval = setInterval(() => {
       refreshProducts();
       refreshCategories();
-    }, 3000);
+    }, 30000);
 
-    // 3. Sync immediately on tab focus, visibility change, storage change, custom product update event, pageshow or reconnection
+    // 3. Sync on tab focus, visibility change, online status with safety debounce
+    let lastSyncTime = 0;
     const handleSync = () => {
+      const now = Date.now();
+      if (now - lastSyncTime < 2000) return; // Prevent rapid repetitive fetches
+      lastSyncTime = now;
       refreshProducts();
       refreshCategories();
       refreshSystemSettings();
     };
+
+    const handleProductsUpdated = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        const deletedSet = getDeletedProductIds();
+        setProducts(e.detail.filter((p: Product) => !deletedSet.has(p.id)));
+      }
+    };
+
     window.addEventListener('focus', handleSync);
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('amarbazar_products_updated', handleSync);
+    window.addEventListener('amarbazar_products_updated', handleProductsUpdated);
     window.addEventListener('pageshow', handleSync);
     window.addEventListener('online', handleSync);
     document.addEventListener('visibilitychange', handleSync);
@@ -735,8 +746,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       clearInterval(interval);
       window.removeEventListener('focus', handleSync);
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('amarbazar_products_updated', handleSync);
+      window.removeEventListener('amarbazar_products_updated', handleProductsUpdated);
       window.removeEventListener('pageshow', handleSync);
       window.removeEventListener('online', handleSync);
       document.removeEventListener('visibilitychange', handleSync);

@@ -117,13 +117,12 @@ function getLocalProducts(): Product[] {
   return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
 }
 
-function saveLocalProducts(products: Product[]) {
+function saveLocalProducts(products: Product[], notify = true) {
   const deletedSet = getDeletedProductIds();
   const filtered = products.filter(p => !deletedSet.has(p.id));
   try {
     safeStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('storage'));
+    if (notify && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: filtered }));
     }
   } catch (e) {}
@@ -291,7 +290,7 @@ export const api = {
 
     const mergedList = Array.from(prodsMap.values()).filter(p => !deletedSet.has(p.id));
     if (mergedList.length > 0 && (!params || Object.keys(params).length === 0)) {
-      saveLocalProducts(mergedList);
+      saveLocalProducts(mergedList, false);
     }
 
     let filtered = mergedList;
