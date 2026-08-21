@@ -1,8 +1,7 @@
 import { Product, Category, Coupon, Order, SellerStore, User, WithdrawalRequest, SystemSettings, SellerStaffMember, AdminStaffMember, SellerPermissionConfig } from '../types';
 import { nativeBridge } from './nativeBridge';
-import { firebaseDb, testFirestoreConnection } from '../lib/firebase';
-import { safeStorage } from '../lib/safeStorage';
-import { INITIAL_USERS, INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
+import { supabaseDb, isSupabaseConfigured } from '../lib/supabase';
+import { INITIAL_USERS, INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SELLERS } from '../data/initialData';
 
 function normalizeInput(str?: string): string {
   if (!str) return '';
@@ -42,111 +41,76 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     }
     return data as T;
   } catch (error: any) {
+    // Propagate for fallback handlers
     throw error;
   }
 }
 
 const STORAGE_KEY_PRODUCTS = 'amarbazar_products_store';
-const STORAGE_KEY_DELETED_PRODUCTS = 'amarbazar_deleted_product_ids';
 const STORAGE_KEY_ORDERS = 'amarbazar_orders_store';
 const STORAGE_KEY_CATEGORIES = 'amarbazar_categories_store';
 const STORAGE_KEY_SELLERS = 'amarbazar_sellers_store';
 
-export function getDeletedProductIds(): Set<string> {
-  try {
-    const parsed = safeStorage.getJSON<string[]>(STORAGE_KEY_DELETED_PRODUCTS, []);
-    if (Array.isArray(parsed)) return new Set(parsed);
-  } catch (e) {}
-  return new Set();
-}
-
-export function markProductDeleted(id: string) {
-  try {
-    const set = getDeletedProductIds();
-    set.add(id);
-    safeStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
-  } catch (e) {}
-}
-
-export function unmarkProductDeleted(id: string) {
-  try {
-    const set = getDeletedProductIds();
-    if (set.has(id)) {
-      set.delete(id);
-      safeStorage.setItem(STORAGE_KEY_DELETED_PRODUCTS, JSON.stringify(Array.from(set)));
-    }
-  } catch (e) {}
-}
-
 function getLocalSellers(): SellerStore[] {
   try {
-    const parsed = safeStorage.getJSON<SellerStore[]>(STORAGE_KEY_SELLERS, []);
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    const saved = localStorage.getItem(STORAGE_KEY_SELLERS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch (e) {}
   return INITIAL_SELLERS;
 }
 
 function saveLocalSellers(sellers: SellerStore[]) {
   try {
-    safeStorage.setItem(STORAGE_KEY_SELLERS, JSON.stringify(sellers));
+    localStorage.setItem(STORAGE_KEY_SELLERS, JSON.stringify(sellers));
   } catch (e) {}
 }
 
 function getLocalCategories(): Category[] {
   try {
-    const parsed = safeStorage.getJSON<Category[]>(STORAGE_KEY_CATEGORIES, []);
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    const saved = localStorage.getItem(STORAGE_KEY_CATEGORIES);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch (e) {}
   return INITIAL_CATEGORIES;
 }
 
 function saveLocalCategories(cats: Category[]) {
   try {
-    safeStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats));
+    localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats));
   } catch (e) {}
 }
 
 function getLocalProducts(): Product[] {
-  const deletedSet = getDeletedProductIds();
   try {
-    const parsed = safeStorage.getJSON<Product[]>(STORAGE_KEY_PRODUCTS, []);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.filter(p => !deletedSet.has(p.id));
+    const saved = localStorage.getItem(STORAGE_KEY_PRODUCTS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {}
-  return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
+  return INITIAL_PRODUCTS;
 }
 
-function saveLocalProducts(products: Product[], notify = true) {
-  const deletedSet = getDeletedProductIds();
-  const filtered = products.filter(p => !deletedSet.has(p.id));
+function saveLocalProducts(products: Product[]) {
   try {
-    safeStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
-    if (notify && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: filtered }));
+    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('amarbazar_products_updated', { detail: products }));
     }
   } catch (e) {}
 }
 
 export const api = {
   // Settings
-  getSettings: async () => {
-    try {
-      const fbSettings = await firebaseDb.getSettings();
-      if (fbSettings) return fbSettings;
-    } catch (e) {}
-    try {
-      return await fetchJson<SystemSettings>('/api/settings');
-    } catch {
-      return INITIAL_SYSTEM_SETTINGS;
-    }
-  },
-  updateSettings: async (settings: Partial<SystemSettings>) => {
-    try {
-      await firebaseDb.saveSettings(settings);
-    } catch (e) {}
-    return fetchJson<SystemSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
-  },
+  getSettings: () => fetchJson<SystemSettings>('/api/settings'),
+  updateSettings: (settings: Partial<SystemSettings>) => 
+    fetchJson<SystemSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 
   // Auth & OTP
   sendOtp: (phone: string) => fetchJson<{ success: boolean; message: string; otp?: string }>('/api/auth/send-otp', { method: 'POST', body: JSON.stringify({ phone: normalizeInput(phone) }) }),
@@ -167,11 +131,12 @@ export const api = {
       });
       return res;
     } catch (err: any) {
-      // Robust client fallback if backend is momentarily offline
+      // Robust client fallback if backend is momentarily offline or in static/serverless hosting
       const u = (normalizedData.username || normalizedData.email || normalizedData.phone || '').toLowerCase();
       const p = normalizedData.password || '';
 
       if (u) {
+        // Look up in INITIAL_USERS
         let matchedUser = INITIAL_USERS.find(x => 
           (x.username && x.username.toLowerCase() === u) ||
           (x.email && x.email.toLowerCase() === u) ||
@@ -184,6 +149,7 @@ export const api = {
           (u === 'কাস্টমার' && x.role === 'customer')
         );
 
+        // Also check any locally saved users
         if (!matchedUser) {
           try {
             const localSavedUsers: User[] = JSON.parse(localStorage.getItem('amarbazar_custom_users') || '[]');
@@ -210,23 +176,26 @@ export const api = {
   register: async (data: Record<string, any>) => {
     try {
       const res = await fetchJson<{ success: boolean; user: User; token: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
-      if (res?.user) {
-        firebaseDb.insertUser(res.user).catch(() => {});
+      if (isSupabaseConfigured() && res?.user) {
+        supabaseDb.insertUser(res.user).catch(() => {});
       }
       return res;
     } catch (err) {
-      const dummyUser: User = {
-        id: `usr-${Date.now()}`,
-        name: data.name || 'User',
-        email: data.email || `${Date.now()}@amarbazar.bd`,
-        phone: data.phone || '01700000000',
-        role: data.role || 'customer',
-        isVerified: true,
-        addresses: [],
-        createdAt: new Date().toISOString()
-      };
-      await firebaseDb.insertUser(dummyUser).catch(() => {});
-      return { success: true, user: dummyUser, token: `jwt-token-${dummyUser.id}` };
+      if (isSupabaseConfigured()) {
+        const dummyUser: User = {
+          id: `usr-${Date.now()}`,
+          name: data.name || 'User',
+          email: data.email || `${Date.now()}@amarbazar.bd`,
+          phone: data.phone || '01700000000',
+          role: data.role || 'customer',
+          isVerified: true,
+          addresses: [],
+          createdAt: new Date().toISOString()
+        };
+        const sbUser = await supabaseDb.insertUser(dummyUser);
+        return { success: true, user: sbUser || dummyUser, token: `jwt-token-${dummyUser.id}` };
+      }
+      throw err;
     }
   },
 
@@ -234,52 +203,34 @@ export const api = {
 
   // Products
   getProducts: async (params?: Record<string, string>): Promise<Product[]> => {
-    const deletedSet = getDeletedProductIds();
     const q = params ? '?' + new URLSearchParams(params).toString() : '';
 
-    let localList = getLocalProducts().filter(p => !deletedSet.has(p.id));
-    if (localList.length === 0 && deletedSet.size === 0) {
+    let localList = getLocalProducts();
+    if (localList.length === 0) {
       localList = INITIAL_PRODUCTS;
       saveLocalProducts(INITIAL_PRODUCTS);
     }
 
     let prodsMap = new Map<string, Product>();
-    // Seed with local items that are not deleted
+    // Seed with local items
     for (const p of localList) {
-      if (!deletedSet.has(p.id)) {
-        prodsMap.set(p.id, p);
-      }
+      prodsMap.set(p.id, p);
     }
 
-    // 1. Fetch from Firebase Firestore directly (Fast cloud truth)
-    try {
-      const fbProducts = await firebaseDb.getProducts();
-      if (fbProducts && Array.isArray(fbProducts) && fbProducts.length > 0) {
-        for (const fbp of fbProducts) {
-          if (!deletedSet.has(fbp.id)) {
-            prodsMap.set(fbp.id, fbp);
-          }
-        }
-      }
-    } catch (e) {
-      // Firebase notice handled
-    }
-
-    // 2. Fetch from Backend Server API (/api/products)
+    // 1. Try to fetch from Backend Server API (/api/products)
     try {
       const serverProducts = await fetchJson<Product[]>(`/api/products${q}`);
       if (serverProducts && Array.isArray(serverProducts) && serverProducts.length > 0) {
         for (const sp of serverProducts) {
-          if (!deletedSet.has(sp.id)) {
-            const existing = prodsMap.get(sp.id);
-            if (!existing) {
-              prodsMap.set(sp.id, sp);
-            } else {
-              const spTime = new Date(sp.createdAt || 0).getTime();
-              const localTime = new Date(existing.createdAt || 0).getTime();
-              if (spTime >= localTime) {
-                prodsMap.set(sp.id, { ...existing, ...sp });
-              }
+          const existing = prodsMap.get(sp.id);
+          if (!existing) {
+            prodsMap.set(sp.id, sp);
+          } else {
+            // Keep the one with newer timestamp or merge fields
+            const spTime = new Date(sp.createdAt || 0).getTime();
+            const localTime = new Date(existing.createdAt || 0).getTime();
+            if (spTime >= localTime) {
+              prodsMap.set(sp.id, { ...existing, ...sp });
             }
           }
         }
@@ -288,9 +239,32 @@ export const api = {
       // Backend request skipped
     }
 
-    const mergedList = Array.from(prodsMap.values()).filter(p => !deletedSet.has(p.id));
+    // 2. Fetch and merge from Supabase Cloud if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const sbProducts = await supabaseDb.getProducts();
+        if (sbProducts && Array.isArray(sbProducts) && sbProducts.length > 0) {
+          for (const sbp of sbProducts) {
+            const existing = prodsMap.get(sbp.id);
+            if (!existing) {
+              prodsMap.set(sbp.id, sbp);
+            } else {
+              const sbpTime = new Date(sbp.createdAt || 0).getTime();
+              const localTime = new Date(existing.createdAt || 0).getTime();
+              if (sbpTime >= localTime) {
+                prodsMap.set(sbp.id, { ...existing, ...sbp });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase getProducts notice:', e);
+      }
+    }
+
+    const mergedList = Array.from(prodsMap.values());
     if (mergedList.length > 0 && (!params || Object.keys(params).length === 0)) {
-      saveLocalProducts(mergedList, false);
+      saveLocalProducts(mergedList);
     }
 
     let filtered = mergedList;
@@ -308,32 +282,25 @@ export const api = {
   },
 
   getProductById: async (id: string): Promise<Product> => {
-    const deletedSet = getDeletedProductIds();
-    if (deletedSet.has(id)) {
-      throw new Error('Product was deleted');
-    }
     const localList = getLocalProducts();
-    const localFound = localList.find(p => p.id === id && !deletedSet.has(p.id));
+    const localFound = localList.find(p => p.id === id);
     if (localFound) return localFound;
 
     try {
-      const p = await fetchJson<Product>(`/api/products/${id}`);
-      if (p && !deletedSet.has(p.id)) return p;
+      return await fetchJson<Product>(`/api/products/${id}`);
     } catch (err) {
-      const list = await firebaseDb.getProducts();
-      const found = list?.find(p => p.id === id && !deletedSet.has(p.id));
-      if (found) return found;
+      if (isSupabaseConfigured()) {
+        const list = await supabaseDb.getProducts();
+        const found = list?.find(p => p.id === id);
+        if (found) return found;
+      }
       throw err;
     }
-    throw new Error('Product not found');
   },
 
   createProduct: async (product: Partial<Product>): Promise<Product> => {
-    const newId = product.id || `prod-${Date.now()}`;
-    unmarkProductDeleted(newId);
-
     const newProd: Product = {
-      id: newId,
+      id: product.id || `prod-${Date.now()}`,
       title: product.title || 'New Product',
       titleBn: product.titleBn || product.title || 'নতুন পণ্য',
       slug: product.slug || ((product.title || 'prod').toLowerCase().replace(/\s+/g, '-')),
@@ -375,7 +342,7 @@ export const api = {
       isApproved: true
     };
 
-    // 1. Immediately persist to local cache
+    // 1. Immediately persist to local cache so current user & active tabs see it instantly
     const localList = getLocalProducts();
     const existingIdx = localList.findIndex(p => p.id === newProd.id);
     let updatedList: Product[];
@@ -387,26 +354,30 @@ export const api = {
     }
     saveLocalProducts(updatedList);
 
-    // 2. Push directly to Firebase Firestore for instant live multi-device broadcast
-    try {
-      await firebaseDb.insertProduct(newProd);
-    } catch (err) {
-      console.warn('Firebase product insert notice:', err);
-    }
-
-    // 3. Synchronize with backend API server
+    // 2. Synchronize with backend API server (persisted in data_store.json)
     try {
       await fetchJson<Product>('/api/products', { method: 'POST', body: JSON.stringify(newProd) });
     } catch (err) {
       console.warn('Backend API product sync notice:', err);
     }
 
-    return newProd;
+    // 3. Push directly to Supabase Cloud
+    let finalProd = newProd;
+    if (isSupabaseConfigured()) {
+      try {
+        const sbSaved = await supabaseDb.insertProduct(newProd);
+        if (sbSaved) {
+          finalProd = sbSaved;
+        }
+      } catch (err) {
+        console.warn('Direct Supabase product insert notice:', err);
+      }
+    }
+
+    return finalProd;
   },
 
   updateProduct: async (id: string, product: Partial<Product>): Promise<Product> => {
-    unmarkProductDeleted(id);
-
     // 1. Instantly update local cache
     const localList = getLocalProducts();
     const idx = localList.findIndex(p => p.id === id);
@@ -418,44 +389,48 @@ export const api = {
       saveLocalProducts(updatedList);
     }
 
-    // 2. Direct Firebase Firestore update for live multi-device broadcast
-    try {
-      await firebaseDb.updateProduct(id, updatedProd);
-    } catch (err) {
-      console.warn('Firebase product update notice:', err);
-    }
-
-    // 3. Sync with backend API server
+    // 2. Sync with backend API server
     try {
       await fetchJson<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(updatedProd) });
     } catch (err) {
       console.warn('Backend API product update notice:', err);
     }
 
+    // 3. Direct Supabase Cloud update
+    if (isSupabaseConfigured()) {
+      try {
+        const sbUpdated = await supabaseDb.updateProduct(id, updatedProd);
+        if (sbUpdated) {
+          updatedProd = sbUpdated;
+        }
+      } catch (err) {
+        console.warn('Direct Supabase product update notice:', err);
+      }
+    }
+
     return updatedProd;
   },
 
   deleteProduct: async (id: string): Promise<{ success: boolean }> => {
-    // 1. Permanently mark deleted
-    markProductDeleted(id);
-
-    // 2. Instantly remove from local storage
+    // 1. Immediately remove from local storage
     const localList = getLocalProducts();
     const filtered = localList.filter(p => p.id !== id);
     saveLocalProducts(filtered);
 
-    // 3. Delete from Firebase Firestore (instant live broadcast to other devices)
-    try {
-      await firebaseDb.deleteProduct(id);
-    } catch (err) {
-      console.warn('Firebase deleteProduct notice:', err);
-    }
-
-    // 4. Delete from backend API
+    // 2. Delete from backend API
     try {
       await fetchJson<{ success: boolean }>(`/api/products/${id}`, { method: 'DELETE' });
     } catch (err) {
       console.warn('Backend API product delete notice:', err);
+    }
+
+    // 3. Synchronously delete from Supabase Cloud
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseDb.deleteProduct(id);
+      } catch (err) {
+        console.warn('Supabase deleteProduct error:', err);
+      }
     }
 
     return { success: true };
@@ -464,28 +439,17 @@ export const api = {
   // Categories
   getCategories: async (): Promise<Category[]> => {
     try {
-      const fbCats = await firebaseDb.getCategories();
-      if (fbCats && fbCats.length > 0) {
-        saveLocalCategories(fbCats);
-        return fbCats;
-      }
-    } catch {}
-
-    try {
       const serverCats = await fetchJson<Category[]>('/api/categories');
       if (serverCats && Array.isArray(serverCats)) {
         saveLocalCategories(serverCats);
         return serverCats;
       }
-    } catch {}
+    } catch {
+      // Fallback to local storage
+    }
     return getLocalCategories();
   },
-  createCategory: async (cat: Partial<Category>) => {
-    const id = cat.id || `cat-${Date.now()}`;
-    const fullCat = { ...cat, id } as Category;
-    firebaseDb.insertCategory(fullCat).catch(() => {});
-    return fetchJson<Category>('/api/categories', { method: 'POST', body: JSON.stringify(fullCat) });
-  },
+  createCategory: (cat: Partial<Category>) => fetchJson<Category>('/api/categories', { method: 'POST', body: JSON.stringify(cat) }),
   deleteCategory: (id: string) => fetchJson<{ success: boolean }>(`/api/categories/${id}`, { method: 'DELETE' }),
 
   // Coupons
@@ -500,8 +464,10 @@ export const api = {
     try {
       return await fetchJson<Order[]>(`/api/orders${q}`);
     } catch (err) {
-      const list = await firebaseDb.getOrders();
-      if (list) return list;
+      if (isSupabaseConfigured()) {
+        const list = await supabaseDb.getOrders();
+        if (list) return list;
+      }
       throw err;
     }
   },
@@ -511,11 +477,15 @@ export const api = {
   createOrder: async (order: Partial<Order>): Promise<Order> => {
     try {
       const created = await fetchJson<Order>('/api/orders', { method: 'POST', body: JSON.stringify(order) });
-      firebaseDb.insertOrder(created).catch(() => {});
+      if (isSupabaseConfigured()) {
+        supabaseDb.insertOrder(created).catch(() => {});
+      }
       return created;
     } catch (err) {
-      const fbOrder = await firebaseDb.insertOrder(order);
-      if (fbOrder) return fbOrder;
+      if (isSupabaseConfigured()) {
+        const sbOrder = await supabaseDb.insertOrder(order);
+        if (sbOrder) return sbOrder;
+      }
       throw err;
     }
   },
@@ -523,11 +493,15 @@ export const api = {
   updateOrderStatus: async (id: string, status: string, note?: string): Promise<Order> => {
     try {
       const res = await fetchJson<Order>(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, note }) });
-      firebaseDb.updateOrderStatus(id, status, note).catch(() => {});
+      if (isSupabaseConfigured()) {
+        supabaseDb.updateOrderStatus(id, status, note).catch(() => {});
+      }
       return res;
     } catch (err) {
-      const updated = await firebaseDb.updateOrderStatus(id, status, note);
-      if (updated) return updated;
+      if (isSupabaseConfigured()) {
+        const updated = await supabaseDb.updateOrderStatus(id, status, note);
+        if (updated) return updated;
+      }
       throw err;
     }
   },
@@ -537,13 +511,15 @@ export const api = {
 
   // Sellers
   getSellers: async (): Promise<SellerStore[]> => {
-    try {
-      const list = await firebaseDb.getSellers();
-      if (list && list.length > 0) {
-        saveLocalSellers(list);
-        return list;
-      }
-    } catch (e) {}
+    if (isSupabaseConfigured()) {
+      try {
+        const list = await supabaseDb.getSellers();
+        if (list && list.length > 0) {
+          saveLocalSellers(list);
+          return list;
+        }
+      } catch (e) {}
+    }
 
     try {
       const serverSellers = await fetchJson<SellerStore[]>('/api/sellers');
@@ -592,8 +568,8 @@ export const api = {
       subscriptionTier: data.subscriptionTier || 'pro',
       subscriptionStatus: data.subscriptionStatus || 'active',
       subscriptionExpiryDate: data.subscriptionExpiryDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      cloudSubscriptionPlan: data.cloudSubscriptionPlan || 'firebase_subscription',
-      storageType: data.storageType || 'firebase',
+      cloudSubscriptionPlan: data.cloudSubscriptionPlan || 'supabase_subscription',
+      storageType: data.storageType || 'supabase',
       storageCredentials: data.storageCredentials || '',
       tradeLicenseNumber: data.tradeLicenseNumber || '',
       bkashNumber: data.bkashNumber || data.phone || '',
@@ -609,11 +585,15 @@ export const api = {
 
     try {
       const created = await fetchJson<SellerStore>('/api/sellers', { method: 'POST', body: JSON.stringify(newSeller) });
-      firebaseDb.insertSeller(created || newSeller).catch(() => {});
+      if (isSupabaseConfigured()) {
+        supabaseDb.insertSeller(created || newSeller).catch(() => {});
+      }
       return created || newSeller;
     } catch (err) {
-      const fallback = await firebaseDb.insertSeller(newSeller).catch(() => null);
-      if (fallback) return fallback;
+      if (isSupabaseConfigured()) {
+        const fallback = await supabaseDb.insertSeller(newSeller);
+        if (fallback) return fallback;
+      }
       return newSeller;
     }
   },
@@ -631,11 +611,15 @@ export const api = {
 
     try {
       const updated = await fetchJson<SellerStore>(`/api/sellers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-      firebaseDb.updateSeller(id, updated).catch(() => {});
+      if (isSupabaseConfigured()) {
+        supabaseDb.updateSeller(id, updated).catch(() => {});
+      }
       return updated;
     } catch (err) {
-      const fallback = await firebaseDb.updateSeller(id, data).catch(() => null);
-      if (fallback) return fallback;
+      if (isSupabaseConfigured()) {
+        const fallback = await supabaseDb.updateSeller(id, data);
+        if (fallback) return fallback;
+      }
       return updatedSeller;
     }
   },
@@ -706,9 +690,9 @@ export const api = {
   getAllStaffDirectory: () => 
     fetchJson<{ adminStaff: any[]; sellerStaff: any[]; totalCount: number }>('/api/admin/all-staff-directory'),
 
-  // Firebase Status & Sync
-  getFirebaseStatus: () => fetchJson<{ connected: boolean; configured: boolean; message: string; error?: string }>('/api/firebase/status'),
-  syncToFirebase: () => fetchJson<{ success: boolean; message: string; synced?: any }>('/api/firebase/sync', { method: 'POST' }),
+  // Supabase Status & Sync
+  getSupabaseStatus: () => fetchJson<{ connected: boolean; configured: boolean; message: string; error?: string }>('/api/supabase/status'),
+  syncToSupabase: () => fetchJson<{ success: boolean; message: string; synced?: any }>('/api/supabase/sync', { method: 'POST' }),
 
   // Gemini AI Assistant
   askAiAssistant: (prompt: string, language: string) => fetchJson<{ reply: string }>('/api/ai/assistant', { method: 'POST', body: JSON.stringify({ prompt, language }) }),

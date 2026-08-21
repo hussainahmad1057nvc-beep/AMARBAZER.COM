@@ -90,18 +90,7 @@ const DEFAULT_AUTOMOTIVE_VARIANTS = ['1 Pcs', '1 Pair', '1 Set', '500ml', 'Unive
 const DEFAULT_GENERAL_VARIANTS = ['1 Pcs', '2 Pcs', '1 Pack', 'Box', 'Set', '1 Strip', '50ml', '100ml', '250ml', '500ml'];
 
 export const InventoryWorkspace: React.FC = () => {
-  const { 
-    currentUser, 
-    activeRole, 
-    language, 
-    categories, 
-    products: appProducts, 
-    deleteProduct: appDeleteProduct, 
-    createProduct: appCreateProduct, 
-    refreshProducts, 
-    setActivePanel, 
-    setSelectedProduct 
-  } = useApp();
+  const { currentUser, activeRole, language, categories, refreshProducts, setActivePanel, setSelectedProduct } = useApp();
   
   const effectiveUser = currentUser?.role === 'customer' && activeRole !== 'customer' 
     ? { ...currentUser, role: activeRole } 
@@ -110,9 +99,9 @@ export const InventoryWorkspace: React.FC = () => {
   // Tab states
   const [activeTab, setActiveTab] = useState<'catalog' | 'builder'>('catalog');
 
-  // Products Catalog lists - initialized with AppContext real-time state for zero-latency load
-  const [products, setProducts] = useState<Product[]>(appProducts || []);
-  const [loading, setLoading] = useState(appProducts?.length === 0);
+  // Products Catalog lists
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -699,28 +688,15 @@ export const InventoryWorkspace: React.FC = () => {
     if (selectedWeights.length > 0) setSimulatedWeight(selectedWeights[0]);
   }, [selectedWeights]);
 
-  // Keep local products in sync with AppContext real-time Firestore updates
-  useEffect(() => {
-    if (appProducts && Array.isArray(appProducts)) {
-      setProducts(appProducts);
-      setLoading(false);
-    }
-  }, [appProducts]);
-
   const fetchInventory = async () => {
     try {
-      if (appProducts && appProducts.length > 0) {
-        setProducts(appProducts);
-        setLoading(false);
-      }
+      setLoading(true);
       const data = await api.getProducts();
       setProducts(data);
       setError(null);
     } catch (err: any) {
       console.error(err);
-      if (!products.length) {
-        setError('Failed to fetch current inventory.');
-      }
+      setError('Failed to fetch current inventory.');
     } finally {
       setLoading(false);
     }
@@ -893,12 +869,10 @@ export const InventoryWorkspace: React.FC = () => {
       : 'Are you sure you want to delete this product listing from AmarBazar?';
     if (!window.confirm(confirmationMsg)) return;
     try {
-      // 1. Instant optimistic UI removal (0ms latency)
+      await api.deleteProduct(id);
       setProducts(prev => prev.filter(item => item.id !== id));
       playSystemSound('delete');
-      // 2. Delete across AppContext, Firebase Firestore, local storage, and server API
-      await appDeleteProduct(id);
-      await refreshProducts();
+      refreshProducts();
     } catch (err) {
       console.error('Failed to delete product:', err);
       alert('Error deleting product listing.');
@@ -1119,12 +1093,12 @@ export const InventoryWorkspace: React.FC = () => {
         isApproved: true
       };
 
-      const newProduct = await appCreateProduct(payload);
+      const newProduct = await api.createProduct(payload);
       
       playSystemSound('add');
       
       // Refresh product list and go to catalog tab
-      setProducts(prev => [newProduct, ...prev.filter(p => p.id !== newProduct.id)]);
+      await fetchInventory();
       await refreshProducts();
 
       // Automatically go to public customer view and select the product
