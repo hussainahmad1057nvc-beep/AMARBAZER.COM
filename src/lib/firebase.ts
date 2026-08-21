@@ -303,6 +303,15 @@ export const firebaseDb = {
     }
   },
 
+  async updateCategory(id: string, updates: Partial<Category>): Promise<void> {
+    const path = `categories/${id}`;
+    try {
+      await updateDoc(doc(db, 'categories', id), updates);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  },
+
   async deleteCategory(id: string): Promise<void> {
     const path = `categories/${id}`;
     try {
