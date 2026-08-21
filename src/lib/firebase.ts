@@ -110,6 +110,10 @@ export const firebaseDb = {
     const path = `products/${product.id}`;
     try {
       await setDoc(doc(db, 'products', product.id), product);
+      // If it was in deleted_products, clean it up
+      try {
+        await deleteDoc(doc(db, 'deleted_products', product.id));
+      } catch {}
       return product;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -122,6 +126,10 @@ export const firebaseDb = {
     try {
       const docRef = doc(db, 'products', id);
       await setDoc(docRef, updates, { merge: true });
+      // If it was in deleted_products, clean it up
+      try {
+        await deleteDoc(doc(db, 'deleted_products', id));
+      } catch {}
       const snap = await getDoc(docRef);
       return { ...snap.data(), id } as Product;
     } catch (err) {
@@ -133,9 +141,51 @@ export const firebaseDb = {
   async deleteProduct(id: string): Promise<void> {
     const path = `products/${id}`;
     try {
+      // 1. Delete actual product document
       await deleteDoc(doc(db, 'products', id));
+      // 2. Mark in deleted_products collection so ALL connected devices instantly sync this deletion
+      await setDoc(doc(db, 'deleted_products', id), {
+        id,
+        deletedAt: new Date().toISOString()
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  },
+
+  async getDeletedProductIds(): Promise<string[]> {
+    const path = 'deleted_products';
+    try {
+      const snap = await getDocs(collection(db, path));
+      const ids: string[] = [];
+      snap.forEach(docSnap => {
+        ids.push(docSnap.id);
+      });
+      return ids;
+    } catch (err) {
+      return [];
+    }
+  },
+
+  subscribeToDeletedProducts(callback: (deletedIds: string[]) => void): Unsubscribe {
+    const path = 'deleted_products';
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const ids: string[] = [];
+          snap.forEach(docSnap => {
+            ids.push(docSnap.id);
+          });
+          callback(ids);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
     }
   },
 
@@ -243,10 +293,48 @@ export const firebaseDb = {
     const path = `categories/${category.id}`;
     try {
       await setDoc(doc(db, 'categories', category.id), category);
+      try {
+        await deleteDoc(doc(db, 'deleted_categories', category.id));
+      } catch {}
       return category;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
       return category;
+    }
+  },
+
+  async deleteCategory(id: string): Promise<void> {
+    const path = `categories/${id}`;
+    try {
+      await deleteDoc(doc(db, 'categories', id));
+      await setDoc(doc(db, 'deleted_categories', id), {
+        id,
+        deletedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  },
+
+  subscribeToCategories(callback: (categories: Category[]) => void): Unsubscribe {
+    const path = 'categories';
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const list: Category[] = [];
+          snap.forEach(docSnap => {
+            list.push({ ...docSnap.data(), id: docSnap.id } as Category);
+          });
+          callback(list);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
     }
   },
 
@@ -276,6 +364,37 @@ export const firebaseDb = {
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
       return fullOrder;
+    }
+  },
+
+  async deleteOrder(id: string): Promise<void> {
+    const path = `orders/${id}`;
+    try {
+      await deleteDoc(doc(db, 'orders', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  },
+
+  subscribeToOrders(callback: (orders: Order[]) => void): Unsubscribe {
+    const path = 'orders';
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const list: Order[] = [];
+          snap.forEach(docSnap => {
+            list.push({ ...docSnap.data(), id: docSnap.id } as Order);
+          });
+          callback(list);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
     }
   },
 
@@ -329,6 +448,26 @@ export const firebaseDb = {
       await setDoc(doc(db, 'settings', 'general'), settings, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, path);
+    }
+  },
+
+  subscribeToSettings(callback: (settings: SystemSettings) => void): Unsubscribe {
+    const path = 'settings/general';
+    try {
+      return onSnapshot(
+        doc(db, 'settings', 'general'),
+        (snap) => {
+          if (snap.exists()) {
+            callback(snap.data() as SystemSettings);
+          }
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
     }
   }
 };

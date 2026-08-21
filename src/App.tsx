@@ -201,7 +201,7 @@ function MainLayout() {
     return ['customer', 'store_directory', 'customer_profile', 'register_vendor', 'outlets', 'customer_messages'].includes(activePanel);
   };
 
-  const requiresLogin = ['customer_profile', 'register_vendor', 'seller', 'inventory_workspace', 'product_reviews', 'customer_messages', 'dashboard_home', 'admin', 'settings', 'seller_applications', 'subscription_pricing'].includes(activePanel);
+  const requiresLogin = ['customer_profile', 'register_vendor', 'seller', 'inventory_workspace', 'product_reviews', 'dashboard_home', 'admin', 'settings', 'seller_applications', 'subscription_pricing'].includes(activePanel);
 
   return (
     <div className="h-screen bg-[#f4f6fa] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-row font-sans transition-colors duration-200 overflow-hidden">
@@ -379,7 +379,6 @@ function MainLayout() {
         <AuthModal />
         <AiAssistantModal />
         <OrderTrackingModal />
-        <FacebookMessengerWidget />
 
         {/* Footer */}
         {['customer', 'dashboard_home', 'store_directory', 'outlets'].includes(activePanel) && <Footer />}

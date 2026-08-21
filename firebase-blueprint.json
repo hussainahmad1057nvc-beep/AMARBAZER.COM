@@ -152,6 +152,14 @@
     "/settings/{settingId}": {
       "schema": "SystemSetting",
       "description": "Platform settings document"
+    },
+    "/deleted_products/{productId}": {
+      "schema": "object",
+      "description": "Log of permanently deleted product IDs for multi-device real-time sync"
+    },
+    "/deleted_categories/{categoryId}": {
+      "schema": "object",
+      "description": "Log of permanently deleted category IDs for multi-device real-time sync"
     }
   }
 }

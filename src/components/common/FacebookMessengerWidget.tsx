@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../services/api';
 import { 
   Send, X, Minimize2, Maximize2, ExternalLink, 
   Sparkles, Bot, CheckCheck, Phone, ShoppingBag, 
@@ -19,14 +20,31 @@ interface ChatMessage {
   badge?: string;
 }
 
-export function FacebookMessengerWidget() {
-  const { language, products, orders, setActivePanel, systemSettings } = useApp();
+export function FacebookMessengerWidget({ 
+  embedded = false, 
+  initialChannel = 'whatsapp',
+  onClose,
+  isFloating = false
+}: { 
+  embedded?: boolean; 
+  initialChannel?: 'whatsapp' | 'messenger';
+  onClose?: () => void;
+  isFloating?: boolean;
+} = {}) {
+  const { language, products, setActivePanel, systemSettings } = useApp();
+  const [orders, setOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.getOrders().then(res => {
+      if (Array.isArray(res)) setOrders(res);
+    }).catch(() => {});
+  }, []);
   
   // Selected Live Channel: 'whatsapp' or 'messenger'
-  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'messenger'>('whatsapp');
+  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'messenger'>(initialChannel);
 
   // Widget Open/Close & Minimized states
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(embedded ? true : false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -315,6 +333,285 @@ export function FacebookMessengerWidget() {
 
   const cleanPhone = getCleanWhatsAppNumber();
 
+  if (embedded) {
+    return (
+      <div className="w-full h-full flex flex-col bg-white dark:bg-slate-900 overflow-hidden font-sans border-0 sm:border border-slate-200/80 dark:border-slate-800 rounded-none sm:rounded-3xl shadow-none sm:shadow-md">
+        {/* Multi-Channel Header */}
+        <div 
+          className={`p-3.5 text-white flex items-center justify-between select-none shrink-0 shadow-xs transition-colors duration-300 ${
+            activeChannel === 'whatsapp'
+              ? 'bg-gradient-to-r from-[#075E54] via-[#128C7E] to-[#25D366]'
+              : 'bg-gradient-to-r from-[#0084FF] via-[#00A3FF] to-[#A822D6]'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md p-1 border border-white/40 flex items-center justify-center shadow-inner">
+                {activeChannel === 'whatsapp' ? (
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.14 2 11.25C2 14.16 3.44 16.74 5.69 18.38V22L9.18 20.08C10.08 20.33 11.02 20.47 12 20.47C17.52 20.47 22 16.33 22 11.22C22 6.14 17.52 2 12 2ZM13.06 14.47L10.77 12.03L6.3 14.47L11.22 9.24L13.56 11.68L17.98 9.24L13.06 14.47Z" />
+                  </svg>
+                )}
+              </div>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full"></span>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-black text-white tracking-wide">
+                  {activeChannel === 'whatsapp' 
+                    ? (language === 'bn' ? 'আমারবাজার WhatsApp হেল্প ও অর্ডার' : 'AmarBazar WhatsApp Care & Order')
+                    : (language === 'bn' ? 'আমারবাজার FB মেসেঞ্জার হেল্প' : 'AmarBazar Messenger Care')}
+                </h3>
+                <span className="p-0.5 bg-white/20 rounded-full text-[9px] text-white font-bold" title="Verified Bot">
+                  ✓
+                </span>
+              </div>
+              <p className="text-[11px] text-white/90 font-medium flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                {activeChannel === 'whatsapp' 
+                  ? `+${cleanPhone} • 24/7 লাইভ সাপোর্ট ও অটোমেশন` 
+                  : (language === 'bn' ? 'অটোমেটেড বট ও ফেসবুক পেজ চ্যাট' : 'Automated Bot & FB Page Chat')}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 hover:bg-white/20 rounded-xl text-white/90 hover:text-white transition cursor-pointer"
+              title={soundEnabled ? 'Mute' : 'Unmute'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 opacity-60" />}
+            </button>
+
+            {activeChannel === 'whatsapp' ? (
+              <a
+                href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent('Hello AmarBazar BD Support')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-white text-emerald-800 font-bold text-xs rounded-xl hover:bg-emerald-50 transition shadow-sm flex items-center gap-1.5"
+              >
+                <span>{language === 'bn' ? 'WhatsApp খুলুন' : 'Open WhatsApp'}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            ) : (
+              <a
+                href={`https://m.me/${encodeURIComponent(fbPageUsername)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-white text-blue-700 font-bold text-xs rounded-xl hover:bg-blue-50 transition shadow-sm flex items-center gap-1.5"
+              >
+                <span>{language === 'bn' ? 'Messenger খুলুন' : 'Open Messenger'}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-white/20 rounded-xl text-white/90 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Channel Selector Tab Bar */}
+        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setActiveChannel('whatsapp')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                activeChannel === 'whatsapp'
+                  ? 'bg-[#25D366] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+              </svg>
+              <span>WhatsApp Bot & Direct</span>
+            </button>
+
+            <button
+              onClick={() => setActiveChannel('messenger')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                activeChannel === 'messenger'
+                  ? 'bg-[#0084FF] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.14 2 11.25C2 14.16 3.44 16.74 5.69 18.38V22L9.18 20.08C10.08 20.33 11.02 20.47 12 20.47C17.52 20.47 22 16.33 22 11.22C22 6.14 17.52 2 12 2ZM13.06 14.47L10.77 12.03L6.3 14.47L11.22 9.24L13.56 11.68L17.98 9.24L13.06 14.47Z" />
+              </svg>
+              <span>Facebook Messenger</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              {language === 'bn' ? 'লাইভ বট অ্যাক্টিভ' : 'Bot Engine Active'}
+            </span>
+          </div>
+        </div>
+
+        {/* Chat Message Scrollable Container */}
+        <div 
+          className={`flex-1 p-4 overflow-y-auto space-y-3.5 text-xs ${
+            activeChannel === 'whatsapp'
+              ? 'bg-[#efeae2]/60 dark:bg-slate-950/60'
+              : 'bg-[#f0f4f9]/50 dark:bg-slate-950/40'
+          }`}
+          style={{
+            backgroundImage: activeChannel === 'whatsapp' 
+              ? 'radial-gradient(#128C7E 0.5px, transparent 0.5px)' 
+              : undefined,
+            backgroundSize: activeChannel === 'whatsapp' ? '12px 12px' : undefined
+          }}
+        >
+          {messages.map((msg) => (
+            <div 
+              key={msg.id}
+              className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+            >
+              <div className="flex items-end gap-2 max-w-[85%] sm:max-w-[75%]">
+                {msg.sender !== 'user' && (
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 mb-0.5 shadow-xs ${
+                    activeChannel === 'whatsapp'
+                      ? 'bg-gradient-to-tr from-[#128C7E] to-[#25D366]'
+                      : 'bg-gradient-to-tr from-[#0084FF] to-[#A822D6]'
+                  }`}>
+                    <Bot className="w-4 h-4" />
+                  </div>
+                )}
+                <div 
+                  className={`p-3.5 rounded-2xl font-medium leading-relaxed break-words shadow-xs ${
+                    msg.sender === 'user'
+                      ? activeChannel === 'whatsapp'
+                        ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-slate-800 dark:text-slate-100 rounded-br-xs border border-[#c4f8bb] dark:border-[#02735e]'
+                        : 'bg-gradient-to-tr from-[#0084FF] to-[#00A3FF] text-white rounded-br-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/70 dark:border-slate-700/60 rounded-bl-xs'
+                  }`}
+                >
+                  {msg.badge && (
+                    <div className="inline-block mb-1.5 px-2 py-0.5 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] rounded-md border border-emerald-500/30">
+                      ● {msg.badge}
+                    </div>
+                  )}
+                  <p className="whitespace-pre-line text-xs">
+                    {language === 'bn' && msg.textBn ? msg.textBn : msg.text}
+                  </p>
+
+                  {/* Action Link Button if provided */}
+                  {msg.actionLink && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700">
+                      <button
+                        onClick={() => handleActionLinkClick(msg.actionLink!.url)}
+                        className={`w-full py-2 px-3.5 hover:opacity-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-xs ${
+                          activeChannel === 'whatsapp'
+                            ? 'bg-[#25D366] hover:bg-emerald-600'
+                            : 'bg-gradient-to-r from-[#0084FF] to-[#A822D6]'
+                        }`}
+                      >
+                        <span>{language === 'bn' ? msg.actionLink.labelBn : msg.actionLink.label}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 mt-1 px-1">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {msg.timestamp}
+                </span>
+                {msg.sender === 'user' && (
+                  <CheckCheck className={`w-3.5 h-3.5 ${activeChannel === 'whatsapp' ? 'text-sky-500' : 'text-[#0084FF]'}`} />
+                )}
+              </div>
+
+              {/* Interactive Quick Reply Pills */}
+              {msg.quickReplies && msg.quickReplies.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2 max-w-[90%]">
+                  {msg.quickReplies.map((qr, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleQuickReply(qr.action, language === 'bn' ? qr.labelBn : qr.label)}
+                      className={`text-xs font-semibold py-1.5 px-3 bg-white dark:bg-slate-800 rounded-full shadow-xs transition hover:scale-102 flex items-center gap-1.5 cursor-pointer border ${
+                        activeChannel === 'whatsapp'
+                          ? 'text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-700/80'
+                          : 'text-sky-600 dark:text-sky-400 border-sky-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-slate-700/80'
+                      }`}
+                    >
+                      <span>{language === 'bn' ? qr.labelBn : qr.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 ${
+                activeChannel === 'whatsapp' ? 'bg-[#25D366]' : 'bg-[#0084FF]'
+              }`}>
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl rounded-bl-xs flex items-center gap-1.5 text-slate-400">
+                <span className={`w-2 h-2 rounded-full animate-bounce ${activeChannel === 'whatsapp' ? 'bg-emerald-500' : 'bg-sky-500'}`}></span>
+                <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] ${activeChannel === 'whatsapp' ? 'bg-emerald-500' : 'bg-sky-500'}`}></span>
+                <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0.4s] ${activeChannel === 'whatsapp' ? 'bg-emerald-500' : 'bg-sky-500'}`}></span>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Bottom Message Input Form */}
+        <form 
+          onSubmit={handleSendMessage}
+          className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0"
+        >
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder={language === 'bn' ? 'মেসেজ লিখুন (যেমন: অর্ডার দিতে চাই, ডেলিভারি চার্জ কত?)...' : 'Type a message (e.g. order now, track delivery)...'}
+            className={`flex-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm px-4 py-2.5 rounded-full focus:outline-hidden border border-transparent dark:border-slate-700 ${
+              activeChannel === 'whatsapp'
+                ? 'focus:ring-2 focus:ring-[#25D366]'
+                : 'focus:ring-2 focus:ring-[#0084FF]'
+            }`}
+          />
+          <button
+            type="submit"
+            disabled={!inputText.trim()}
+            className={`p-2.5 text-white rounded-full hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md cursor-pointer ${
+              activeChannel === 'whatsapp'
+                ? 'bg-[#25D366] hover:bg-emerald-600'
+                : 'bg-gradient-to-tr from-[#0084FF] to-[#A822D6]'
+            }`}
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // If not embedded and floating is disabled, do not render floating bubble overlay on main storefront
+  if (!isFloating) {
+    return null;
+  }
+
   return (
     <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end pointer-events-none font-sans">
       {/* Floating Chat Modal Box */}
@@ -342,12 +639,10 @@ export function FacebookMessengerWidget() {
               <div className="relative">
                 <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md p-1 border border-white/40 flex items-center justify-center shadow-inner">
                   {activeChannel === 'whatsapp' ? (
-                    /* WhatsApp SVG Icon */
                     <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
                       <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
                     </svg>
                   ) : (
-                    /* Facebook Messenger SVG Icon */
                     <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
                       <path d="M12 2C6.48 2 2 6.14 2 11.25C2 14.16 3.44 16.74 5.69 18.38V22L9.18 20.08C10.08 20.33 11.02 20.47 12 20.47C17.52 20.47 22 16.33 22 11.22C22 6.14 17.52 2 12 2ZM13.06 14.47L10.77 12.03L6.3 14.47L11.22 9.24L13.56 11.68L17.98 9.24L13.06 14.47Z" />
                     </svg>
@@ -438,7 +733,6 @@ export function FacebookMessengerWidget() {
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    {/* WhatsApp Icon */}
                     <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                       <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
                     </svg>
@@ -453,7 +747,6 @@ export function FacebookMessengerWidget() {
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    {/* Messenger Icon */}
                     <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                       <path d="M12 2C6.48 2 2 6.14 2 11.25C2 14.16 3.44 16.74 5.69 18.38V22L9.18 20.08C10.08 20.33 11.02 20.47 12 20.47C17.52 20.47 22 16.33 22 11.22C22 6.14 17.52 2 12 2ZM13.06 14.47L10.77 12.03L6.3 14.47L11.22 9.24L13.56 11.68L17.98 9.24L13.06 14.47Z" />
                     </svg>
@@ -495,8 +788,7 @@ export function FacebookMessengerWidget() {
                   backgroundImage: activeChannel === 'whatsapp' 
                     ? 'radial-gradient(#128C7E 0.5px, transparent 0.5px)' 
                     : undefined,
-                  backgroundSize: activeChannel === 'whatsapp' ? '12px 12px' : undefined,
-                  backgroundOpacity: 0.05
+                  backgroundSize: activeChannel === 'whatsapp' ? '12px 12px' : undefined
                 }}
               >
                 {messages.map((msg) => (
@@ -669,12 +961,9 @@ export function FacebookMessengerWidget() {
           }}
           title="WhatsApp Automation & Chat"
         >
-          {/* WhatsApp SVG Icon */}
           <svg className="w-6 h-6 fill-white transition-transform group-hover:scale-105" viewBox="0 0 24 24">
             <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
           </svg>
-
-          {/* Live Online Green Dot */}
           <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full"></span>
         </button>
 
@@ -693,7 +982,6 @@ export function FacebookMessengerWidget() {
           }}
           title="Facebook Messenger Automation"
         >
-          {/* Messenger SVG Icon */}
           <svg className="w-6 h-6 fill-white transition-transform group-hover:scale-105" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.14 2 11.25C2 14.16 3.44 16.74 5.69 18.38V22L9.18 20.08C10.08 20.33 11.02 20.47 12 20.47C17.52 20.47 22 16.33 22 11.22C22 6.14 17.52 2 12 2ZM13.06 14.47L10.77 12.03L6.3 14.47L11.22 9.24L13.56 11.68L17.98 9.24L13.06 14.47Z" />
           </svg>
