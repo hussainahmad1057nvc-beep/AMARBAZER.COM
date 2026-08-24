@@ -436,6 +436,15 @@ export const firebaseDb = {
     }
   },
 
+  async updateUser(id: string, updates: Partial<User>): Promise<void> {
+    const path = `users/${id}`;
+    try {
+      await setDoc(doc(db, 'users', id), updates, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  },
+
   // SETTINGS
   async getSettings(): Promise<SystemSettings | null> {
     const path = 'settings/general';

@@ -1,11 +1,13 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   X, FolderOpen, Upload, Trash2, Eye, Download, Copy, Check, 
   FileText, Image as ImageIcon, Music, Database, HardDrive, 
-  Search, Filter, ShieldCheck, AlertCircle, RefreshCw, Sparkles, ExternalLink
+  Search, Filter, ShieldCheck, AlertCircle, RefreshCw, Sparkles, 
+  Flame, Zap, ArrowUpRight, Layers
 } from 'lucide-react';
 import { StorageFile } from '../../types';
 import { storageManager, formatBytes } from '../../lib/storageManager';
+import { FirebaseStorageUpgradeModal } from './FirebaseStorageUpgradeModal';
 
 interface CloudFileManagerModalProps {
   isOpen: boolean;
@@ -22,10 +24,10 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
   isOpen,
   onClose,
   language = 'bn',
-  sellerId,
-  storeName = 'আমার বাজার ডিজিটাল স্টোর',
-  planName = 'STARTER প্ল্যান',
-  totalCapacityGb = 2,
+  sellerId = 'sel-1',
+  storeName = 'আমার বাজার শপ',
+  planName = 'ফায়ারবেস লাইভ স্টোরেজ',
+  totalCapacityGb: propTotalCapacityGb,
   onStorageUpdated
 }) => {
   const [files, setFiles] = useState<StorageFile[]>(() => storageManager.getFiles(sellerId));
@@ -35,12 +37,34 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
   const [previewFile, setPreviewFile] = useState<StorageFile | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string>('');
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState<boolean>(false);
+  const [currentLimitGb, setCurrentLimitGb] = useState<number>(() => 
+    storageManager.getEffectiveStorageLimit(sellerId, undefined, propTotalCapacityGb)
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Recalculate stats live
+  // Sync capacity when updated
+  useEffect(() => {
+    const handleQuotaUpdate = (e: any) => {
+      if (e?.detail?.totalGb) {
+        setCurrentLimitGb(e.detail.totalGb);
+      }
+    };
+    window.addEventListener('amarbazar_storage_quota_updated', handleQuotaUpdate);
+    return () => window.removeEventListener('amarbazar_storage_quota_updated', handleQuotaUpdate);
+  }, []);
+
+  // Update limit if prop changes
+  useEffect(() => {
+    if (propTotalCapacityGb && propTotalCapacityGb > 0) {
+      setCurrentLimitGb(propTotalCapacityGb);
+    }
+  }, [propTotalCapacityGb]);
+
+  // Recalculate stats live (including Firestore database memory)
   const stats = useMemo(() => {
-    return storageManager.calculateStats(files, totalCapacityGb);
-  }, [files, totalCapacityGb]);
+    return storageManager.calculateStats(files, currentLimitGb, sellerId);
+  }, [files, currentLimitGb, sellerId]);
 
   // Filter files
   const filteredFiles = useMemo(() => {
@@ -69,12 +93,12 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
     else if (file.type.startsWith('audio/')) category = 'audio';
     else if (file.type.includes('word') || file.type.includes('text') || file.type.includes('document')) category = 'document';
 
-    // Create file reader to generate usable local preview URL
+    // Create file reader
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string || '#';
       
-      const newFile = storageManager.addFile({
+      storageManager.addFile({
         name: file.name,
         url: dataUrl,
         sizeBytes: file.size,
@@ -87,7 +111,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
       const updated = storageManager.getFiles(sellerId);
       setFiles(updated);
       setIsUploading(false);
-      setUploadSuccessMsg(language === 'bn' ? `"${file.name}" সফলভাবে ক্লাউডে আপলোড হয়েছে!` : `"${file.name}" uploaded successfully!`);
+      setUploadSuccessMsg(language === 'bn' ? `"${file.name}" সফলভাবে ফায়ারবেসে আপলোড হয়েছে!` : `"${file.name}" uploaded to Firebase successfully!`);
       if (onStorageUpdated) onStorageUpdated();
 
       setTimeout(() => setUploadSuccessMsg(''), 4000);
@@ -99,7 +123,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
 
   const handleDeleteFile = (id: string, fileName: string) => {
     const confirmMsg = language === 'bn' 
-      ? `আপনি কি নিশ্চিত যে "${fileName}" ফাইলটি ক্লাউড থেকে স্থায়ীভাবে ডিলিট করতে চান? এতে স্টোরেজ স্পেস খালি হবে।`
+      ? `আপনি কি নিশ্চিত যে "${fileName}" ফাইলটি ফায়ারবেস ক্লাউড থেকে স্থায়ীভাবে ডিলিট করতে চান? এতে স্টোরেজ স্পেস খালি হবে।`
       : `Are you sure you want to delete "${fileName}"? This will free up storage space.`;
     
     if (window.confirm(confirmMsg)) {
@@ -118,6 +142,11 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  const handlePlanUpgraded = (newCapacityGb: number) => {
+    setCurrentLimitGb(newCapacityGb);
+    if (onStorageUpdated) onStorageUpdated();
+  };
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'image':
@@ -134,37 +163,48 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 text-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 text-xs">
         
         {/* TOP HEADER BAR */}
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/60 shrink-0">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-950/80 shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
-              <HardDrive className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/20 shadow-xs">
+              <Flame className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
-                  {language === 'bn' ? 'ক্লাউড স্টোরেজ ও ফাইল ম্যানেজার' : 'Cloud Storage & File Manager'}
+                  {language === 'bn' ? 'ফায়ারবেস স্টোরেজ ও ফাইল ম্যানেজার' : 'Firebase Storage & Database Manager'}
                 </h3>
-                <span className="inline-flex items-center space-x-1 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[9px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Supabase Live Cloud</span>
+                <span className="inline-flex items-center space-x-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[9.5px] font-black border border-amber-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Firebase Live Cloud</span>
                 </span>
               </div>
               <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-                {storeName} • <span className="font-semibold text-emerald-600 dark:text-emerald-400">{planName}</span>
+                {storeName} • <span className="font-semibold text-amber-600 dark:text-amber-400">{currentLimitGb} GB Allocated</span>
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-[10.5px] flex items-center space-x-1 transition cursor-pointer shadow-xs"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? 'মেমোরি কিনুন' : 'Buy Storage'}</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* NOTIFICATION MESSAGE */}
@@ -184,29 +224,29 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
           {/* CAPACITY AND REAL-TIME METER CARD */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-slate-800 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                    {language === 'bn' ? 'স্টোরেজ ব্যবহার ও লাইভ ক্যাপাসিটি' : 'Live Storage Meter'}
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider">
+                    {language === 'bn' ? 'ফায়ারবেস লাইভ স্টোরেজ মিটার' : 'Live Firebase Storage Meter'}
                   </span>
                 </div>
                 <div className="flex items-baseline space-x-2 mt-1">
-                  <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
+                  <span className="text-2xl sm:text-3xl font-black font-mono text-amber-400">
                     {stats.formattedUsed}
                   </span>
                   <span className="text-xs text-slate-400 font-bold">
-                    / {stats.formattedTotal} ({stats.percentage}% {language === 'bn' ? 'পূর্ণ' : 'used'})
+                    / {stats.formattedTotal} ({stats.percentage}% {language === 'bn' ? 'ব্যবহৃত' : 'used'})
                   </span>
                 </div>
               </div>
 
-              {/* Upload trigger button */}
-              <div>
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -214,17 +254,27 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   className="hidden"
                   accept="image/*,application/pdf,audio/*,.doc,.docx,.json,.txt"
                 />
+                
+                <button
+                  type="button"
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-750 text-amber-400 font-bold rounded-xl transition flex items-center space-x-1.5 border border-amber-500/30 cursor-pointer text-xs"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{language === 'bn' ? 'স্টোরেজ বৃদ্ধি করুন' : 'Upgrade Quota'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl transition flex items-center justify-center space-x-2 shadow-md cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl transition flex items-center space-x-1.5 shadow-md cursor-pointer disabled:opacity-50 text-xs"
                 >
                   <Upload className={`w-4 h-4 ${isUploading ? 'animate-bounce' : ''}`} />
                   <span>
                     {isUploading 
                       ? (language === 'bn' ? 'আপলোড হচ্ছে...' : 'Uploading...')
-                      : (language === 'bn' ? '+ নতুন ফাইল আপলোড করুন' : '+ Upload New File')
+                      : (language === 'bn' ? '+ ফাইল আপলোড' : '+ Upload File')
                     }
                   </span>
                 </button>
@@ -233,44 +283,54 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
 
             {/* PROGRESS BAR */}
             <div className="mt-4 space-y-1.5">
-              <div className="w-full bg-slate-800/80 rounded-full h-3 p-0.5 overflow-hidden border border-slate-700/50">
+              <div className="w-full bg-slate-800/90 rounded-full h-3.5 p-0.5 overflow-hidden border border-slate-700/60">
                 <div 
                   className={`h-full rounded-full transition-all duration-700 ${
-                    stats.percentage >= 85 ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                    stats.percentage >= 85 
+                      ? 'bg-gradient-to-r from-rose-500 to-amber-500' 
+                      : 'bg-gradient-to-r from-amber-500 to-yellow-400'
                   }`}
                   style={{ width: `${Math.min(100, Math.max(2, stats.percentage))}%` }}
                 />
               </div>
 
-              <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold px-0.5">
+              <div className="flex justify-between items-center text-[10.5px] text-slate-400 font-semibold px-0.5">
                 <span className="flex items-center space-x-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
-                  <span>{language === 'bn' ? 'ব্যবহৃত:' : 'Used:'} {stats.formattedUsed}</span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+                  <span>{language === 'bn' ? 'ব্যবহৃত:' : 'Used:'} <strong className="text-slate-200 font-mono">{stats.formattedUsed}</strong></span>
                 </span>
                 <span className="flex items-center space-x-1">
-                  <span className="w-2 h-2 rounded-full bg-slate-600 inline-block"></span>
-                  <span>{language === 'bn' ? 'ফাঁকা রয়েছে:' : 'Free Space:'} {stats.formattedFree}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                  <span>{language === 'bn' ? 'ফাঁকা রয়েছে:' : 'Free Space:'} <strong className="text-slate-200 font-mono">{stats.formattedFree}</strong></span>
                 </span>
               </div>
             </div>
 
-            {/* MINI STATS TILES */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-800 text-[10.5px]">
-              <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'মোট ফাইল:' : 'Total Files:'}</span>
-                <span className="font-extrabold text-slate-200">{stats.count} {language === 'bn' ? 'টি' : 'files'}</span>
+            {/* MINI STATS TILES (INCLUDING FIRESTORE DB) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-800/80 text-[10.5px]">
+              <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
+                <span className="text-slate-400 block">{language === 'bn' ? 'ফায়ারস্টোর ডাটাবেজ:' : 'Firestore DB:'}</span>
+                <span className="font-extrabold text-emerald-400 font-mono">
+                  {stats.breakdown.firestore.formattedSize}
+                </span>
               </div>
-              <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'ছবির সাইজ:' : 'Images:'}</span>
-                <span className="font-extrabold text-blue-400">{stats.breakdown.image.formattedSize} ({stats.breakdown.image.count})</span>
+              <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
+                <span className="text-slate-400 block">{language === 'bn' ? 'পণ্য ও ব্যানার ছবি:' : 'Images:'}</span>
+                <span className="font-extrabold text-blue-400 font-mono">
+                  {stats.breakdown.image.formattedSize} ({stats.breakdown.image.count})
+                </span>
               </div>
-              <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'পিডিএফ / ইনভয়েস:' : 'PDFs & Memos:'}</span>
-                <span className="font-extrabold text-rose-400">{stats.breakdown.pdf.formattedSize} ({stats.breakdown.pdf.count})</span>
+              <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
+                <span className="text-slate-400 block">{language === 'bn' ? 'পিডিএফ ও চালান:' : 'PDFs & Memos:'}</span>
+                <span className="font-extrabold text-rose-400 font-mono">
+                  {stats.breakdown.pdf.formattedSize} ({stats.breakdown.pdf.count})
+                </span>
               </div>
-              <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'চ্যাট ও অডিও:' : 'Chat Audio:'}</span>
-                <span className="font-extrabold text-amber-400">{stats.breakdown.audio.formattedSize} ({stats.breakdown.audio.count})</span>
+              <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
+                <span className="text-slate-400 block">{language === 'bn' ? 'ভয়েস ও অডিও নোট:' : 'Chat Audio:'}</span>
+                <span className="font-extrabold text-amber-400 font-mono">
+                  {stats.breakdown.audio.formattedSize} ({stats.breakdown.audio.count})
+                </span>
               </div>
             </div>
           </div>
@@ -281,10 +341,10 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
               {[
                 { id: 'all', label: language === 'bn' ? 'সব ফাইল' : 'All Files', count: files.length },
+                { id: 'firestore_db', label: language === 'bn' ? '🔥 ফায়ারস্টোর ডাটা' : '🔥 Firestore DB', count: stats.firestoreDb.collections.length },
                 { id: 'image', label: language === 'bn' ? 'ছবি ও ব্যানার' : 'Images', count: stats.breakdown.image.count },
                 { id: 'pdf', label: language === 'bn' ? 'পিডিএফ ও ইনভয়েস' : 'PDF & Docs', count: stats.breakdown.pdf.count },
                 { id: 'audio', label: language === 'bn' ? 'অডিও ও ভয়েস' : 'Voice/Audio', count: stats.breakdown.audio.count },
-                { id: 'data', label: language === 'bn' ? 'ডাটা ও ব্যাকআপ' : 'Data/JSON', count: stats.breakdown.data.count },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -292,13 +352,13 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   onClick={() => setSelectedCategory(tab.id)}
                   className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center space-x-1.5 whitespace-nowrap text-[11px] cursor-pointer ${
                     selectedCategory === tab.id
-                      ? 'bg-emerald-600 text-white shadow-xs'
+                      ? 'bg-amber-500 text-slate-950 shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   <span>{tab.label}</span>
                   <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
-                    selectedCategory === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                    selectedCategory === tab.id ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                   }`}>
                     {tab.count}
                   </span>
@@ -314,7 +374,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                 placeholder={language === 'bn' ? 'ফাইল খুঁজুন...' : 'Search files...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               />
               {searchQuery && (
                 <button 
@@ -327,136 +387,198 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             </div>
           </div>
 
-          {/* FILES LIST / GRID */}
-          {filteredFiles.length === 0 ? (
-            <div className="text-center py-12 px-4 bg-slate-50/50 dark:bg-slate-850/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                <FolderOpen className="w-6 h-6" />
+          {/* FIRESTORE LIVE DB SECTION VIEW */}
+          {selectedCategory === 'firestore_db' ? (
+            <div className="space-y-2.5 animate-in fade-in duration-150">
+              <div className="p-3 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 rounded-2xl flex items-center justify-between text-[11px]">
+                <div className="flex items-center space-x-2">
+                  <Flame className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="font-bold text-amber-700 dark:text-amber-300">
+                    {language === 'bn' 
+                      ? `ফায়ারস্টোর ডাটাবেজ মোট সাইজ: ${stats.firestoreDb.formattedSize}`
+                      : `Firestore Database Total Size: ${stats.firestoreDb.formattedSize}`
+                    }
+                  </span>
+                </div>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                  Real-time NoSQL Sync
+                </span>
               </div>
-              <div>
-                <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">
-                  {language === 'bn' ? 'কোনো ফাইল পাওয়া যায়নি' : 'No files found'}
-                </p>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  {searchQuery 
-                    ? (language === 'bn' ? 'আপনার সার্চ অনুযায়ী কোনো ফাইল নেই।' : 'No files match your query.')
-                    : (language === 'bn' ? 'স্টোরেজ খালি রয়েছে। নতুন ছবি বা ফাইল আপলোড করতে উপরের বাটনে ক্লিক করুন।' : 'Storage is empty. Upload images or PDFs to see them here.')
-                  }
-                </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {stats.firestoreDb.collections.map(col => (
+                  <div 
+                    key={col.name}
+                    className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 flex items-center justify-between shadow-xs"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'bn' ? col.nameBn : col.name}
+                        </h4>
+                        <p className="text-[10px] text-slate-400">
+                          {col.count} {language === 'bn' ? 'টি আইটেম / রেকর্ড' : 'documents'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="font-black font-mono text-xs text-amber-600 dark:text-amber-400 block">
+                        {col.formattedSize}
+                      </span>
+                      <span className="text-[9px] text-emerald-500 font-bold">
+                        ● Live Sync
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition inline-flex items-center space-x-1.5 shadow-xs"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{language === 'bn' ? 'ফাইল আপলোড করুন' : 'Upload File'}</span>
-              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {filteredFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-emerald-500/40 hover:shadow-xs transition group"
-                >
-                  {/* Left: Thumbnail & Details */}
-                  <div className="flex items-center space-x-3 truncate min-w-0">
-                    {/* Thumbnail / Icon */}
-                    <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
-                      {file.category === 'image' && file.url && file.url !== '#' ? (
-                        <img 
-                          src={file.url} 
-                          alt={file.name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            // Fallback if image fails
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        getCategoryIcon(file.category)
-                      )}
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="truncate min-w-0">
-                      <p className="font-extrabold text-slate-800 dark:text-slate-100 truncate text-[11.5px]" title={file.name}>
-                        {file.name}
-                      </p>
-                      <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-0.5 truncate">
-                        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-xs">
-                          {file.formattedSize}
-                        </span>
-                        <span>•</span>
-                        <span className="truncate">{file.uploadedAt}</span>
-                      </div>
-                      {file.associatedWith && (
-                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5" title={file.associatedWith}>
-                          📁 {file.associatedWith}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right: Actions */}
-                  <div className="flex items-center space-x-1 shrink-0">
-                    {/* Preview Button */}
-                    <button
-                      type="button"
-                      onClick={() => setPreviewFile(file)}
-                      title={language === 'bn' ? 'ফাইল দেখুন' : 'Preview'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Copy Link Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleCopyLink(file.url, file.id)}
-                      title={language === 'bn' ? 'লিংক কপি করুন' : 'Copy Link'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition cursor-pointer"
-                    >
-                      {copiedId === file.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-
-                    {/* Delete Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteFile(file.id, file.name)}
-                      title={language === 'bn' ? 'ডিলিট করুন' : 'Delete'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+            /* FILES LIST / GRID */
+            filteredFiles.length === 0 ? (
+              <div className="text-center py-12 px-4 bg-slate-50/50 dark:bg-slate-850/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                  <FolderOpen className="w-6 h-6" />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">
+                    {language === 'bn' ? 'কোনো ফাইল পাওয়া যায়নি' : 'No files found'}
+                  </p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    {searchQuery 
+                      ? (language === 'bn' ? 'আপনার সার্চ অনুযায়ী কোনো ফাইল নেই।' : 'No files match your query.')
+                      : (language === 'bn' ? 'ফায়ারবেস স্টোরেজ খালি রয়েছে। নতুন ছবি বা ফাইল আপলোড করতে উপরের বাটনে ক্লিক করুন।' : 'Storage is empty. Upload images or PDFs to see them here.')
+                    }
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-amber-500 text-slate-950 font-black rounded-xl hover:bg-amber-600 transition inline-flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{language === 'bn' ? 'ফাইল আপলোড করুন' : 'Upload File'}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {filteredFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 flex items-center justify-between gap-3 hover:border-amber-500/40 hover:shadow-xs transition group"
+                  >
+                    {/* Left: Thumbnail & Details */}
+                    <div className="flex items-center space-x-3 truncate min-w-0">
+                      {/* Thumbnail / Icon */}
+                      <div className="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
+                        {file.category === 'image' && file.url && file.url !== '#' ? (
+                          <img 
+                            src={file.url} 
+                            alt={file.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          getCategoryIcon(file.category)
+                        )}
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="truncate min-w-0">
+                        <p className="font-extrabold text-slate-800 dark:text-slate-100 truncate text-[11.5px]" title={file.name}>
+                          {file.name}
+                        </p>
+                        <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-0.5 truncate">
+                          <span className="font-mono font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded-xs">
+                            {file.formattedSize}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{file.uploadedAt}</span>
+                        </div>
+                        {file.associatedWith && (
+                          <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5" title={file.associatedWith}>
+                            📁 {file.associatedWith}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center space-x-1 shrink-0">
+                      {/* Preview Button */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFile(file)}
+                        title={language === 'bn' ? 'ফাইল দেখুন' : 'Preview'}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Copy Link Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLink(file.url, file.id)}
+                        title={language === 'bn' ? 'লিংক কপি করুন' : 'Copy Link'}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition cursor-pointer"
+                      >
+                        {copiedId === file.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFile(file.id, file.name)}
+                        title={language === 'bn' ? 'ডিলিট করুন' : 'Delete'}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
         </div>
 
         {/* BOTTOM FOOTER BAR */}
-        <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between text-slate-500 text-[11px] shrink-0">
+        <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/80 flex items-center justify-between text-slate-500 text-[11px] shrink-0">
           <div className="flex items-center space-x-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>
               {language === 'bn' 
-                ? 'সুপাবেস ডাটাবেস ও স্টোরেজ সম্পূর্ণ এনক্রিপ্টেড এবং সুরক্ষিত'
-                : 'Supabase Cloud Storage is fully encrypted & secure'
+                ? 'গুগল ফায়ারবেস ক্লাউড স্টোরেজ ও নো-এসকিউএল ডাটাবেজ সম্পূর্ণ এনক্রিপ্টেড এবং নিরাপদ'
+                : 'Google Firebase Cloud Storage & Firestore NoSQL DB is fully encrypted & secure'
               }
             </span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer"
-          >
-            {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
-          </button>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="px-3 py-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 font-extrabold rounded-xl transition cursor-pointer flex items-center space-x-1"
+            >
+              <Zap className="w-3 h-3" />
+              <span>{language === 'bn' ? 'মেমোরি আপগ্রেড' : 'Upgrade Storage'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer"
+            >
+              {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+            </button>
+          </div>
         </div>
 
       </div>
@@ -464,7 +586,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
       {/* FULL-SIZE PREVIEW MODAL */}
       {previewFile && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-4 space-y-3 shadow-2xl border border-slate-700 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-4 space-y-3 shadow-2xl border border-slate-700 overflow-hidden">
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
               <div className="truncate">
                 <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-100 truncate">{previewFile.name}</h4>
@@ -478,12 +600,12 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
               </button>
             </div>
 
-            <div className="max-h-[60vh] overflow-auto flex items-center justify-center bg-slate-950 rounded-xl p-2 min-h-[220px]">
+            <div className="max-h-[60vh] overflow-auto flex items-center justify-center bg-slate-950 rounded-2xl p-2 min-h-[220px]">
               {previewFile.category === 'image' ? (
                 <img 
                   src={previewFile.url} 
                   alt={previewFile.name} 
-                  className="max-h-[55vh] object-contain rounded-lg shadow"
+                  className="max-h-[55vh] object-contain rounded-xl shadow"
                   referrerPolicy="no-referrer"
                 />
               ) : previewFile.category === 'audio' ? (
@@ -500,7 +622,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   <FileText className="w-14 h-14 text-rose-500 mx-auto" />
                   <p className="font-bold">{previewFile.name}</p>
                   <p className="text-xs text-slate-400">
-                    {language === 'bn' ? 'ডকুমেন্ট / পিডিএফ প্রিভিউ' : 'Document / PDF File'}
+                    {language === 'bn' ? 'ডকুমেন্ট / ফায়ারবেস প্রিভিউ' : 'Document / Firebase File Preview'}
                   </p>
                 </div>
               )}
@@ -510,7 +632,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleDeleteFile(previewFile.id, previewFile.name)}
-                className="px-3 py-1.5 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 font-bold rounded-xl flex items-center space-x-1.5 transition"
+                className="px-3 py-1.5 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{language === 'bn' ? 'ডিলিট করুন' : 'Delete'}</span>
@@ -520,7 +642,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopyLink(previewFile.url, previewFile.id)}
-                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 transition flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 transition flex items-center space-x-1 cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>{copiedId === previewFile.id ? (language === 'bn' ? 'কপি হয়েছে' : 'Copied') : (language === 'bn' ? 'লিংক কপি' : 'Copy Link')}</span>
@@ -528,7 +650,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setPreviewFile(null)}
-                  className="px-4 py-1.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition"
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl transition cursor-pointer"
                 >
                   {language === 'bn' ? 'ঠিক আছে' : 'Done'}
                 </button>
@@ -537,6 +659,17 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* UPGRADE MODAL */}
+      <FirebaseStorageUpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        language={language}
+        sellerId={sellerId}
+        storeName={storeName}
+        currentCapacityGb={currentLimitGb}
+        onPlanUpgraded={handlePlanUpgraded}
+      />
     </div>
   );
 };

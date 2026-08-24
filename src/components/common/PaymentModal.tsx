@@ -17,7 +17,9 @@ import {
   ClipboardCheck,
   Check,
   Store,
-  BadgeCheck
+  BadgeCheck,
+  Copy,
+  Info
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PaymentMethod, Address, Order } from '../../types';
@@ -42,10 +44,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen, onClose, cartItems, shippingAddress,
   subtotal, discountAmount, shippingFee, totalAmount, couponCode, onSuccess
 }) => {
-  const { language, currency, formatPrice, currentUser, clearCart, setTrackingOrderId, setActivePanel } = useApp();
+  const { language, currency, formatPrice, currentUser, clearCart, setTrackingOrderId, setActivePanel, systemSettings } = useApp();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bkash');
   const [mobileNumber, setMobileNumber] = useState<string>(currentUser?.phone || '01712345678');
+  const [transactionId, setTransactionId] = useState<string>('');
+  const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
   const [pin, setPin] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
   const [step, setStep] = useState<'details' | 'otp' | 'pin' | 'processing' | 'success'>('details');
@@ -68,9 +72,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             const foundSeller = sellers.find(s => s.sellerId === sellerId || s.id === sellerId);
             if (foundSeller) {
               setSellerInfo(foundSeller);
-              if (foundSeller.bkashNumber) {
-                setMobileNumber(foundSeller.bkashNumber);
-              }
             }
           }
         }
@@ -83,11 +84,43 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [cartItems, isOpen]);
 
+  // Derive Receiver's payment number based on selected method and seller/admin settings
+  const getReceiverPaymentNumber = (method: PaymentMethod): string => {
+    if (method === 'bkash') {
+      return sellerInfo?.bkashNumber || systemSettings?.adminBkashNumber || '01711000000';
+    }
+    if (method === 'nagad') {
+      return sellerInfo?.nagadNumber || systemSettings?.adminNagadNumber || '01811000000';
+    }
+    if (method === 'rocket') {
+      return sellerInfo?.rocketNumber || systemSettings?.adminRocketNumber || '01911000000-0';
+    }
+    if (method === 'upay') {
+      return sellerInfo?.upayNumber || systemSettings?.adminUpayNumber || '01611000000';
+    }
+    return '';
+  };
+
+  const getReceiverAccountType = (): string => {
+    return sellerInfo?.paymentAccountType || systemSettings?.adminPaymentAccountType || 'merchant';
+  };
+
+  const getReceiverInstructions = (): string => {
+    return sellerInfo?.paymentInstructions || systemSettings?.adminPaymentInstructions || '';
+  };
+
+  const handleCopyReceiverNumber = (num: string) => {
+    if (!num) return;
+    navigator.clipboard.writeText(num);
+    setCopiedNumber(true);
+    setTimeout(() => setCopiedNumber(false), 2000);
+  };
+
   if (!isOpen) return null;
 
   const handleInitiatePayment = async () => {
     setError('');
-    if (paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket') {
+    if (paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket' || paymentMethod === 'upay') {
       if (!mobileNumber || mobileNumber.length < 11) {
         setError('Please enter a valid 11-digit Bangladeshi mobile number (e.g., 01712345678)');
         return;
@@ -434,8 +467,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">
                     {language === 'bn' ? 'পেমেন্ট মেথড নির্বাচন করুন:' : 'Select Payment Method:'}
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     <button
+                      type="button"
                       onClick={() => setPaymentMethod('bkash')}
                       className={`p-2.5 border rounded-2xl flex flex-col items-center justify-center font-bold text-xs transition cursor-pointer ${
                         paymentMethod === 'bkash'
@@ -448,6 +482,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => setPaymentMethod('nagad')}
                       className={`p-2.5 border rounded-2xl flex flex-col items-center justify-center font-bold text-xs transition cursor-pointer ${
                         paymentMethod === 'nagad'
@@ -460,8 +495,35 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </button>
 
                     <button
-                      onClick={() => setPaymentMethod('cod')}
+                      type="button"
+                      onClick={() => setPaymentMethod('rocket')}
                       className={`p-2.5 border rounded-2xl flex flex-col items-center justify-center font-bold text-xs transition cursor-pointer ${
+                        paymentMethod === 'rocket'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 ring-2 ring-purple-400'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-purple-600 font-black text-sm">Rocket</span>
+                      <span className="text-[10px] text-slate-400 font-medium">রকেট</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('upay')}
+                      className={`p-2.5 border rounded-2xl flex flex-col items-center justify-center font-bold text-xs transition cursor-pointer ${
+                        paymentMethod === 'upay'
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 ring-2 ring-amber-400'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-amber-600 font-black text-sm">Upay</span>
+                      <span className="text-[10px] text-slate-400 font-medium">উপায়</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cod')}
+                      className={`p-2.5 border rounded-2xl flex flex-col items-center justify-center font-bold text-xs transition cursor-pointer col-span-2 sm:col-span-1 ${
                         paymentMethod === 'cod'
                           ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 ring-2 ring-emerald-400'
                           : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -473,19 +535,91 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
 
-                {(paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket') && (
-                  <div className="space-y-3 pt-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        {paymentMethod.toUpperCase()} {language === 'bn' ? 'অ্যাকাউন্ট মোবাইল নম্বর:' : 'Account Mobile Number:'}
-                      </label>
-                      <input
-                        type="text"
-                        value={mobileNumber}
-                        onChange={(e) => setMobileNumber(e.target.value)}
-                        placeholder="017XXXXXXXX"
-                        className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
+                {(paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket' || paymentMethod === 'upay') && (
+                  <div className="space-y-3 pt-1">
+                    
+                    {/* DYNAMIC SELLER / ADMIN PAYMENT RECEIVER BOX */}
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl border border-slate-700 shadow-md space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center space-x-2">
+                          <Store className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs font-bold text-slate-200">
+                            {sellerInfo?.storeName || 'AmarBazar Official Store'}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                          getReceiverAccountType() === 'merchant' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40' :
+                          getReceiverAccountType() === 'agent' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                          'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                        }`}>
+                          {getReceiverAccountType() === 'merchant' ? 'মার্চেন্ট পেমেন্ট' : 
+                           getReceiverAccountType() === 'agent' ? 'এজেন্ট ক্যাশআউট' : 'ব্যক্তিগত (Personal Send Money)'}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-medium">
+                            {paymentMethod.toUpperCase()} {language === 'bn' ? 'নম্বর (পেমেন্ট পাঠানোর নম্বর):' : 'Number (Send Money / Pay To):'}
+                          </span>
+                          <span className="text-base font-black tracking-wider text-emerald-400 font-mono">
+                            {getReceiverPaymentNumber(paymentMethod)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyReceiverNumber(getReceiverPaymentNumber(paymentMethod))}
+                          className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                          {copiedNumber ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-white" />
+                              <span>কপি হয়েছে!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>কপি</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {getReceiverInstructions() && (
+                        <div className="bg-slate-800/80 p-2 rounded-xl text-[11px] text-amber-300 flex items-start space-x-1.5 border border-amber-500/30">
+                          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                          <span>{getReceiverInstructions()}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Customer Sender Details Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          {language === 'bn' ? 'আপনার মোবাইল নম্বর (Sender):' : 'Your Mobile Number:'}
+                        </label>
+                        <input
+                          type="text"
+                          value={mobileNumber}
+                          onChange={(e) => setMobileNumber(e.target.value)}
+                          placeholder="017XXXXXXXX"
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          {language === 'bn' ? 'ট্রানজেকশন আইডি / TrxID (যদি থাকে):' : 'Transaction ID / TrxID (Optional):'}
+                        </label>
+                        <input
+                          type="text"
+                          value={transactionId}
+                          onChange={(e) => setTransactionId(e.target.value)}
+                          placeholder="e.g. 9J82KZ71"
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center space-x-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -501,6 +635,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className={`w-full py-3 text-white font-black rounded-xl text-xs flex items-center justify-center space-x-2 transition shadow-md cursor-pointer ${
                     paymentMethod === 'bkash' ? 'bg-pink-600 hover:bg-pink-700' :
                     paymentMethod === 'nagad' ? 'bg-orange-600 hover:bg-orange-700' :
+                    paymentMethod === 'rocket' ? 'bg-purple-700 hover:bg-purple-800' :
+                    paymentMethod === 'upay' ? 'bg-amber-600 hover:bg-amber-700' :
                     'bg-emerald-600 hover:bg-emerald-700'
                   }`}
                 >

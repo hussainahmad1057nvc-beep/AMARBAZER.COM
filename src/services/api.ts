@@ -256,6 +256,26 @@ export const api = {
 
   changePassword: (data: { userId: string; oldPassword?: string; newPassword: string }) => fetchJson<{ success: boolean; user: User; message: string }>('/api/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
 
+  updateUserProfile: async (userId: string, data: Partial<User>): Promise<User> => {
+    try {
+      const res = await fetchJson<User>(`/api/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) });
+      firebaseDb.updateUser(userId, res || data).catch(() => {});
+      return res;
+    } catch (e) {
+      try {
+        firebaseDb.updateUser(userId, data).catch(() => {});
+      } catch (err) {}
+      return { id: userId, ...data } as User;
+    }
+  },
+
+  testStorageConnection: (data: { storageType: string; storageCredentials?: string; userName?: string; sellerId?: string }) => {
+    if (data.sellerId) {
+      return fetchJson<{ success: boolean; message: string }>(`/api/sellers/${data.sellerId}/test-storage`, { method: 'POST', body: JSON.stringify(data) });
+    }
+    return fetchJson<{ success: boolean; message: string }>('/api/test-storage', { method: 'POST', body: JSON.stringify(data) });
+  },
+
   // Products
   getProducts: async (params?: Record<string, string>): Promise<Product[]> => {
     // Synchronize latest cloud deleted products

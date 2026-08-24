@@ -5,7 +5,7 @@ import {
   Trash2, Edit, Save, Plus, X, Check, Eye, HelpCircle, Award, 
   Phone, Mail, FileText, Download, ShieldAlert, ArrowUpRight, 
   ArrowDownLeft, Bell, AlertTriangle, RefreshCw, Send, Loader2, Printer,
-  Fingerprint, Sparkles, Smartphone, Globe, Coins
+  Fingerprint, Sparkles, Smartphone, Globe, Coins, Cloud, Database, Lock, Wifi, HardDrive, Server
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -44,7 +44,7 @@ export const CustomerProfilePanel: React.FC = () => {
     products, wishlist, toggleWishlist, addToCart
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile' | 'addresses' | 'orders' | 'wishlist' | 'wallet' | 'coupons' | 'slips' | 'tickets' | 'language_settings' | 'currency_settings' | 'roles_permissions' | 'security'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile' | 'cloud_storage' | 'addresses' | 'orders' | 'wishlist' | 'wallet' | 'coupons' | 'slips' | 'tickets' | 'language_settings' | 'currency_settings' | 'roles_permissions' | 'security'>('dashboard');
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -59,6 +59,17 @@ export const CustomerProfilePanel: React.FC = () => {
   const [kycDocumentType, setKycDocumentType] = useState('NID');
   const [kycFileSelected, setKycFileSelected] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
+  // Personal / Vendor Cloud Storage Routing States
+  const [storageType, setStorageType] = useState<'central' | 'google_cloud' | 'firebase'>(() => {
+    return currentUser?.storageType || (localStorage.getItem(`amarbazar_storage_type_${currentUser?.id}`) as any) || 'central';
+  });
+  const [storageCredentials, setStorageCredentials] = useState<string>(() => {
+    return currentUser?.storageCredentials || localStorage.getItem(`amarbazar_storage_creds_${currentUser?.id}`) || '';
+  });
+  const [isTestingStorage, setIsTestingStorage] = useState(false);
+  const [storageTestMessage, setStorageTestMessage] = useState<{ success: boolean; text: string } | null>(null);
+  const [isSavingStorage, setIsSavingStorage] = useState(false);
 
   // Biometric / Fingerprint States
   const [biometricActive, setBiometricActive] = useState(() => isBiometricEnabled());
@@ -251,6 +262,63 @@ export const CustomerProfilePanel: React.FC = () => {
     e.preventDefault();
     setKycStatus('pending');
     triggerBanner(language === 'bn' ? 'আপনার কেওয়াইসি (KYC) যাচাইকরণ জমা দেওয়া হয়েছে।' : 'Your KYC application has been submitted successfully for verification.');
+  };
+
+  // Cloud Storage Test & Save Handlers
+  const handleTestStorageConnection = async () => {
+    setIsTestingStorage(true);
+    setStorageTestMessage(null);
+    try {
+      const res = await api.testStorageConnection({
+        storageType,
+        storageCredentials,
+        userName: currentUser?.name || 'User',
+        sellerId: currentUser?.sellerId
+      });
+      setStorageTestMessage({ success: true, text: res.message });
+    } catch (err: any) {
+      setStorageTestMessage({ success: false, text: err.message || 'Connection test failed. Please verify credentials JSON.' });
+    } finally {
+      setIsTestingStorage(false);
+    }
+  };
+
+  const handleSaveStorageSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingStorage(true);
+    try {
+      if (currentUser) {
+        const updatedUser = {
+          ...currentUser,
+          storageType,
+          storageCredentials
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem(`amarbazar_storage_type_${currentUser.id}`, storageType);
+        localStorage.setItem(`amarbazar_storage_creds_${currentUser.id}`, storageCredentials);
+        
+        await api.updateUserProfile(currentUser.id, {
+          storageType,
+          storageCredentials
+        });
+
+        if (currentUser.sellerId) {
+          await api.updateSeller(currentUser.sellerId, {
+            storageType,
+            storageCredentials
+          });
+        }
+      }
+      triggerBanner(
+        language === 'bn'
+          ? 'ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং সেটিংস সফলভাবে সংরক্ষিত হয়েছে!'
+          : 'Personal Cloud Storage & Media Routing settings saved successfully!'
+      );
+    } catch (err: any) {
+      triggerBanner(err.message || 'Failed to save storage settings');
+    } finally {
+      setIsSavingStorage(false);
+    }
   };
 
   // Address Handlers
@@ -582,6 +650,16 @@ export const CustomerProfilePanel: React.FC = () => {
           >
             <User className="w-4 h-4 shrink-0" />
             <span>{language === 'bn' ? 'আমার প্রোফাইল ও কেওয়াইসি' : 'My Profile & KYC'}</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('cloud_storage'); setSelectedOrder(null); }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-extrabold transition duration-150 ${
+              activeTab === 'cloud_storage' ? 'bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <Cloud className="w-4 h-4 shrink-0 text-sky-500" />
+            <span>{language === 'bn' ? 'ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং' : 'Cloud Storage & Media Routing'}</span>
           </button>
 
           <button
@@ -1024,6 +1102,363 @@ export const CustomerProfilePanel: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Password & Security Change Box (Directly below Profile & KYC) */}
+              <div className="md:col-span-12 bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="p-2 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-xl border border-red-200 dark:border-red-850">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h4 className="font-black text-xs sm:text-sm text-slate-800 dark:text-white uppercase tracking-wider">
+                        {language === 'bn' 
+                          ? 'Security & Password (অ্যাকাউন্ট সিকিউরিটি ও পাসওয়ার্ড পরিবর্তন)' 
+                          : 'Security & Password (Account Password Change)'}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {language === 'bn' 
+                          ? 'আপনার অ্যাকাউন্টের পাসওয়ার্ড পরিবর্তন করুন। পরিবর্তন করলে নতুন পাসওয়ার্ড স্বয়ংক্রিয়ভাবে কার্যকর হবে।'
+                          : 'Change your account password. Updating the password will immediately invalidate the previous password.'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 text-[10px] font-black px-2.5 py-1 rounded-lg border border-red-200 dark:border-red-800 w-fit">
+                    Protected Credentials
+                  </span>
+                </div>
+
+                <form onSubmit={handleChangePasswordSubmit} className="space-y-4 pt-1">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        {language === 'bn' ? 'বর্তমান পাসওয়ার্ড:' : 'Current Password:'}
+                      </label>
+                      <input
+                        type="password"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-red-500 transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        {language === 'bn' ? 'নতুন পাসওয়ার্ড:' : 'New Password:'} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-red-500 transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        {language === 'bn' ? 'নতুন পাসওয়ার্ড নিশ্চিত করুন:' : 'Confirm New Password:'} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-red-500 transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] text-slate-400">
+                      {language === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।' : 'Password must be at least 4 characters long.'}
+                    </p>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md transition text-xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>{language === 'bn' ? 'পাসওয়ার্ড আপডেট করুন' : 'Update Password'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Cloud Storage & Data Sovereignty Quick Card */}
+              <div className="md:col-span-12 bg-sky-500/5 dark:bg-sky-950/20 p-4 sm:p-5 rounded-2xl border border-sky-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-500 shrink-0">
+                    <Cloud className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="font-black text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                      {language === 'bn' ? 'ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং' : 'Cloud Storage & Media Routing'}
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {language === 'bn'
+                        ? 'আপনার ছবি ও মিডিয়া সরাসরি Google Cloud বা Firebase বাকেটে হোস্ট করতে এখানে কনফিগার করুন।'
+                        : 'Connect your personal Google Cloud Storage or Firebase bucket for direct asset routing.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('cloud_storage')}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 shrink-0 cursor-pointer"
+                >
+                  <Cloud className="w-3.5 h-3.5" />
+                  <span>{language === 'bn' ? 'স্টোরেজ সেটিংস কনফিগার করুন →' : 'Configure Cloud Storage →'}</span>
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* 2.5. VENDOR & PERSONAL CLOUD STORAGE & MEDIA ROUTING PANEL */}
+          {activeTab === 'cloud_storage' && (
+            <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-150 dark:border-slate-850 shadow-xs space-y-6">
+              
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-5">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Cloud className="w-5 h-5 text-sky-500 animate-pulse" />
+                    <h4 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-wider">
+                      {language === 'bn' 
+                        ? 'ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং' 
+                        : 'Personal & Vendor Cloud Storage Routing'}
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    {language === 'bn'
+                      ? 'আপনার প্রোফাইল ছবি, পণ্য সামগ্রী এবং মিডিয়া ফাইল সরাসরি আপনার ব্যক্তিগত ক্লাউড হোস্টিং বা ফায়ারবেস বাকেটে হোস্ট করুন। এতে করে ডেটার সম্পূর্ণ মালিকানা আপনার কাছে থাকবে।'
+                      : 'Maintain complete data sovereignty by storing media assets directly in your personal Google Cloud Storage (GCS) or Firebase Storage bucket.'}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2 shrink-0">
+                  <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase border border-sky-200 dark:border-sky-800">
+                    Data Sovereignty (ডেটা সিকিউরিটি)
+                  </span>
+                </div>
+              </div>
+
+              {/* Storage Provider Selection Grid */}
+              <div className="space-y-3">
+                <label className="block text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+                  {language === 'bn' ? 'স্টোরেজ প্রোভাইডার নির্বাচন করুন:' : 'Select Storage Provider:'}
+                </label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  
+                  {/* Option 1: Central Storage */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStorageType('central');
+                      setStorageCredentials('');
+                      setStorageTestMessage(null);
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between space-y-3 cursor-pointer ${
+                      storageType === 'central'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100">
+                        {language === 'bn' ? 'অমরবাজার সেন্ট্রাল' : 'AmarBazar Central'}
+                      </span>
+                      <Database className={`w-4 h-4 ${storageType === 'central' ? 'text-emerald-500' : 'text-slate-400'}`} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                      {language === 'bn'
+                        ? 'অমরবাজারের দ্রুতগতির সেন্ট্রাল ক্লাউড হোস্টিং ব্যবহার করুন (ডিফল্ট ও ঝামেলাহীন)।'
+                        : 'Use high-speed default AmarBazar central media server hosting.'}
+                    </p>
+                    <div className="pt-1 flex items-center space-x-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <span>✓ {language === 'bn' ? 'কোন সেটআপের প্রয়োজন নেই' : 'Zero Setup Required'}</span>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Google Cloud Storage */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStorageType('google_cloud');
+                      setStorageTestMessage(null);
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between space-y-3 cursor-pointer ${
+                      storageType === 'google_cloud'
+                        ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 shadow-xs ring-2 ring-sky-500/20'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100">
+                        Google Cloud (GCS)
+                      </span>
+                      <Cloud className={`w-4 h-4 ${storageType === 'google_cloud' ? 'text-sky-500' : 'text-slate-400'}`} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                      {language === 'bn'
+                        ? 'সরাসরি আপনার ব্যক্তিগত গুগল ক্লাউড সার্ভিস একাউন্ট ও GCS বাকেটে মিডিয়া আপলোড করুন।'
+                        : 'Route assets directly to your personal GCP Service Account bucket.'}
+                    </p>
+                    <div className="pt-1 flex items-center space-x-1.5 text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                      <span>⚡ {language === 'bn' ? 'ফুল কন্ট্রোল ও ওনারশিপ' : 'Full Enterprise Control'}</span>
+                    </div>
+                  </button>
+
+                  {/* Option 3: Firebase Storage */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStorageType('firebase');
+                      setStorageTestMessage(null);
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between space-y-3 cursor-pointer ${
+                      storageType === 'firebase'
+                        ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 shadow-xs ring-2 ring-amber-500/20'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100">
+                        Firebase Storage
+                      </span>
+                      <Server className={`w-4 h-4 ${storageType === 'firebase' ? 'text-amber-500' : 'text-slate-400'}`} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                      {language === 'bn'
+                        ? 'আপনার ফায়ারবেস বাকেট ও রুলস দিয়ে রিয়েলটাইম মিডিয়া হোস্ট ও ম্যানেজ করুন।'
+                        : 'Directly sync and host in your personal Firebase Web App Storage.'}
+                    </p>
+                    <div className="pt-1 flex items-center space-x-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                      <span>🔥 {language === 'bn' ? 'রিয়েলটাইম ক্লাউড বাকেট' : 'Real-time Web Bucket'}</span>
+                    </div>
+                  </button>
+
+                </div>
+              </div>
+
+              {/* Configuration Credentials Box for GCS or Firebase */}
+              {storageType !== 'central' && (
+                <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800/80 pb-3">
+                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+                      <Lock className="w-3.5 h-3.5 text-rose-500" />
+                      <span>
+                        {storageType === 'google_cloud' 
+                          ? 'Google Cloud (GCS) Credentials JSON' 
+                          : 'Firebase Client Configuration JSON'}
+                      </span>
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (storageType === 'google_cloud') {
+                          setStorageCredentials(JSON.stringify({
+                            project_id: "my-gcp-project-1029",
+                            client_email: "media-uploader@my-gcp-project-1029.iam.gserviceaccount.com",
+                            private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC6...\n-----END PRIVATE KEY-----\n",
+                            bucket_name: "my-personal-amarbazar-bucket"
+                          }, null, 2));
+                        } else {
+                          setStorageCredentials(JSON.stringify({
+                            apiKey: "AIzaSyAs7ExampleKey9872134",
+                            authDomain: "my-custom-app.firebaseapp.com",
+                            projectId: "my-custom-app",
+                            storageBucket: "my-custom-app.appspot.com"
+                          }, null, 2));
+                        }
+                      }}
+                      className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline font-extrabold flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{language === 'bn' ? 'নমুনা টেমপ্লেট লোড করুন' : 'Load Sample Template'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {language === 'bn' ? 'ক্রেডেনশিয়াল কনফিগ (JSON ফরম্যাট):' : 'Credentials Config (JSON Format):'}
+                    </label>
+                    <textarea
+                      value={storageCredentials}
+                      onChange={(e) => setStorageCredentials(e.target.value)}
+                      placeholder={
+                        storageType === 'google_cloud'
+                          ? `{\n  "project_id": "your-gcp-project",\n  "client_email": "uploader@project.iam.gserviceaccount.com",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",\n  "bucket_name": "your-personal-bucket"\n}`
+                          : `{\n  "apiKey": "AIzaSy...",\n  "authDomain": "your-app.firebaseapp.com",\n  "projectId": "your-app",\n  "storageBucket": "your-app.appspot.com"\n}`
+                      }
+                      rows={7}
+                      className="w-full px-3.5 py-3 border border-slate-300 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200 focus:outline-none focus:border-amber-500 shadow-inner"
+                    />
+                    <div className="flex items-start space-x-1.5 text-slate-400 mt-1.5">
+                      <span className="text-amber-500 font-extrabold text-xs">⚠️</span>
+                      <p className="text-[10px] leading-normal">
+                        {language === 'bn'
+                          ? 'নিশ্চিত করুন এটি একটি বৈধ JSON কোড। আপনার প্রাইভেট কী ও ক্রেডেনশিয়াল সুরক্ষিতভাবে এনক্রিপ্ট হয়ে সংরক্ষিত থাকে।'
+                          : 'Valid JSON required. Credentials are encrypted server-side and only used to sign and route authorized media uploads.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Test Ping Button & Result */}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      disabled={isTestingStorage}
+                      onClick={handleTestStorageConnection}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer shadow-sm"
+                    >
+                      <Wifi className={`w-3.5 h-3.5 text-sky-400 ${isTestingStorage ? 'animate-bounce' : ''}`} />
+                      <span>{isTestingStorage ? (language === 'bn' ? 'সংযোগ পরীক্ষা হচ্ছে...' : 'Testing Ping...') : (language === 'bn' ? 'ক্লাউড সংযোগ টেস্ট করুন' : 'Test Cloud Connection')}</span>
+                    </button>
+
+                    {storageTestMessage && (
+                      <div className={`px-3.5 py-2 rounded-xl flex items-center space-x-2 text-xs border ${
+                        storageTestMessage.success 
+                          ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800' 
+                          : 'bg-rose-100/80 border-rose-300 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                      }`}>
+                        <span className="font-black">{storageTestMessage.success ? '✓' : '✗'}</span>
+                        <span className="font-semibold">{storageTestMessage.text}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Summary & Save Footer */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center space-x-2 text-xs text-slate-500">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                  <span>
+                    {language === 'bn' ? 'বর্তমান সক্রিয় মোড:' : 'Active Routing Mode:'}{' '}
+                    <strong className="text-slate-800 dark:text-slate-200 uppercase font-black">
+                      {storageType === 'central' ? 'Central AmarBazar Cloud' : storageType === 'google_cloud' ? 'Google Cloud (GCS)' : 'Firebase Storage'}
+                    </strong>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingStorage}
+                  onClick={() => handleSaveStorageSettings()}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>
+                    {isSavingStorage 
+                      ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...') 
+                      : (language === 'bn' ? 'ক্লাউড সেটিংস সংরক্ষণ করুন' : 'Save Cloud Storage Settings')}
+                  </span>
+                </button>
               </div>
 
             </div>

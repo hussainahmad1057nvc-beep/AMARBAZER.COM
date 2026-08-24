@@ -4,7 +4,7 @@ import {
   CheckCircle, Clock, Truck, TrendingUp, AlertCircle, ArrowUpRight, 
   FileText, CreditCard, Building, Upload, X, Sliders, Settings,
   Lock, RefreshCw, ArrowLeft, ArrowRight, ClipboardList, Cloud, Database, Wifi,
-  ExternalLink, ShieldCheck, Zap, Check, HardDrive, FolderOpen
+  ExternalLink, ShieldCheck, Zap, Check, HardDrive, FolderOpen, Flame
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -168,6 +168,11 @@ export const SellerDashboard: React.FC = () => {
   const [settingsStoreName, setSettingsStoreName] = useState('');
   const [settingsStoreNameBn, setSettingsStoreNameBn] = useState('');
   const [settingsBkashNumber, setSettingsBkashNumber] = useState('');
+  const [settingsNagadNumber, setSettingsNagadNumber] = useState('');
+  const [settingsRocketNumber, setSettingsRocketNumber] = useState('');
+  const [settingsUpayNumber, setSettingsUpayNumber] = useState('');
+  const [settingsPaymentAccountType, setSettingsPaymentAccountType] = useState<'personal' | 'merchant' | 'agent'>('merchant');
+  const [settingsPaymentInstructions, setSettingsPaymentInstructions] = useState('');
   const [settingsTradeLicense, setSettingsTradeLicense] = useState('');
   const [settingsLogoUrl, setSettingsLogoUrl] = useState('');
   const [settingsBannerUrl, setSettingsBannerUrl] = useState('');
@@ -290,16 +295,32 @@ export const SellerDashboard: React.FC = () => {
   const [isCleaningStorage, setIsCleaningStorage] = useState(false);
   const [storageCleaned, setStorageCleaned] = useState(false);
   const [storageFiles, setStorageFiles] = useState(() => storageManager.getFiles(storeInfo?.id));
+  const [storageQuotaGb, setStorageQuotaGb] = useState<number>(() => 
+    storageManager.getEffectiveStorageLimit(storeInfo?.id, storeInfo?.cloudSubscriptionPlan, storeInfo?.cloudStorageLimitGb)
+  );
 
   // Refresh storage files when store changes or when modal updates
   const refreshStorageFiles = () => {
     const updated = storageManager.getFiles(storeInfo?.id);
     setStorageFiles(updated);
+    setStorageQuotaGb(storageManager.getEffectiveStorageLimit(storeInfo?.id, storeInfo?.cloudSubscriptionPlan, storeInfo?.cloudStorageLimitGb));
   };
 
-  const isCloudActive = !!(storeInfo?.cloudSubscriptionPlan && storeInfo?.cloudSubscriptionPlan !== 'none' && storeInfo?.cloudSubscriptionStatus === 'active');
-  const displayStorageTotal = isCloudActive ? 15 : 2;
-  const storageStats = storageManager.calculateStats(storageFiles, displayStorageTotal);
+  useEffect(() => {
+    refreshStorageFiles();
+    const handleQuotaUpdate = (e: any) => {
+      if (e?.detail?.totalGb) {
+        setStorageQuotaGb(e.detail.totalGb);
+      }
+      refreshStorageFiles();
+    };
+    window.addEventListener('amarbazar_storage_quota_updated', handleQuotaUpdate);
+    return () => window.removeEventListener('amarbazar_storage_quota_updated', handleQuotaUpdate);
+  }, [storeInfo?.id, storeInfo?.cloudSubscriptionPlan, storeInfo?.cloudStorageLimitGb]);
+
+  const isCloudActive = storageQuotaGb > 5 || !!(storeInfo?.cloudSubscriptionPlan && storeInfo?.cloudSubscriptionPlan !== 'none');
+  const displayStorageTotal = storageQuotaGb;
+  const storageStats = storageManager.calculateStats(storageFiles, displayStorageTotal, storeInfo?.id);
   
   // Real percentage and readable format
   const displayPercentage = storageStats.percentage;
@@ -473,6 +494,11 @@ export const SellerDashboard: React.FC = () => {
       setSettingsStoreName(storeInfo.storeName || '');
       setSettingsStoreNameBn(storeInfo.storeNameBn || storeInfo.storeName || '');
       setSettingsBkashNumber(storeInfo.bkashNumber || '');
+      setSettingsNagadNumber(storeInfo.nagadNumber || '');
+      setSettingsRocketNumber(storeInfo.rocketNumber || '');
+      setSettingsUpayNumber(storeInfo.upayNumber || '');
+      setSettingsPaymentAccountType(storeInfo.paymentAccountType || 'merchant');
+      setSettingsPaymentInstructions(storeInfo.paymentInstructions || '');
       setSettingsTradeLicense(storeInfo.tradeLicenseNumber || '');
       setSettingsLogoUrl(storeInfo.logoUrl || '');
       setSettingsBannerUrl(storeInfo.bannerUrl || '');
@@ -755,6 +781,11 @@ export const SellerDashboard: React.FC = () => {
         bannerUrl: settingsBannerUrl,
         tradeLicenseNumber: settingsTradeLicense,
         bkashNumber: settingsBkashNumber,
+        nagadNumber: settingsNagadNumber,
+        rocketNumber: settingsRocketNumber,
+        upayNumber: settingsUpayNumber,
+        paymentAccountType: settingsPaymentAccountType,
+        paymentInstructions: settingsPaymentInstructions,
         storageType: settingsStorageType,
         storageCredentials: settingsStorageCredentials
       });
@@ -2803,14 +2834,13 @@ export const SellerDashboard: React.FC = () => {
 
             {/* Row 2: Unified Wide Cloud Storage Indicator (Moves progress bar to same line and stretches it fully) */}
             <div className="flex items-center justify-between gap-3.5 text-[10.5px] pt-1">
-              {/* Left Side: Active Storage Name badge only (if active), removing dot and label */}
-              {storeInfo?.cloudSubscriptionPlan && storeInfo?.cloudSubscriptionPlan !== 'none' && storeInfo?.cloudSubscriptionStatus === 'active' && (
-                <div className="flex items-center space-x-1.5 shrink-0">
-                  <span className={`font-extrabold px-1.5 py-0.5 rounded-xs text-[10px] uppercase tracking-wide inline-block bg-indigo-500/10 text-indigo-700 dark:text-indigo-400`}>
-                    {storeInfo.cloudSubscriptionPlan === 'gcs_subscription' ? 'Google Cloud' : 'Firebase'}
-                  </span>
-                </div>
-              )}
+              {/* Left Side: Firebase Live Storage Name badge */}
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <span className="font-extrabold px-2 py-0.5 rounded-lg text-[9.5px] tracking-wide inline-flex items-center space-x-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>{storeInfo?.cloudSubscriptionPlan === 'gcs_subscription' ? 'Google Cloud' : storeInfo?.cloudSubscriptionPlan && storeInfo.cloudSubscriptionPlan !== 'none' ? 'Firebase Live' : 'Firebase Spark'}</span>
+                </span>
+              </div>
 
               {/* Middle: Dynamically stretching Progress Bar & brand logo */}
               <div 
@@ -3868,19 +3898,82 @@ export const SellerDashboard: React.FC = () => {
 
               {/* Payment & Brand Images */}
               <div className="space-y-4">
-                <h4 className="font-bold text-slate-800 dark:text-slate-200 border-b pb-1">Branding & Payout Settings (ব্র্যান্ডিং ও পেমেন্ট নম্বর)</h4>
+                <h4 className="font-bold text-slate-800 dark:text-slate-200 border-b pb-1 flex items-center justify-between">
+                  <span>Payment Gateway & Payout Numbers (পেমেন্ট গ্রহণকারী নাম্বার)</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">গ্রাহক পণ্য ক্রয়ের সময় এই নাম্বার দেখতে পাবেন</span>
+                </h4>
                 
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">bKash Payout Number (বিকাশ নম্বর):</label>
-                  <input
-                    type="text"
-                    value={settingsBkashNumber}
-                    onChange={(e) => setSettingsBkashNumber(e.target.value)}
-                    placeholder="e.g. 017XXXXXXXX"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-emerald-600 dark:text-emerald-400"
-                    required
-                  />
-                  <p className="text-[10px] text-slate-400 mt-0.5">আপনার অর্জিত টাকা এই বিকাশ নম্বরে পাঠানো হবে।</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">bKash Number (বিকাশ নম্বর):</label>
+                    <input
+                      type="text"
+                      value={settingsBkashNumber}
+                      onChange={(e) => setSettingsBkashNumber(e.target.value)}
+                      placeholder="e.g. 017XXXXXXXX"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-pink-600 dark:text-pink-400 text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">Nagad Number (নগদ নম্বর):</label>
+                    <input
+                      type="text"
+                      value={settingsNagadNumber}
+                      onChange={(e) => setSettingsNagadNumber(e.target.value)}
+                      placeholder="e.g. 018XXXXXXXX"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-orange-600 dark:text-orange-400 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">Rocket Number (রকেট নম্বর):</label>
+                    <input
+                      type="text"
+                      value={settingsRocketNumber}
+                      onChange={(e) => setSettingsRocketNumber(e.target.value)}
+                      placeholder="e.g. 019XXXXXXXX-X"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-purple-600 dark:text-purple-400 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">Upay Number (উপায় নম্বর):</label>
+                    <input
+                      type="text"
+                      value={settingsUpayNumber}
+                      onChange={(e) => setSettingsUpayNumber(e.target.value)}
+                      placeholder="e.g. 016XXXXXXXX"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">Account Type (অ্যাকাউন্টের ধরন):</label>
+                    <select
+                      value={settingsPaymentAccountType}
+                      onChange={(e) => setSettingsPaymentAccountType(e.target.value as any)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
+                    >
+                      <option value="merchant">Merchant (মার্চেন্ট পেমেন্ট)</option>
+                      <option value="personal">Personal (ব্যক্তিগত - সেন্ড মানি)</option>
+                      <option value="agent">Agent (এজেন্ট ক্যাশ আউট)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">Payment Note/Instructions (গ্রাহকের জন্য নির্দেশনা):</label>
+                    <input
+                      type="text"
+                      value={settingsPaymentInstructions}
+                      onChange={(e) => setSettingsPaymentInstructions(e.target.value)}
+                      placeholder="e.g. রেফারেন্সে অর্ডার নম্বর দিন"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -3965,157 +4058,6 @@ export const SellerDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Vendor Cloud Storage Setup */}
-            <div className="border-t pt-5 text-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
-                  <Cloud className="w-4 h-4 text-sky-500 animate-pulse" />
-                  <span>Vendor Cloud Storage Routing (ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং)</span>
-                </h4>
-                <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase">
-                  Data Sovereignty (ডেটা সিকিউরিটি)
-                </span>
-              </div>
-
-              <p className="text-[11px] text-slate-500 max-w-2xl leading-relaxed">
-                {language === 'bn' 
-                  ? 'আপনার পণ্য সামগ্রীর ছবি ও ভিডিও সরাসরি আপনার ব্যক্তিগত ক্লাউড হোস্টিং বা ফায়ারবেস বাকেটে আপলোড করতে পারেন। এতে করে আপনার ডেটা আপনার মালিকানাধীন থাকবে এবং আমাদের ডাটাবেজে শুধুমাত্র মিডিয়া লিংকটি সংরক্ষিত হবে।'
-                  : 'Maintain complete ownership of your product media by uploading assets directly to your personal Google Cloud or Firebase Storage bucket. Our central database will only store the resolved public URL.'}
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsStorageType('central');
-                    setSettingsStorageCredentials('');
-                    setStorageTestMessage(null);
-                  }}
-                  className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
-                    settingsStorageType === 'central'
-                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-1 ring-emerald-500/20'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-extrabold text-slate-800 dark:text-slate-100">Central Storage</span>
-                    <Database className={`w-4 h-4 ${settingsStorageType === 'central' ? 'text-emerald-500' : 'text-slate-400'}`} />
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    {language === 'bn' ? 'অমরবাজারের সেন্ট্রাল হোস্টিং স্টোরেজ ব্যবহার করুন (ডিফল্ট)।' : 'Use default high-speed central AmarBazar cloud server storage.'}
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsStorageType('google_cloud');
-                    setStorageTestMessage(null);
-                  }}
-                  className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
-                    settingsStorageType === 'google_cloud'
-                      ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 shadow-xs ring-1 ring-sky-500/20'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-extrabold text-slate-800 dark:text-slate-100">Google Cloud (GCS)</span>
-                    <Cloud className={`w-4 h-4 ${settingsStorageType === 'google_cloud' ? 'text-sky-500' : 'text-slate-400'}`} />
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    {language === 'bn' ? 'সরাসরি গুগল ক্লাউড স্টোরেজ (GCS) বাকেটে মিডিয়া পাঠান।' : 'Route media directly to your own Google Cloud Service Account bucket.'}
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsStorageType('firebase');
-                    setStorageTestMessage(null);
-                  }}
-                  className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
-                    settingsStorageType === 'firebase'
-                      ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 shadow-xs ring-1 ring-amber-500/20'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-extrabold text-slate-800 dark:text-slate-100">Firebase Storage</span>
-                    <Database className={`w-4 h-4 ${settingsStorageType === 'firebase' ? 'text-amber-500' : 'text-slate-400'}`} />
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    {language === 'bn' ? 'ফায়ারবেস স্টোরেজ রুলস ও বাকেট দিয়ে ডেটা হোস্ট করুন।' : 'Directly stream to Firebase Web App Client Storage bucket.'}
-                  </p>
-                </button>
-              </div>
-
-              {settingsStorageType !== 'central' && (
-                <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4 animate-fadeIn">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1">
-                      <Lock className="w-3.5 h-3.5 text-rose-500" />
-                      <span>
-                        {settingsStorageType === 'google_cloud' 
-                          ? 'Google Cloud (GCS) Credentials (JSON Format)' 
-                          : 'Firebase Configuration JSON'}
-                      </span>
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {settingsStorageType === 'google_cloud' ? 'GCS Bucket Auth' : 'Firebase Client Config'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                      {language === 'bn' ? 'ক্লাউড ক্রেডেনশিয়াল (প্রমাণপত্র JSON):' : 'Credentials Config JSON:'}
-                    </label>
-                    <textarea
-                      value={settingsStorageCredentials}
-                      onChange={(e) => setSettingsStorageCredentials(e.target.value)}
-                      placeholder={
-                        settingsStorageType === 'google_cloud'
-                          ? `{\n  "project_id": "your-gcp-project",\n  "client_email": "gcs-uploader@project.iam.gserviceaccount.com",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC6...\\n-----END PRIVATE KEY-----\\n",\n  "bucket_name": "your-personal-bucket"\n}`
-                          : `{\n  "apiKey": "AIzaSyAs7...",\n  "authDomain": "your-app.firebaseapp.com",\n  "projectId": "your-app",\n  "storageBucket": "your-app.appspot.com"\n}`
-                      }
-                      rows={6}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950 font-mono text-[11px] leading-relaxed"
-                    />
-                    <div className="flex items-start space-x-1 mt-2 text-slate-400">
-                      <span className="text-amber-500 font-extrabold">⚠️</span>
-                      <p className="text-[10px] leading-normal">
-                        {language === 'bn'
-                          ? 'দয়া করে নিশ্চিত করুন এটি একটি বৈধ JSON ফর্ম্যাট। আপনার প্রাইভেট কি এবং ক্রেডেনশিয়াল আমাদের সিকিউর নোডে এনক্রিপ্ট করে সংরক্ষণ করা হবে।'
-                          : 'Please ensure valid JSON syntax. Keys are strictly encrypted server-side and never shared in client responses.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      disabled={isTestingStorage}
-                      onClick={handleTestStorageConnection}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 disabled:opacity-50"
-                    >
-                      <Wifi className={`w-3.5 h-3.5 ${isTestingStorage ? 'animate-bounce' : ''}`} />
-                      <span>{isTestingStorage ? 'Testing Connection...' : 'Test Cloud Connection'}</span>
-                    </button>
-
-                    {storageTestMessage && (
-                      <div className={`px-3 py-2 rounded-xl flex items-center space-x-2 text-[11px] border ${
-                        storageTestMessage.success 
-                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
-                          : 'bg-rose-100 border-rose-300 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                      }`}>
-                        <span className="font-extrabold">{storageTestMessage.success ? '✓ SUCCESS:' : '✗ ERROR:'}</span>
-                        <span>{storageTestMessage.text}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Save Buttons */}
             <div className="flex justify-end pt-4 border-t">
               <button
@@ -4126,86 +4068,6 @@ export const SellerDashboard: React.FC = () => {
               </button>
             </div>
 
-          </div>
-
-          {/* Seller Password Change Security Card */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-xs space-y-4">
-            <div className="border-b pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                <span className="p-1.5 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 rounded-xl">
-                  <Lock className="w-5 h-5" />
-                </span>
-                <span>Security & Password (সেলার সিকিউরিটি ও পাসওয়ার্ড পরিবর্তন)</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                {language === 'bn' 
-                  ? 'আপনার সেলার একাউন্টের পাসওয়ার্ড পরিবর্তন করুন। পরিবর্তন করলে পূর্ববর্তী পাসওয়ার্ড স্বয়ংক্রিয়ভাবে অকার্যকর হবে এবং শুধুমাত্র নতুন পাসওয়ার্ড দিয়ে লগইন করা যাবে।'
-                  : 'Change your seller account password. Updating the password will immediately invalidate the previous password.'}
-              </p>
-            </div>
-
-            {sellerPassMsg && (
-              <div className={`p-3 rounded-xl text-xs font-bold border ${
-                sellerPassMsg.success 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-              }`}>
-                {sellerPassMsg.text}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {language === 'bn' ? 'বর্তমান পাসওয়ার্ড:' : 'Current Password:'}
-                </label>
-                <input
-                  type="password"
-                  value={sellerOldPassword}
-                  onChange={(e) => setSellerOldPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {language === 'bn' ? 'নতুন পাসওয়ার্ড:' : 'New Password:'} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={sellerNewPassword}
-                  onChange={(e) => setSellerNewPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {language === 'bn' ? 'নতুন পাসওয়ার্ড নিশ্চিত করুন:' : 'Confirm New Password:'} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={sellerConfirmPassword}
-                  onChange={(e) => setSellerConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={handleSellerChangePassword}
-                disabled={sellerPassLoading}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition text-xs flex items-center space-x-1.5 cursor-pointer"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>{sellerPassLoading ? 'Updating...' : (language === 'bn' ? 'পাসওয়ার্ড আপডেট করুন' : 'Update Password')}</span>
-              </button>
-            </div>
           </div>
         </form>
       )}

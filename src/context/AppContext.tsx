@@ -714,6 +714,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               localSet.add(data.id);
               safeStorage.setItem('amarbazar_deleted_product_ids', JSON.stringify(Array.from(localSet)));
               setProducts(prev => prev.filter(p => p.id !== data.id));
+              setCart(prev => prev.filter(c => c.product.id !== data.id));
+              setWishlist(prev => prev.filter(wid => wid !== data.id));
+              setSelectedProduct(prev => (prev?.id === data.id ? null : prev));
+              setSharingProduct(prev => (prev?.id === data.id ? null : prev));
               try {
                 const stored = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
                 if (Array.isArray(stored)) {
@@ -729,6 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const localSet = getDeletedProductIds();
               if (!localSet.has(data.product.id)) {
                 setProducts(prev => prev.map(p => p.id === data.product.id ? { ...p, ...data.product } : p));
+                setSelectedProduct(prev => (prev?.id === data.product.id ? { ...prev, ...data.product } : prev));
               }
             }
           } catch (e) {
@@ -756,6 +761,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (hasNew) {
             safeStorage.setItem('amarbazar_deleted_product_ids', JSON.stringify(Array.from(localSet)));
             setProducts(prev => prev.filter(p => !localSet.has(p.id)));
+            setCart(prev => prev.filter(c => !localSet.has(c.product.id)));
+            setWishlist(prev => prev.filter(wid => !localSet.has(wid)));
+            setSelectedProduct(prev => (prev && localSet.has(prev.id) ? null : prev));
+            setSharingProduct(prev => (prev && localSet.has(prev.id) ? null : prev));
           }
         }
       });
@@ -803,11 +812,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     } catch (e) {}
 
-    // 6. Fast polling fallback (every 4 seconds) to guarantee instant multi-device reflection
+    // 6. Fast polling fallback (every 3 seconds) to guarantee instant multi-device reflection
     const interval = setInterval(() => {
       refreshProducts();
       refreshCategories();
-    }, 4000);
+    }, 3000);
 
     // 7. Sync on tab focus, visibility change, online status with safety debounce
     let lastSyncTime = 0;
@@ -831,6 +840,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (e?.detail?.id) {
         const deletedId = e.detail.id;
         setProducts(prev => prev.filter(p => p.id !== deletedId));
+        setCart(prev => prev.filter(c => c.product.id !== deletedId));
+        setWishlist(prev => prev.filter(wid => wid !== deletedId));
+        setSelectedProduct(prev => (prev?.id === deletedId ? null : prev));
+        setSharingProduct(prev => (prev?.id === deletedId ? null : prev));
       }
     };
 

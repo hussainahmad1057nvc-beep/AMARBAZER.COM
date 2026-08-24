@@ -4,7 +4,7 @@ import {
   DollarSign, Settings, FileText, CheckCircle2, XCircle, 
   Trash2, Plus, ArrowUpRight, Lock, Key, RefreshCw,
   Eye, ChevronDown, ChevronUp, Cloud, Database, Wifi, AlertTriangle,
-  Copy, Check, ExternalLink, Server, Layers
+  Copy, Check, ExternalLink, Server, Layers, Smartphone
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -1227,6 +1227,92 @@ export const AdminDashboard: React.FC = () => {
                   <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
                   <span>{syncLoading ? 'Syncing Catalog & Orders...' : 'Sync All Data to Firebase (১-ক্লিকে সিঙ্ক)'}</span>
                 </button>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4 h-fit shadow-xs">
+              <h3 className="font-bold text-sm border-b pb-2 flex items-center justify-between text-slate-900 dark:text-white">
+                <div className="flex items-center space-x-2">
+                  <Smartphone className="w-4 h-4 text-pink-600" />
+                  <span>Admin Payment Gateway Numbers (এডমিন পেমেন্ট নাম্বার)</span>
+                </div>
+                <span className="text-[10px] text-emerald-600 font-normal">ডিফল্ট বা কেন্দ্রীয় পেমেন্ট</span>
+              </h3>
+
+              <p className="text-[11px] text-slate-500">
+                সেলার যদি নিজস্ব নাম্বার প্রদান না করে, অথবা ডাইরেক্ট প্ল্যাটফর্ম অর্ডারে গ্রাহকের কাছে এই নাম্বারগুলো প্রদর্শিত হবে।
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Admin bKash Number (বিকাশ):</label>
+                  <input
+                    type="text"
+                    value={settings.adminBkashNumber || ''}
+                    onChange={(e) => setSettings({ ...settings, adminBkashNumber: e.target.value })}
+                    placeholder="017XXXXXXXX"
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-pink-600 dark:text-pink-400 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Admin Nagad Number (নগদ):</label>
+                  <input
+                    type="text"
+                    value={settings.adminNagadNumber || ''}
+                    onChange={(e) => setSettings({ ...settings, adminNagadNumber: e.target.value })}
+                    placeholder="018XXXXXXXX"
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-orange-600 dark:text-orange-400 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Admin Rocket Number (রকেট):</label>
+                  <input
+                    type="text"
+                    value={settings.adminRocketNumber || ''}
+                    onChange={(e) => setSettings({ ...settings, adminRocketNumber: e.target.value })}
+                    placeholder="019XXXXXXXX-X"
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-purple-600 dark:text-purple-400 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Admin Upay Number (উপায়):</label>
+                  <input
+                    type="text"
+                    value={settings.adminUpayNumber || ''}
+                    onChange={(e) => setSettings({ ...settings, adminUpayNumber: e.target.value })}
+                    placeholder="016XXXXXXXX"
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-mono font-bold text-amber-600 dark:text-amber-400 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Payment Account Type (অ্যাকাউন্ট টাইপ):</label>
+                  <select
+                    value={settings.adminPaymentAccountType || 'merchant'}
+                    onChange={(e) => setSettings({ ...settings, adminPaymentAccountType: e.target.value as any })}
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 font-semibold text-xs"
+                  >
+                    <option value="merchant">Merchant (মার্চেন্ট পেমেন্ট)</option>
+                    <option value="personal">Personal (ব্যক্তিগত - সেন্ড মানি)</option>
+                    <option value="agent">Agent (এজেন্ট ক্যাশ আউট)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300 text-[11px]">Payment Instructions (নির্দেশনা):</label>
+                  <input
+                    type="text"
+                    value={settings.adminPaymentInstructions || ''}
+                    onChange={(e) => setSettings({ ...settings, adminPaymentInstructions: e.target.value })}
+                    placeholder="e.g. রেফারেন্সে অর্ডার আইডি দিন"
+                    className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                  />
+                </div>
               </div>
             </div>
 

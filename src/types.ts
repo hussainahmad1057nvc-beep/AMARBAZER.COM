@@ -14,7 +14,7 @@ export type Language =
 
 export type CurrencyCode = 'BDT' | 'AED' | 'SAR' | 'QAR' | 'KWD' | 'OMR' | 'BHD' | 'USD' | 'EUR' | 'GBP' | 'INR' | 'NPR' | 'BTN' | 'PKR' | 'LKR' | 'MVR' | 'MYR' | 'SGD' | 'CAD' | 'AUD' | 'JPY' | 'CNY' | 'TRY' | (string & {});
 
-export type PaymentMethod = 'bkash' | 'nagad' | 'rocket' | 'card' | 'cod';
+export type PaymentMethod = 'bkash' | 'nagad' | 'rocket' | 'upay' | 'card' | 'cod';
 
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -112,6 +112,8 @@ export interface User {
   isAdminStaff?: boolean;
   adminPermissions?: AdminStaffPermission[];
   adminRoleTitle?: string;
+  storageType?: 'central' | 'google_cloud' | 'firebase';
+  storageCredentials?: string;
 }
 
 export interface Address {
@@ -297,6 +299,11 @@ export interface SellerStore {
   bannerUrl: string;
   tradeLicenseNumber: string;
   bkashNumber: string;
+  nagadNumber?: string;
+  rocketNumber?: string;
+  upayNumber?: string;
+  paymentAccountType?: 'personal' | 'merchant' | 'agent';
+  paymentInstructions?: string;
   bankAccountDetails?: string;
   isApproved: boolean;
   isVerified?: boolean;
@@ -318,6 +325,7 @@ export interface SellerStore {
   cloudSubscriptionPlan?: 'none' | 'gcs_subscription' | 'firebase_subscription' | string;
   cloudSubscriptionStatus?: 'active' | 'expired' | 'none';
   cloudSubscriptionExpiryDate?: string;
+  cloudStorageLimitGb?: number;
   ownerFirstName?: string;
   ownerLastName?: string;
   nidNumber?: string;
@@ -371,6 +379,12 @@ export interface SystemSettings {
   currencySymbol: string;
   commissionPercentage: number;
   isMaintenanceMode: boolean;
+  adminBkashNumber?: string;
+  adminNagadNumber?: string;
+  adminRocketNumber?: string;
+  adminUpayNumber?: string;
+  adminPaymentAccountType?: 'personal' | 'merchant' | 'agent';
+  adminPaymentInstructions?: string;
   activeSoundUrl?: string;
   customSounds?: { id: string; name: string; url: string }[];
   
