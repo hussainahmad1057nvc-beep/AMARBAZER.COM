@@ -5,7 +5,7 @@ import {
   CheckCircle, Info, Award, ArrowRight, ArrowLeft,
   Upload, Camera, FileText, Image, Video,
   MapPin, ChevronDown, Carrot, Shirt, Flame, Cookie, Heart,
-  ExternalLink, Fingerprint, Sparkles, Key, Eye, EyeOff
+  ExternalLink, Fingerprint, Sparkles, Key, Eye, EyeOff, UserPlus
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -964,21 +964,22 @@ export const AuthModal: React.FC = () => {
                           {isLoading ? '...' : (language === 'bn' ? 'লগইন করুন' : 'Log In')}
                         </button>
 
-                        {/* Quick Biometric Alternative Button */}
+                        {/* Create Account Button (Direct option for new users to register) */}
                         <button
                           type="button"
                           onClick={() => {
-                            setBiometricTargetRole('customer');
-                            setIsBiometricModalOpen(true);
+                            setCustomerSubTab('signup');
+                            setSignupType('customer');
+                            setError('');
                           }}
-                          className="w-full py-3 bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl border border-slate-200/80 dark:border-slate-700/80 transition-all flex items-center justify-center space-x-2 text-xs cursor-pointer shadow-xs active:scale-[0.99]"
+                          className="w-full py-3.5 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-black rounded-xl border border-slate-700/80 dark:border-slate-600/80 transition-all duration-200 flex items-center justify-center space-x-2 text-xs uppercase tracking-wider cursor-pointer shadow-md active:scale-[0.99]"
                         >
-                          <Fingerprint className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
-                          <span>{language === 'bn' ? 'ফিঙ্গারপ্রিন্ট দিয়ে তাৎক্ষণিক লগইন' : 'One-Touch Fingerprint Login'}</span>
+                          <UserPlus className="w-4 h-4 text-emerald-400" />
+                          <span>{language === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন (Create Account)' : 'Create New Account'}</span>
                         </button>
 
-                        {/* Forgot Password Link */}
-                        <div className="text-center pt-0.5">
+                        {/* Forgot Password & Fingerprint Alternative Links */}
+                        <div className="flex items-center justify-between pt-1 px-1 text-xs">
                           <button
                             type="button"
                             onClick={() => {
@@ -986,9 +987,22 @@ export const AuthModal: React.FC = () => {
                               setError('');
                               setForgotPasswordSuccess('');
                             }}
-                            className="text-xs font-semibold text-slate-400 hover:text-[#da1c24] dark:text-slate-400 dark:hover:text-red-400 transition cursor-pointer"
+                            className="text-xs font-bold text-slate-400 hover:text-[#da1c24] dark:text-slate-400 dark:hover:text-red-400 transition cursor-pointer"
                           >
                             {language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBiometricTargetRole('customer');
+                              setIsBiometricModalOpen(true);
+                            }}
+                            className="text-[11px] font-bold text-slate-400 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 transition flex items-center space-x-1 cursor-pointer"
+                            title={language === 'bn' ? 'ফিঙ্গারপ্রিন্ট দিয়ে তাৎক্ষণিক লগইন' : 'One-Touch Fingerprint Login'}
+                          >
+                            <Fingerprint className="w-3.5 h-3.5 text-cyan-500" />
+                            <span>{language === 'bn' ? 'ফিঙ্গারপ্রিন্ট' : 'Biometric'}</span>
                           </button>
                         </div>
 

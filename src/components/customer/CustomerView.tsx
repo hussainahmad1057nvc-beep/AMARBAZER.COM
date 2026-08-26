@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, Language } from '../../types';
-import { SHWAPNO_DETAILED_CATEGORIES, MainCategory, SubCategory, SubSubCategory, CATEGORY_EMOJIS } from '../../data/categoriesData';
+import { SHWAPNO_DETAILED_CATEGORIES, MainCategory, SubCategory, SubSubCategory, CATEGORY_EMOJIS, INITIAL_CATEGORIES } from '../../data/categoriesData';
 
 interface CustomerViewProps {
   onOpenProduct: (product: Product) => void;
@@ -223,6 +223,31 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
   const categoryRowRef = useRef<HTMLDivElement>(null);
   const isHoveredRef = useRef<boolean>(false);
+  const isDraggingRef = useRef<boolean>(false);
+  const startXRef = useRef<number>(0);
+  const scrollLeftRef = useRef<number>(0);
+
+  // Merge full standard categories with any dynamic categories from database
+  const allCategoriesList = useMemo(() => {
+    const dict: Record<string, { id: string; name: string; nameBn?: string; emoji?: string; icon?: string }> = {};
+    INITIAL_CATEGORIES.forEach(cat => {
+      dict[cat.id] = { ...cat };
+    });
+    (categories || []).forEach(cat => {
+      dict[cat.id] = { ...(dict[cat.id] || {}), ...cat };
+    });
+    return Object.values(dict);
+  }, [categories]);
+
+  const scrollCategory = (direction: 'left' | 'right') => {
+    if (categoryRowRef.current) {
+      const scrollAmount = 240;
+      categoryRowRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     const el = categoryRowRef.current;
@@ -235,9 +260,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
       const delta = now - lastTime;
       lastTime = now;
 
-      if (!isHoveredRef.current && el) {
-        // Smooth subpixel scroll speed (~30px per second)
-        const speed = 0.03;
+      if (!isHoveredRef.current && !isDraggingRef.current && el) {
+        // Continuous smooth auto-scroller
+        const speed = 0.035;
         let nextScroll = el.scrollLeft + delta * speed;
 
         const halfWidth = el.scrollWidth / 2;
@@ -255,7 +280,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [categories]);
+  }, [allCategoriesList]);
 
   const [dynamicCampaigns, setDynamicCampaigns] = useState(() => {
     try {
@@ -796,13 +821,31 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
         if (selectedCategory === 'beverages') {
           return p.categoryId === 'cat-3' && (nameLower.includes('juice') || nameLower.includes('drink') || nameLower.includes('water') || nameLower.includes('soda') || nameLower.includes('কোকা') || nameLower.includes('পানি') || nameLower.includes('জুস'));
         }
-        if (selectedCategory === 'bakery') {
-          return (p.categoryId === 'cat-3' || p.categoryId === 'cakes-pastry') && (nameLower.includes('bread') || nameLower.includes('cake') || nameLower.includes('bun') || nameLower.includes('কেক') || nameLower.includes('পাউরুটি'));
+        if (selectedCategory === 'cat-fast-food' || selectedCategory === 'fast-food') {
+          return p.categoryId === 'cat-fast-food' || tagsLower.includes('fast food') || tagsLower.includes('burger') || tagsLower.includes('wings') || tagsLower.includes('fries') || nameLower.includes('burger') || nameLower.includes('fast food') || nameLower.includes('fried chicken') || nameLower.includes('wings') || nameLower.includes('french fries') || nameLower.includes('বার্গার') || nameLower.includes('ফাস্টফুড') || nameLower.includes('ফ্রাই');
         }
-        if (selectedCategory === 'frozen-food') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('frozen') || nameLower.includes('nugget') || nameLower.includes('পরাটা') || nameLower.includes('পরোটা') || nameLower.includes('frozen'));
+        if (selectedCategory === 'cat-pizza-pasta' || selectedCategory === 'pizza-pasta') {
+          return p.categoryId === 'cat-pizza-pasta' || tagsLower.includes('pizza') || tagsLower.includes('pasta') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('spaghetti') || nameLower.includes('alfredo') || nameLower.includes('পিজ্জা') || nameLower.includes('পাস্তা');
         }
-        if (selectedCategory === 'sports-fitness') {
+        if (selectedCategory === 'cat-bakery' || selectedCategory === 'bakery' || selectedCategory === 'cakes-pastry') {
+          return p.categoryId === 'cat-bakery' || (p.categoryId === 'cat-3' || p.categoryId === 'cakes-pastry') && (nameLower.includes('bread') || nameLower.includes('cake') || nameLower.includes('bun') || nameLower.includes('কেক') || nameLower.includes('পাউরুটি') || nameLower.includes('মিষ্টি') || nameLower.includes('sweet'));
+        }
+        if (selectedCategory === 'cat-frozen' || selectedCategory === 'frozen-food' || selectedCategory === 'frozen-foods') {
+          return p.categoryId === 'cat-frozen' || nameLower.includes('frozen') || nameLower.includes('nugget') || nameLower.includes('পরাটা') || nameLower.includes('পরোটা') || nameLower.includes('সসেজ') || nameLower.includes('সমুচা');
+        }
+        if (selectedCategory === 'cat-combo' || selectedCategory === 'combo-deals' || selectedCategory === 'combo-package-builder') {
+          return p.categoryId === 'cat-combo' || Boolean(p.isCombo) || tagsLower.includes('combo') || tagsLower.includes('package') || tagsLower.includes('bundle') || tagsLower.includes('deal') || nameLower.includes('combo') || nameLower.includes('package') || nameLower.includes('bundle') || nameLower.includes('কম্বো') || nameLower.includes('প্যাকেজ') || nameLower.includes('অফার');
+        }
+        if (selectedCategory === 'cat-pet-care' || selectedCategory === 'pet-care') {
+          return p.categoryId === 'cat-pet-care' || nameLower.includes('pet') || nameLower.includes('dog') || nameLower.includes('cat') || nameLower.includes('whiskas') || nameLower.includes('খাবার') || nameLower.includes('বিড়াল');
+        }
+        if (selectedCategory === 'cat-gardening' || selectedCategory === 'gardening') {
+          return p.categoryId === 'cat-gardening' || (p.categoryId === 'cat-4' && (nameLower.includes('plant') || nameLower.includes('seed') || nameLower.includes('soil') || nameLower.includes('টব') || nameLower.includes('বীজ') || nameLower.includes('গাছ')));
+        }
+        if (selectedCategory === 'cat-automotive' || selectedCategory === 'automotive') {
+          return p.categoryId === 'cat-automotive' || (p.categoryId === 'cat-1' || p.categoryId === 'automotive') && (nameLower.includes('car') || nameLower.includes('bike') || nameLower.includes('charger') || nameLower.includes('holder') || nameLower.includes('গাড়ি') || nameLower.includes('বাইক'));
+        }
+        if (selectedCategory === 'sports-fitness' || selectedCategory === 'cat-10') {
           return (p.categoryId === 'cat-10' || p.categoryId === 'sports-fitness') && (nameLower.includes('sport') || nameLower.includes('bat') || nameLower.includes('ball') || nameLower.includes('cricket') || nameLower.includes('jersey') || nameLower.includes('খেলাধূলা'));
         }
         if (selectedCategory === 'sarees-ethnic') {
@@ -814,14 +857,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
         if (selectedCategory === 'home-kitchen') {
           return p.categoryId === 'cat-4' && (nameLower.includes('cooker') || nameLower.includes('blender') || nameLower.includes('kitchen') || nameLower.includes('pan') || nameLower.includes('চুলা') || nameLower.includes('ব্লেন্ডার'));
         }
-        if (selectedCategory === 'gardening') {
-          return p.categoryId === 'cat-4' && (nameLower.includes('plant') || nameLower.includes('seed') || nameLower.includes('soil') || nameLower.includes('টব') || nameLower.includes('বীজ') || nameLower.includes('গাছ'));
-        }
-        if (selectedCategory === 'automotive') {
-          return (p.categoryId === 'cat-1' || p.categoryId === 'automotive') && (nameLower.includes('car') || nameLower.includes('bike') || nameLower.includes('charger') || nameLower.includes('holder') || nameLower.includes('গাড়ি'));
-        }
         if (selectedCategory === 'watch-accessories') {
           return nameLower.includes('watch') || nameLower.includes('smartwatch') || nameLower.includes('ঘড়ি') || nameLower.includes('sunglass') || nameLower.includes('চশমা');
+        }
+
+        // Generic fallback: direct match on categoryId or categoryName
+        if (selectedCategory && (p.categoryId === selectedCategory || p.categoryName?.toLowerCase() === selectedCategory.toLowerCase())) {
+          return true;
         }
 
         return false;
@@ -1111,21 +1153,60 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
               ) : null
             )}
 
-            {/* 6. SLEEK CIRCULAR AUTO-SCROLLING CATEGORY ROW (Dynamic with Backend) */}
+            {/* 6. SLEEK CIRCULAR AUTO-SCROLLING CATEGORY ROW (All Categories with Seamless Marquee) */}
             <div 
-              className="w-full bg-slate-50/90 dark:bg-slate-950/40 rounded-xl py-1 px-2 border border-slate-200/60 dark:border-slate-800/80 shadow-xs flex flex-col relative overflow-hidden"
+              className="w-full bg-slate-50/90 dark:bg-slate-950/40 rounded-xl py-1.5 px-2 border border-slate-200/60 dark:border-slate-800/80 shadow-xs flex flex-col relative overflow-hidden group/catbar"
               onMouseEnter={() => { isHoveredRef.current = true; }}
-              onMouseLeave={() => { isHoveredRef.current = false; }}
+              onMouseLeave={() => { 
+                isHoveredRef.current = false; 
+                isDraggingRef.current = false;
+              }}
               onTouchStart={() => { isHoveredRef.current = true; }}
               onTouchEnd={() => { isHoveredRef.current = false; }}
             >
+              {/* Left Scroll Navigation Button */}
+              <button 
+                type="button"
+                onClick={() => scrollCategory('left')}
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 shadow-md border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hidden md:flex items-center justify-center opacity-0 group-hover/catbar:opacity-100 hover:bg-[#da1c24] hover:text-white hover:border-[#da1c24] transition-all duration-200"
+                title={language === 'bn' ? 'বামে স্ক্রোল করুন' : 'Scroll Left'}
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              {/* Right Scroll Navigation Button */}
+              <button 
+                type="button"
+                onClick={() => scrollCategory('right')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 shadow-md border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hidden md:flex items-center justify-center opacity-0 group-hover/catbar:opacity-100 hover:bg-[#da1c24] hover:text-white hover:border-[#da1c24] transition-all duration-200"
+                title={language === 'bn' ? 'ডানে স্ক্রোল করুন' : 'Scroll Right'}
+              >
+                <ChevronRight size={16} />
+              </button>
+
               {/* Horizontal Endless Auto-Scrolling Row */}
               <div 
                 ref={categoryRowRef}
-                className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5"
+                className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-0.5 cursor-grab active:cursor-grabbing select-none"
+                onMouseDown={(e) => {
+                  isDraggingRef.current = true;
+                  isHoveredRef.current = true;
+                  startXRef.current = e.pageX - (categoryRowRef.current?.offsetLeft || 0);
+                  scrollLeftRef.current = categoryRowRef.current?.scrollLeft || 0;
+                }}
+                onMouseMove={(e) => {
+                  if (!isDraggingRef.current || !categoryRowRef.current) return;
+                  e.preventDefault();
+                  const x = e.pageX - (categoryRowRef.current.offsetLeft || 0);
+                  const walk = (x - startXRef.current) * 1.5;
+                  categoryRowRef.current.scrollLeft = scrollLeftRef.current - walk;
+                }}
+                onMouseUp={() => {
+                  isDraggingRef.current = false;
+                }}
               >
                 {(() => {
-                  const dynamicCategoryItems = categories.map(c => ({
+                  const dynamicCategoryItems = allCategoriesList.map(c => ({
                     id: c.id,
                     emoji: c.emoji || (CATEGORY_EMOJIS[c.id] || '🛍️'),
                     name: c.name,
@@ -1138,9 +1219,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
                   ];
 
                   // Duplicate array for seamless endless marquee looping
-                  const duplicatedList = allItems.length < 8
-                    ? [...allItems, ...allItems, ...allItems, ...allItems]
-                    : [...allItems, ...allItems];
+                  const duplicatedList = [...allItems, ...allItems];
 
                   return duplicatedList.map((item, idx) => {
                     const isSelected = selectedCategory === item.id;
@@ -1150,20 +1229,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
                       <button
                         key={`${item.id ?? 'all'}-${idx}`}
                         onClick={() => setSelectedCategory(isSelected && item.id !== null ? null : item.id)}
-                        className="flex flex-col items-center justify-center shrink-0 w-12 sm:w-14 cursor-pointer group focus:outline-none"
+                        className="flex flex-col items-center justify-center shrink-0 w-[58px] sm:w-[68px] cursor-pointer group focus:outline-none transition-transform"
                         title={displayName}
                       >
                         {/* Compact Circular Icon */}
-                        <div className={`w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-full flex items-center justify-center text-sm sm:text-base transition-all duration-200 relative ${
+                        <div className={`w-9.5 h-9.5 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-lg transition-all duration-200 relative ${
                           isSelected 
-                            ? 'bg-[#da1c24] text-white ring-2 ring-[#da1c24]/30 ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-sm' 
-                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:border-red-300 hover:scale-105'
+                            ? 'bg-[#da1c24] text-white ring-2 ring-[#da1c24]/40 ring-offset-1 dark:ring-offset-slate-900 scale-110 shadow-md' 
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 group-hover:border-red-300 group-hover:scale-105 group-hover:shadow-xs'
                         }`}>
                           {item.emoji}
                         </div>
                         {/* Clean Small Category Label */}
-                        <span className={`text-[8.5px] sm:text-[9px] text-center mt-0.5 w-full truncate select-none transition-colors duration-200 ${
-                          isSelected ? 'text-[#da1c24] font-black' : 'text-slate-500 dark:text-slate-400 font-bold group-hover:text-[#da1c24]'
+                        <span className={`text-[9px] sm:text-[10px] text-center mt-1 w-full truncate px-0.5 select-none transition-colors duration-200 leading-tight ${
+                          isSelected ? 'text-[#da1c24] font-black' : 'text-slate-600 dark:text-slate-300 font-medium group-hover:text-[#da1c24]'
                         }`}>
                           {displayName}
                         </span>

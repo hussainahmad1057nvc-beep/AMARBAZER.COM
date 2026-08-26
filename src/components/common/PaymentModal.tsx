@@ -19,13 +19,22 @@ import {
   Store,
   BadgeCheck,
   Copy,
-  Info
+  Info,
+  MapPin,
+  User,
+  Plus,
+  Home,
+  Briefcase,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PaymentMethod, Address, Order } from '../../types';
 import { api } from '../../services/api';
 import { getTranslation } from '../../translations';
 import { OrderReceiptSlip } from '../customer/OrderReceiptSlip';
+import { addressService, BD_DIVISIONS, BD_DISTRICTS, BD_POPULAR_AREAS } from '../../services/addressService';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -64,6 +73,55 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [sellerInfo, setSellerInfo] = useState<any>(null);
   const [cartSellers, setCartSellers] = useState<any[]>([]);
   const [showQr, setShowQr] = useState<boolean>(false);
+
+  // Address Selection & Dynamic Form States
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>(() => {
+    return addressService.getSavedAddresses(currentUser);
+  });
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(() => {
+    return shippingAddress || addressService.getDefaultAddress(currentUser);
+  });
+  const [showAddressPicker, setShowAddressPicker] = useState<boolean>(false);
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
+  
+  // Address form fields
+  const [addrRecipient, setAddrRecipient] = useState<string>(currentUser?.name || 'Rahim Chowdhury');
+  const [addrPhone, setAddrPhone] = useState<string>(currentUser?.phone || '01712345678');
+  const [addrDivision, setAddrDivision] = useState<string>('Dhaka');
+  const [addrDistrict, setAddrDistrict] = useState<string>('Dhaka');
+  const [addrThana, setAddrThana] = useState<string>('Dhanmondi');
+  const [addrFull, setAddrFull] = useState<string>('House 42, Road 10/A, Dhanmondi R/A, Dhaka-1209');
+  const [addrTitle, setAddrTitle] = useState<'Home' | 'Office' | 'Other'>('Home');
+  const [addrDeliveryNote, setAddrDeliveryNote] = useState<string>('');
+  const [saveAddressForFuture, setSaveAddressForFuture] = useState<boolean>(true);
+  const [addressValidationError, setAddressValidationError] = useState<string>('');
+
+  // Sync addresses on modal open
+  useEffect(() => {
+    if (isOpen) {
+      const list = addressService.getSavedAddresses(currentUser);
+      setSavedAddresses(list);
+      if (shippingAddress) {
+        setSelectedAddress(shippingAddress);
+        setIsAddingNewAddress(false);
+      } else if (list.length > 0) {
+        const def = list.find(a => a.isDefault) || list[0];
+        setSelectedAddress(def);
+        setIsAddingNewAddress(false);
+      } else {
+        setSelectedAddress(null);
+        setIsAddingNewAddress(true);
+      }
+    }
+  }, [isOpen, currentUser, shippingAddress]);
+
+  // Dynamic district reset when division changes
+  useEffect(() => {
+    const districts = BD_DISTRICTS[addrDivision] || [];
+    if (districts.length > 0 && !districts.includes(addrDistrict)) {
+      setAddrDistrict(districts[0]);
+    }
+  }, [addrDivision]);
 
   useEffect(() => {
     const fetchSellersData = async () => {
@@ -255,10 +313,96 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return '*247#';
   };
 
+  // Address Handlers
+  const handleSaveAndApplyAddress = (e?: React.FormEvent): Address | null => {
+    if (e) e.preventDefault();
+    setAddressValidationError('');
+
+    if (!addrRecipient.trim()) {
+      setAddressValidationError(language === 'bn' ? 'অনুগ্রহ করে গ্রাহকের পুরো নাম লিখুন।' : 'Please enter recipient full name.');
+      return null;
+    }
+    if (!addrPhone.trim() || addrPhone.trim().length < 11) {
+      setAddressValidationError(language === 'bn' ? 'অনুগ্রহ করে ১১-সংখ্যার সচল মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)।' : 'Please enter a valid 11-digit mobile number.');
+      return null;
+    }
+    if (!addrFull.trim() || addrFull.trim().length < 4) {
+      setAddressValidationError(language === 'bn' ? 'অনুগ্রহ করে বাসা/রোড/ফ্ল্যাট বা বিস্তারিত ঠিকানা লিখুন।' : 'Please enter detailed street/house address.');
+      return null;
+    }
+    if (!addrThana.trim()) {
+      setAddressValidationError(language === 'bn' ? 'অনুগ্রহ করে থানা / এলাকা উল্লেখ করুন।' : 'Please enter area / thana.');
+      return null;
+    }
+
+    const titleText = addrTitle === 'Home' ? 'Home Address' : addrTitle === 'Office' ? 'Office Address' : 'Delivery Address';
+    const cleanFullAddress = addrDeliveryNote.trim() 
+      ? `${addrFull.trim()} (নোট: ${addrDeliveryNote.trim()})`
+      : addrFull.trim();
+
+    const newAddrObj: Omit<Address, 'id'> = {
+      title: titleText,
+      recipientName: addrRecipient.trim(),
+      phone: addrPhone.trim(),
+      division: addrDivision,
+      district: addrDistrict,
+      thana: addrThana.trim(),
+      fullAddress: cleanFullAddress,
+      isDefault: saveAddressForFuture
+    };
+
+    let activeAddr: Address;
+    if (saveAddressForFuture) {
+      activeAddr = addressService.addAddress(newAddrObj, currentUser?.id);
+      const updatedList = addressService.getSavedAddresses(currentUser);
+      setSavedAddresses(updatedList);
+    } else {
+      activeAddr = {
+        ...newAddrObj,
+        id: `addr-temp-${Date.now()}`
+      };
+    }
+
+    setSelectedAddress(activeAddr);
+    setIsAddingNewAddress(false);
+    setShowAddressPicker(false);
+    return activeAddr;
+  };
+
+  const handleSelectSavedAddress = (addr: Address) => {
+    setSelectedAddress(addr);
+    addressService.setDefaultAddress(addr.id, currentUser?.id);
+    const updatedList = addressService.getSavedAddresses(currentUser);
+    setSavedAddresses(updatedList);
+    setShowAddressPicker(false);
+    setIsAddingNewAddress(false);
+  };
+
+  const handleOpenAddNewAddress = () => {
+    setAddrRecipient(currentUser?.name || '');
+    setAddrPhone(currentUser?.phone || '01712345678');
+    setAddrFull('');
+    setAddrThana('');
+    setAddrDeliveryNote('');
+    setAddressValidationError('');
+    setIsAddingNewAddress(true);
+    setShowAddressPicker(false);
+  };
+
   if (!isOpen) return null;
 
   const handleInitiatePayment = async () => {
     setError('');
+
+    // Ensure valid delivery address first
+    if (isAddingNewAddress || !selectedAddress) {
+      const created = handleSaveAndApplyAddress();
+      if (!created) {
+        setError(language === 'bn' ? 'অনুগ্রহ করে সঠিক ডেলিভারি ঠিকানা পূরণ করুন।' : 'Please complete delivery address details.');
+        return;
+      }
+    }
+
     if (paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket' || paymentMethod === 'upay') {
       if (!mobileNumber || mobileNumber.length < 11) {
         setError('Please enter a valid 11-digit Bangladeshi mobile number (e.g., 01712345678)');
@@ -466,6 +610,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handleFinalizeOrder = async () => {
+    // 0. Ensure valid address
+    let finalAddr = selectedAddress;
+    if (isAddingNewAddress || !finalAddr) {
+      const created = handleSaveAndApplyAddress();
+      if (!created) {
+        setError(language === 'bn' ? 'অনুগ্রহ করে সঠিক ডেলিভারি ঠিকানা পূরণ করুন।' : 'Please complete delivery address details.');
+        return;
+      }
+      finalAddr = created;
+    }
+
     if ((paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket') && step === 'pin') {
       if (!pin || pin.length < 4) {
         setError('Please enter your 4 or 5 digit PIN code');
@@ -510,20 +665,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       const newOrd = await api.createOrder({
         userId: currentUser?.id || 'usr-demo-cust',
-        customerName: shippingAddress?.recipientName || currentUser?.name || 'Customer',
-        customerPhone: shippingAddress?.phone || mobileNumber,
+        customerName: finalAddr.recipientName || currentUser?.name || 'Customer',
+        customerPhone: finalAddr.phone || mobileNumber,
         customerEmail: currentUser?.email || 'customer@amarbazar.bd',
-        shippingAddress: shippingAddress || {
-          id: 'addr-default',
-          title: 'Home',
-          recipientName: currentUser?.name || 'Customer',
-          phone: mobileNumber,
-          division: 'Dhaka',
-          district: 'Dhaka',
-          thana: 'Dhanmondi',
-          fullAddress: 'House 42, Road 10/A, Dhanmondi, Dhaka',
-          isDefault: true
-        },
+        shippingAddress: finalAddr,
         items: itemsPayload,
         subtotal,
         discountAmount,
@@ -604,6 +749,368 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     <span className="text-[10px] text-slate-400">{cartItems.length} {language === 'bn' ? 'টি আইটেম' : 'Items'}</span>
                   </div>
                   <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatPrice(totalAmount)}</span>
+                </div>
+
+                {/* 🚚 DELIVERY ADDRESS & RECIPIENT CARD / FORM */}
+                <div className="bg-slate-50/80 dark:bg-slate-800/60 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#da1c24]/10 text-[#da1c24] flex items-center justify-center font-bold">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                          {language === 'bn' ? 'ডেলিভারি ঠিকানা ও প্রাপকের তথ্য' : 'Delivery Address & Recipient'}
+                        </h4>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                          {language === 'bn' ? 'যে ঠিকানায় পার্সেল পৌঁছে দেওয়া হবে' : 'Where your parcel will be delivered'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {!isAddingNewAddress && !showAddressPicker && selectedAddress && (
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddressPicker(true)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 rounded-lg hover:bg-sky-100 transition cursor-pointer"
+                        >
+                          {language === 'bn' ? 'পরিবর্তন' : 'Change'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenAddNewAddress}
+                          className="px-2 py-1 text-[11px] font-bold text-[#da1c24] bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 transition cursor-pointer flex items-center space-x-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>{language === 'bn' ? 'নতুন' : 'New'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 1. SELECTED ACTIVE ADDRESS VIEW */}
+                  {!isAddingNewAddress && !showAddressPicker && selectedAddress && (
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-1.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center space-x-2">
+                          <User className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="font-black text-xs text-slate-800 dark:text-slate-100">
+                            {selectedAddress.recipientName}
+                          </span>
+                          <span className="text-[10px] text-slate-400">•</span>
+                          <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {selectedAddress.phone}
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                          {selectedAddress.title.includes('Office') || selectedAddress.title.includes('অফিস') ? '🏢 অফিস' : '🏠 বাসা'}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {selectedAddress.fullAddress}
+                      </p>
+                      
+                      <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-medium">
+                        <span>থানা: <strong className="text-slate-600 dark:text-slate-300">{selectedAddress.thana || 'Dhanmondi'}</strong></span>
+                        <span>•</span>
+                        <span>জেলা: <strong className="text-slate-600 dark:text-slate-300">{selectedAddress.district || 'Dhaka'}</strong></span>
+                        <span>•</span>
+                        <span>বিভাগ: <strong className="text-slate-600 dark:text-slate-300">{selectedAddress.division || 'Dhaka'}</strong></span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. SAVED ADDRESS PICKER LIST */}
+                  {showAddressPicker && (
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-sky-200 dark:border-sky-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          {language === 'bn' ? 'সেভ করা ঠিকানা নির্বাচন করুন:' : 'Select a saved delivery address:'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddressPicker(false)}
+                          className="text-[11px] text-slate-400 hover:text-slate-600 font-bold"
+                        >
+                          ✕ {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {savedAddresses.map((addr) => {
+                          const isSelected = selectedAddress?.id === addr.id;
+                          return (
+                            <div
+                              key={addr.id}
+                              onClick={() => handleSelectSavedAddress(addr)}
+                              className={`p-2.5 rounded-xl border cursor-pointer transition text-xs ${
+                                isSelected
+                                  ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 ring-1 ring-emerald-400'
+                                  : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="radio"
+                                    checked={isSelected}
+                                    onChange={() => handleSelectSavedAddress(addr)}
+                                    className="accent-emerald-600 cursor-pointer"
+                                  />
+                                  <span className="font-bold text-slate-900 dark:text-slate-100">{addr.recipientName}</span>
+                                  <span className="font-mono text-slate-500 text-[11px]">({addr.phone})</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-semibold">{addr.title}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 pl-5">
+                                {addr.fullAddress}, {addr.thana}, {addr.district}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={handleOpenAddNewAddress}
+                          className="text-xs font-bold text-[#da1c24] hover:underline flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{language === 'bn' ? 'নতুন ঠিকানা যোগ করুন +' : 'Add New Address +'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddressPicker(false)}
+                          className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold hover:bg-slate-200 transition"
+                        >
+                          {language === 'bn' ? 'ঠিক আছে' : 'OK'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. NEW ADDRESS FORM */}
+                  {isAddingNewAddress && (
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-red-200 dark:border-red-900/60 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-[#da1c24] flex items-center space-x-1">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>{language === 'bn' ? 'নতুন ডেলিভারি ঠিকানা ফরম পূরণ করুন' : 'Enter Delivery Address Details'}</span>
+                        </span>
+                        {savedAddresses.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNewAddress(false)}
+                            className="text-[11px] text-slate-400 hover:text-slate-600 font-bold"
+                          >
+                            ✕ {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                          </button>
+                        )}
+                      </div>
+
+                      {addressValidationError && (
+                        <div className="p-2 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-xs font-semibold flex items-center space-x-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{addressValidationError}</span>
+                        </div>
+                      )}
+
+                      {/* Recipient Name & Phone */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'গ্রাহকের পুরো নাম *' : 'Recipient Name *'}
+                          </label>
+                          <input
+                            type="text"
+                            value={addrRecipient}
+                            onChange={(e) => setAddrRecipient(e.target.value)}
+                            placeholder="e.g. রহিম চৌধুরী"
+                            className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#da1c24] focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'মোবাইল নম্বর (১১ ডিজিট) *' : 'Phone Number *'}
+                          </label>
+                          <input
+                            type="text"
+                            value={addrPhone}
+                            onChange={(e) => setAddrPhone(e.target.value)}
+                            placeholder="017XXXXXXXX"
+                            className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-[#da1c24] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Division & District */}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'বিভাগ *' : 'Division *'}
+                          </label>
+                          <select
+                            value={addrDivision}
+                            onChange={(e) => setAddrDivision(e.target.value)}
+                            className="w-full px-2.5 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#da1c24] focus:outline-none cursor-pointer"
+                          >
+                            {BD_DIVISIONS.map((div) => (
+                              <option key={div} value={div}>{div}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'জেলা *' : 'District *'}
+                          </label>
+                          <select
+                            value={addrDistrict}
+                            onChange={(e) => setAddrDistrict(e.target.value)}
+                            className="w-full px-2.5 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#da1c24] focus:outline-none cursor-pointer"
+                          >
+                            {(BD_DISTRICTS[addrDivision] || [addrDivision]).map((dist) => (
+                              <option key={dist} value={dist}>{dist}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Thana / Area */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                            {language === 'bn' ? 'থানা / উপজেলা / এলাকা *' : 'Thana / Area / Police Station *'}
+                          </label>
+                          <span className="text-[10px] text-slate-400">যেমন: ধানমন্ডি, গুলশান, মিরপুর</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={addrThana}
+                          onChange={(e) => setAddrThana(e.target.value)}
+                          placeholder="e.g. Dhanmondi / ধানমন্ডি"
+                          className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#da1c24] focus:outline-none"
+                        />
+                        {/* Quick suggestions for division */}
+                        {BD_POPULAR_AREAS[addrDivision] && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {BD_POPULAR_AREAS[addrDivision].slice(0, 5).map((area) => (
+                              <button
+                                key={area}
+                                type="button"
+                                onClick={() => setAddrThana(area)}
+                                className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-[#da1c24] rounded border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                              >
+                                + {area}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Full Street Address */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          {language === 'bn' ? 'পূর্ণ ঠিকানা (বাড়ি নং, রোড নং, ফ্ল্যাট, ল্যান্ডমার্ক) *' : 'Full Street Address *'}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={addrFull}
+                          onChange={(e) => setAddrFull(e.target.value)}
+                          placeholder="e.g. বাড়ি নং ৪২, রোড ১০/এ, ধানমন্ডি আ/এ, ঢাকা-১২০৯"
+                          className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#da1c24] focus:outline-none leading-relaxed"
+                        />
+                      </div>
+
+                      {/* Type & Note */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'ঠিকানার ধরন' : 'Address Type'}
+                          </label>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setAddrTitle('Home')}
+                              className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border text-center transition cursor-pointer ${
+                                addrTitle === 'Home'
+                                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              🏠 বাসা
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAddrTitle('Office')}
+                              className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border text-center transition cursor-pointer ${
+                                addrTitle === 'Office'
+                                  ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              🏢 অফিস
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAddrTitle('Other')}
+                              className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border text-center transition cursor-pointer ${
+                                addrTitle === 'Other'
+                                  ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              📍 অন্যান্য
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            {language === 'bn' ? 'ডেলিভারি নির্দেশনা (ঐচ্ছিক)' : 'Delivery Note (Optional)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={addrDeliveryNote}
+                            onChange={(e) => setAddrDeliveryNote(e.target.value)}
+                            placeholder="e.g. কল দিয়ে আসবেন"
+                            className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Save for future checkbox */}
+                      <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={saveAddressForFuture}
+                          onChange={(e) => setSaveAddressForFuture(e.target.checked)}
+                          className="w-4 h-4 text-[#da1c24] accent-[#da1c24] rounded cursor-pointer"
+                        />
+                        <span>
+                          {language === 'bn' 
+                            ? 'ভবিষ্যতের অর্ডারের জন্য এই ঠিকানা সেভ করে রাখুন (পরবর্তীতে আর দিতে হবে না)' 
+                            : 'Save this address for future orders (no need to type again)'}
+                        </span>
+                      </label>
+
+                      {/* Apply button */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => handleSaveAndApplyAddress(e)}
+                          className="w-full py-2.5 bg-[#da1c24] hover:bg-red-700 text-white font-black rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>{language === 'bn' ? 'ঠিকানা নিশ্চিত ও সংরক্ষণ করুন' : 'Confirm & Save Delivery Address'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment Method Selector Tabs */}

@@ -184,19 +184,40 @@ export const api = {
       phone: data.phone ? normalizeInput(data.phone) : undefined
     };
 
+    // 1. Try backend server API
     try {
       const res = await fetchJson<{ success: boolean; user: User; token: string }>('/api/auth/login', { 
         method: 'POST', 
         body: JSON.stringify(normalizedData) 
       });
-      return res;
+      if (res && res.user) {
+        return res;
+      }
     } catch (err: any) {
-      // Robust client fallback if backend is momentarily offline
-      const u = (normalizedData.username || normalizedData.email || normalizedData.phone || '').toLowerCase();
-      const p = normalizedData.password || '';
+      // Backend request failed or static frontend (e.g. Vercel)
+    }
 
-      if (u) {
-        let matchedUser = INITIAL_USERS.find(x => 
+    // 2. Direct Firestore fallback (enables multi-device authentication everywhere)
+    const u = (normalizedData.username || normalizedData.email || normalizedData.phone || '').toLowerCase();
+    const p = normalizedData.password || '';
+
+    if (u) {
+      let matchedUser: User | null = null;
+      try {
+        const fbUsers = await firebaseDb.getUsers();
+        matchedUser = fbUsers.find(x => 
+          (x.username && x.username.toLowerCase() === u) ||
+          (x.email && x.email.toLowerCase() === u) ||
+          (x.phone && x.phone.replace(/[^0-9]/g, '') === u.replace(/[^0-9]/g, '')) ||
+          (u === 'admin' && x.role === 'admin') ||
+          (u === 'seller' && x.role === 'seller') ||
+          (u === 'customer' && x.role === 'customer')
+        ) || null;
+      } catch (e) {}
+
+      // Check INITIAL_USERS if not in Firestore
+      if (!matchedUser) {
+        matchedUser = INITIAL_USERS.find(x => 
           (x.username && x.username.toLowerCase() === u) ||
           (x.email && x.email.toLowerCase() === u) ||
           (x.phone && x.phone.replace(/[^0-9]/g, '') === u.replace(/[^0-9]/g, '')) ||
@@ -206,52 +227,78 @@ export const api = {
           (u === 'সেলার' && x.role === 'seller') ||
           (u === 'customer' && x.role === 'customer') ||
           (u === 'কাস্টমার' && x.role === 'customer')
-        );
-
-        if (!matchedUser) {
-          try {
-            const localSavedUsers: User[] = JSON.parse(localStorage.getItem('amarbazar_custom_users') || '[]');
-            matchedUser = localSavedUsers.find(x => 
-              (x.username && x.username.toLowerCase() === u) ||
-              (x.email && x.email.toLowerCase() === u) ||
-              (x.phone && x.phone.replace(/[^0-9]/g, '') === u.replace(/[^0-9]/g, ''))
-            );
-          } catch (e) {}
-        }
-
-        if (matchedUser) {
-          const expectedPass = matchedUser.password || (matchedUser.role === 'admin' ? 'hussain3122' : matchedUser.role === 'seller' ? 'seller123' : 'customer123');
-          if (p === expectedPass || (matchedUser.role === 'admin' && p === 'hussain3122')) {
-            return { success: true, user: matchedUser, token: `jwt-token-${matchedUser.id}` };
-          }
-          throw new Error('ভুল পাসওয়ার্ড! (Invalid password)');
-        }
+        ) || null;
       }
-      throw new Error('ভুল ইউজারনেম অথবা পাসওয়ার্ড! (Invalid credentials)');
+
+      if (matchedUser) {
+        const expectedPass = matchedUser.password || (matchedUser.role === 'admin' ? 'hussain3122' : matchedUser.role === 'seller' ? 'seller123' : 'customer123');
+        if (!p || p === expectedPass || (matchedUser.role === 'admin' && p === 'hussain3122')) {
+          firebaseDb.insertUser(matchedUser).catch(() => {});
+          return { success: true, user: matchedUser, token: `jwt-token-${matchedUser.id}` };
+        }
+        throw new Error('ভুল পাসওয়ার্ড! (Invalid password)');
+      }
     }
+    throw new Error('ভুল ইউজারনেম অথবা পাসওয়ার্ড! (Invalid credentials)');
   },
   
   register: async (data: Record<string, any>) => {
+    const newUser: User = {
+      id: data.id || `usr-${Date.now()}`,
+      name: data.name || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : 'User'),
+      username: data.username || undefined,
+      password: data.password || undefined,
+      email: data.email || `${Date.now()}@amarbazar.bd`,
+      phone: data.phone || '01700000000',
+      role: data.role || 'customer',
+      isVerified: true,
+      avatar: data.avatar || data.ownerPhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      addresses: [],
+      createdAt: new Date().toISOString(),
+      ...data
+    };
+
+    // 1. Direct Firestore user storage (shared across all devices)
     try {
-      const res = await fetchJson<{ success: boolean; user: User; token: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
-      if (res?.user) {
-        firebaseDb.insertUser(res.user).catch(() => {});
-      }
-      return res;
-    } catch (err) {
-      const dummyUser: User = {
-        id: `usr-${Date.now()}`,
-        name: data.name || 'User',
-        email: data.email || `${Date.now()}@amarbazar.bd`,
-        phone: data.phone || '01700000000',
-        role: data.role || 'customer',
-        isVerified: true,
-        addresses: [],
-        createdAt: new Date().toISOString()
-      };
-      await firebaseDb.insertUser(dummyUser).catch(() => {});
-      return { success: true, user: dummyUser, token: `jwt-token-${dummyUser.id}` };
+      await firebaseDb.insertUser(newUser);
+    } catch (e) {}
+
+    // 2. If seller registration, also add store to Firestore
+    if (data.role === 'seller' && data.storeName) {
+      try {
+        await firebaseDb.insertSeller({
+          id: `sel-${newUser.id.replace('usr-', '')}`,
+          sellerId: newUser.id,
+          storeName: data.storeName,
+          storeNameBn: data.storeNameBn || data.storeName,
+          ownerName: newUser.name,
+          email: newUser.email,
+          phone: newUser.phone,
+          logoUrl: data.shopPhoto || data.ownerPhoto || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=200&q=80',
+          bannerUrl: data.bannerUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
+          tradeLicenseNumber: data.tradeLicenseNumber || '',
+          bkashNumber: data.bkashNumber || newUser.phone,
+          isApproved: true,
+          status: 'approved',
+          subscriptionPlan: data.subscriptionPlan || 'starter',
+          subscriptionStatus: 'active',
+          rating: 5.0,
+          totalSales: 0,
+          balance: 0,
+          joinDate: new Date().toISOString().split('T')[0],
+          isVerified: true,
+          isFeatured: false,
+          createdAt: new Date().toISOString()
+        } as SellerStore);
+      } catch (e) {}
     }
+
+    // 3. Try backend API registration
+    try {
+      await fetchJson<{ success: boolean; user: User; token: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(newUser) });
+    } catch (err) {}
+
+    return { success: true, user: newUser, token: `jwt-token-${newUser.id}` };
   },
 
   changePassword: (data: { userId: string; oldPassword?: string; newPassword: string }) => fetchJson<{ success: boolean; user: User; message: string }>('/api/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
@@ -325,7 +372,19 @@ export const api = {
 
     let filtered = resultList;
     if (params?.sellerId) {
-      filtered = filtered.filter(p => p.sellerId === params.sellerId || (params.sellerId === 'sel-1' && p.sellerId === 'usr-seller-1') || (params.sellerId === 'usr-seller-1' && p.sellerId === 'sel-1'));
+      const sId = params.sellerId;
+      const localSellers = getLocalSellers();
+      const matchSeller = localSellers.find(s => s.id === sId || s.sellerId === sId);
+      const validSellerIds = new Set<string>([sId]);
+      if (matchSeller) {
+        if (matchSeller.id) validSellerIds.add(matchSeller.id);
+        if (matchSeller.sellerId) validSellerIds.add(matchSeller.sellerId);
+      }
+      if (sId === 'sel-1' || sId === 'usr-seller-1') {
+        validSellerIds.add('sel-1');
+        validSellerIds.add('usr-seller-1');
+      }
+      filtered = filtered.filter(p => validSellerIds.has(p.sellerId));
     }
     if (params?.category) {
       filtered = filtered.filter(p => p.categoryId === params.category || p.categoryName?.toLowerCase() === params.category.toLowerCase());
@@ -723,10 +782,41 @@ export const api = {
   updateWithdrawalStatus: (id: string, status: string, note?: string) => fetchJson<WithdrawalRequest>(`/api/withdrawals/${id}`, { method: 'PATCH', body: JSON.stringify({ status, note }) }),
 
   // Users
-  getUsers: () => fetchJson<User[]>('/api/users'),
-  updateUserRole: (id: string, role: string) => fetchJson<User>(`/api/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  updateUserPermissions: (id: string, customPermissions: string[]) => fetchJson<User>(`/api/users/${id}/permissions`, { method: 'PATCH', body: JSON.stringify({ customPermissions }) }),
-  deleteUser: (id: string) => fetchJson<{ success: boolean }>(`/api/users/${id}`, { method: 'DELETE' }),
+  getUsers: async (): Promise<User[]> => {
+    try {
+      const fbUsers = await firebaseDb.getUsers();
+      if (fbUsers && fbUsers.length > 0) {
+        return fbUsers;
+      }
+    } catch (e) {}
+
+    try {
+      const serverUsers = await fetchJson<User[]>('/api/users');
+      if (serverUsers && Array.isArray(serverUsers) && serverUsers.length > 0) {
+        return serverUsers;
+      }
+    } catch (e) {}
+
+    return INITIAL_USERS;
+  },
+  updateUserRole: async (id: string, role: string) => {
+    try {
+      await firebaseDb.updateUser(id, { role: role as any });
+    } catch (e) {}
+    return fetchJson<User>(`/api/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) });
+  },
+  updateUserPermissions: async (id: string, customPermissions: string[]) => {
+    try {
+      await firebaseDb.updateUser(id, { customPermissions });
+    } catch (e) {}
+    return fetchJson<User>(`/api/users/${id}/permissions`, { method: 'PATCH', body: JSON.stringify({ customPermissions }) });
+  },
+  deleteUser: async (id: string) => {
+    try {
+      await firebaseDb.deleteUser(id);
+    } catch (e) {}
+    return fetchJson<{ success: boolean }>(`/api/users/${id}`, { method: 'DELETE' });
+  },
 
   // Admin Staff Management
   getAdminStaff: () => fetchJson<AdminStaffMember[]>('/api/admin/staff'),

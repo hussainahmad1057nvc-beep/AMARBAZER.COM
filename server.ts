@@ -899,7 +899,18 @@ async function startServer() {
       list = list.filter(p => p.categoryId === category || p.categoryName.toLowerCase().includes(String(category).toLowerCase()));
     }
     if (sellerId) {
-      list = list.filter(p => p.sellerId === sellerId);
+      const sId = String(sellerId);
+      const matchSeller = db.sellers.find(s => s.id === sId || s.sellerId === sId);
+      const validSellerIds = new Set<string>([sId]);
+      if (matchSeller) {
+        if (matchSeller.id) validSellerIds.add(matchSeller.id);
+        if (matchSeller.sellerId) validSellerIds.add(matchSeller.sellerId);
+      }
+      if (sId === 'sel-1' || sId === 'usr-seller-1') {
+        validSellerIds.add('sel-1');
+        validSellerIds.add('usr-seller-1');
+      }
+      list = list.filter(p => validSellerIds.has(p.sellerId));
     }
     if (flashDeal === 'true') {
       list = list.filter(p => p.isFlashDeal || p.discountPrice);
@@ -968,7 +979,7 @@ async function startServer() {
     }
 
     const newProduct: Product = {
-      id: `prod-${Date.now()}`,
+      id: req.body.id || `prod-${Date.now()}`,
       title: req.body.title || 'New Bangladeshi Product',
       titleBn: req.body.titleBn,
       slug: (req.body.title || 'prod').toLowerCase().replace(/\s+/g, '-'),

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice } from '../types';
-import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
+import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 import { api, getDeletedProductIds } from '../services/api';
 import { firebaseDb } from '../lib/firebase';
 import { safeStorage } from '../lib/safeStorage';
@@ -697,6 +697,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
+    // Seed Firestore with rich default data if empty so all connected devices see identical data immediately
+    firebaseDb.seedInitialDataIfEmpty({
+      products: INITIAL_PRODUCTS,
+      categories: INITIAL_CATEGORIES,
+      sellers: INITIAL_SELLERS,
+      users: INITIAL_USERS,
+      settings: INITIAL_SYSTEM_SETTINGS
+    }).catch(() => {});
+
     refreshProducts();
     refreshCategories();
     refreshSystemSettings();

@@ -62,7 +62,15 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
   'cat-vegetables': '🥦',
   'cat-fish-meat': '🥩',
   'cat-cleaning': '🧼',
-  'cat-kitchen': '🍳'
+  'cat-kitchen': '🍳',
+  'cat-fast-food': '🍔',
+  'cat-pizza-pasta': '🍕',
+  'cat-bakery': '🥐',
+  'cat-frozen': '🧊',
+  'cat-combo': '🎁',
+  'cat-pet-care': '🐱',
+  'cat-gardening': '🪴',
+  'cat-automotive': '🚗'
 };
 
 export const INITIAL_CATEGORIES: Category[] = [
@@ -535,6 +543,127 @@ export const INITIAL_CATEGORIES: Category[] = [
       { id: 'sub-121', name: 'Islamic Books & Novels', nameBn: 'ইসলামিক বই ও উপন্যাস' },
       { id: 'sub-122', name: 'Poetry & Literature', nameBn: 'কবিতা ও সাহিত্য সমগ্র' },
       { id: 'sub-123', name: 'Stationery & Notebooks', nameBn: 'স্টেশনারি ও খাতা' }
+    ],
+    productCount: 3
+  },
+  {
+    id: 'cat-fast-food',
+    name: 'Fast Food & Burgers',
+    nameBn: 'ফাস্টফুড ও বার্গার',
+    nameAr: 'وجبات سريعة وبرغر',
+    icon: 'Package',
+    emoji: '🍔',
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-ff-1', name: 'Crispy Fried Chicken & Wings', nameBn: 'ফ্রাইড চিকেন ও উইংস' },
+      { id: 'sub-ff-2', name: 'Gourmet Beef & Chicken Burgers', nameBn: 'বিফ ও চিকেন বার্গার' },
+      { id: 'sub-ff-3', name: 'French Fries & Dips', nameBn: 'ফ্রেঞ্চ ফ্রাই ও সস' },
+      { id: 'sub-ff-4', name: 'Club Sandwiches & Wraps', nameBn: 'ক্লাব স্যান্ডউইচ ও রোল' }
+    ],
+    productCount: 4
+  },
+  {
+    id: 'cat-pizza-pasta',
+    name: 'Pizza & Pasta',
+    nameBn: 'পিজ্জা ও পাস্তা',
+    nameAr: 'بيتزا وباستا',
+    icon: 'Package',
+    emoji: '🍕',
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-pz-1', name: 'Loaded Cheese Pizza', nameBn: 'চীজ বাস্ট ও মিট লাভার্স পিজ্জা' },
+      { id: 'sub-pz-2', name: 'Creamy Alfredo Pasta', nameBn: 'হোয়াইট সস ও পাস্তা' },
+      { id: 'sub-pz-3', name: 'Spicy Naga Pasta', nameBn: 'ঝাল নাগা ও স্প্যাগেটি' }
+    ],
+    productCount: 3
+  },
+  {
+    id: 'cat-bakery',
+    name: 'Bakery & Sweets',
+    nameBn: 'বেকারি ও মিষ্টি',
+    nameAr: 'مخبوزات وحلويات',
+    icon: 'Package',
+    emoji: '🥐',
+    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-bk-1', name: 'Fresh Milk Bread & Buns', nameBn: 'তাজা মিল্ক ব্রেড ও বান' },
+      { id: 'sub-bk-2', name: 'Birthday & Pastry Cakes', nameBn: 'কেক ও পেস্ট্রি' },
+      { id: 'sub-bk-3', name: 'Traditional Bengali Sweets', nameBn: 'রসগোল্লা, চমচম ও মিষ্টি' }
+    ],
+    productCount: 4
+  },
+  {
+    id: 'cat-frozen',
+    name: 'Frozen Foods',
+    nameBn: 'ফ্রোজেন ফুড',
+    nameAr: 'أطعمة مجمدة',
+    icon: 'Package',
+    emoji: '🧊',
+    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-fz-1', name: 'Plain & Flaky Parathas', nameBn: 'ফ্রোজেন পরোটা ও রুটি' },
+      { id: 'sub-fz-2', name: 'Chicken Nuggets & Sausages', nameBn: 'চিকেন নাগেটস ও সসেজ' },
+      { id: 'sub-fz-3', name: 'Singara, Samosa & Rolls', nameBn: 'সিঙ্গারা ও সমুচা' }
+    ],
+    productCount: 4
+  },
+  {
+    id: 'cat-combo',
+    name: 'Combo Deals & Offers',
+    nameBn: 'কম্বো অফার ও প্যাকেজ',
+    nameAr: 'عروض كومبو وباقات',
+    icon: 'Package',
+    emoji: '🎁',
+    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-cb-1', name: 'Monthly Grocery Saver Pack', nameBn: 'মাসিক বাজার সেভার প্যাক' },
+      { id: 'sub-cb-2', name: 'Ramadan & Festival Combos', nameBn: 'রমজান ও উৎসব স্পেশাল কম্বো' },
+      { id: 'sub-cb-3', name: 'Duo & Family Bundles', nameBn: 'ফ্যামিলি বান্ডেল অফার' }
+    ],
+    productCount: 5
+  },
+  {
+    id: 'cat-pet-care',
+    name: 'Pet Care & Food',
+    nameBn: 'পোষা প্রাণীর খাদ্য ও যত্ন',
+    nameAr: 'طعام وعناية بالحيوانات الأليفة',
+    icon: 'Heart',
+    emoji: '🐱',
+    image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-pt-1', name: 'Cat Food & Treats', nameBn: 'বিড়ালের ড্রাই ও ওয়েট ফুড' },
+      { id: 'sub-pt-2', name: 'Dog Food & Chew Bones', nameBn: 'কুকুরের খাবার' },
+      { id: 'sub-pt-3', name: 'Cat Litter & Grooming', nameBn: 'ক্যাট লিটার ও শ্যাম্পু' }
+    ],
+    productCount: 3
+  },
+  {
+    id: 'cat-gardening',
+    name: 'Gardening & Plants',
+    nameBn: 'বাগান ও চারাগাছ',
+    nameAr: 'نباتات وحدائق',
+    icon: 'Package',
+    emoji: '🪴',
+    image: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-gd-1', name: 'Live Indoor Plants', nameBn: 'ইনডোর গাছ ও ক্যাকটাস' },
+      { id: 'sub-gd-2', name: 'Flower & Vegetable Seeds', nameBn: 'ফুল ও সবজির বীজ' },
+      { id: 'sub-gd-3', name: 'Ceramic Pots & Organic Soil', nameBn: 'টব ও জৈব সার' }
+    ],
+    productCount: 3
+  },
+  {
+    id: 'cat-automotive',
+    name: 'Car & Bike Accessories',
+    nameBn: 'গাড়ি ও বাইক গ্যাজেট',
+    nameAr: 'إكسسوارات سيارات ودراجات',
+    icon: 'Package',
+    emoji: '🚗',
+    image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80',
+    subcategories: [
+      { id: 'sub-au-1', name: 'Mobile Holders & Car Chargers', nameBn: 'মোবাইল হোল্ডার ও ফাস্ট কার চার্জার' },
+      { id: 'sub-au-2', name: 'Car Perfume & Air Freshener', nameBn: 'কার পারফিউম ও ফ্রেশনার' },
+      { id: 'sub-au-3', name: 'Bike Helmet & Rain Coats', nameBn: 'বাইকার হেলমেট ও রেইনকোট' }
     ],
     productCount: 3
   }

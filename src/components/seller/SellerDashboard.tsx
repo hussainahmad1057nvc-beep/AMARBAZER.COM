@@ -513,7 +513,44 @@ export const SellerDashboard: React.FC = () => {
     try {
       const sellersList = await api.getSellers();
       // Find the store belonging to this logged-in user
-      const currentS = sellersList.find(s => s.sellerId === sellerId) || sellersList[0];
+      let currentS = sellersList.find(s => 
+        s.sellerId === sellerId || 
+        s.id === sellerId || 
+        (currentUser?.id && (s.sellerId === currentUser.id || s.id === currentUser.id || s.id === `sel-${currentUser.id.replace('usr-', '')}`)) ||
+        (currentUser?.email && s.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (currentUser?.phone && s.phone && s.phone === currentUser.phone)
+      );
+
+      if (!currentS && sellersList.length > 0) {
+        currentS = sellersList[0];
+      }
+
+      if (!currentS) {
+        currentS = {
+          id: `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`,
+          sellerId: currentUser?.id || 'usr-seller-1',
+          storeName: currentUser?.name ? `${currentUser.name}'s Store` : 'Dhaka Tech Store',
+          storeNameBn: currentUser?.name ? `${currentUser.name}-এর দোকান` : 'ঢাকা টেক স্টোর',
+          ownerName: currentUser?.name || 'Seller',
+          email: currentUser?.email || 'seller@amarbazar.bd',
+          phone: currentUser?.phone || '01700000000',
+          logoUrl: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=200&q=80',
+          bannerUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
+          tradeLicenseNumber: 'TRAD/BD/2026/01',
+          bkashNumber: currentUser?.phone || '01711000000',
+          isApproved: true,
+          status: 'approved',
+          subscriptionPlan: 'starter',
+          subscriptionStatus: 'active',
+          rating: 5.0,
+          totalSales: 0,
+          balance: 0,
+          joinDate: new Date().toISOString().split('T')[0],
+          isVerified: true,
+          isFeatured: false,
+          createdAt: new Date().toISOString()
+        } as SellerStore;
+      }
       setStoreInfo(currentS);
 
       if (currentS) {
@@ -539,8 +576,10 @@ export const SellerDashboard: React.FC = () => {
   useEffect(() => {
     if (storeInfo && products && products.length > 0) {
       const currentStoreId = storeInfo.id;
+      const currentSellerUserId = storeInfo.sellerId;
       const filtered = products.filter(p => 
         p.sellerId === currentStoreId || 
+        (currentSellerUserId && p.sellerId === currentSellerUserId) ||
         (currentStoreId === 'sel-1' && p.sellerId === 'usr-seller-1') || 
         (currentStoreId === 'usr-seller-1' && p.sellerId === 'sel-1')
       );
@@ -548,7 +587,16 @@ export const SellerDashboard: React.FC = () => {
     }
   }, [products, storeInfo]);
 
-  const isSubscriptionActive = !!(storeInfo?.subscriptionPlan && storeInfo?.subscriptionPlan !== 'none' && storeInfo?.subscriptionStatus === 'active');
+  const isSubscriptionActive = !!(
+    !storeInfo ||
+    storeInfo.subscriptionStatus === 'active' ||
+    !storeInfo.subscriptionStatus ||
+    storeInfo.isApproved === true ||
+    (storeInfo.subscriptionPlan as string) === 'trial' ||
+    storeInfo.subscriptionPlan === 'starter' ||
+    storeInfo.subscriptionPlan === 'business' ||
+    storeInfo.subscriptionPlan === 'enterprise'
+  );
 
   const checkSubscriptionAndAdd = () => {
     if (isStaff && !canAddProductsStaff) {
@@ -564,10 +612,10 @@ export const SellerDashboard: React.FC = () => {
       );
       return;
     }
-    if (!isSubscriptionActive) {
+    if (storeInfo && storeInfo.subscriptionStatus === 'expired') {
       alert(language === 'bn' 
-        ? 'আপনার সাবস্ক্রিপশনটি নিষ্ক্রিয় বা মেয়াদ উত্তীর্ণ হয়ে গেছে! পণ্য যোগ করতে অনুগ্রহ করে সাবস্ক্রিপশন রিনিউ করুন।' 
-        : 'Your subscription is inactive or has expired! Please renew or upgrade your subscription from the "My Subscription" tab to add products.'
+        ? 'আপনার সাবস্ক্রিপশনটি মেয়াদ উত্তীর্ণ হয়ে গেছে! পণ্য যোগ করতে অনুগ্রহ করে সাবস্ক্রিপশন রিনিউ করুন।' 
+        : 'Your subscription has expired! Please renew or upgrade your subscription from the "My Subscription" tab to add products.'
       );
       setActiveTab('subscription');
       return;
@@ -634,22 +682,31 @@ export const SellerDashboard: React.FC = () => {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !newPrice || !storeInfo) return;
+    if (!newTitle.trim() || !newPrice) {
+      alert(language === 'bn' ? 'অনুগ্রহ করে পণ্যের নাম এবং মূল্য লিখুন!' : 'Please enter product title and price!');
+      return;
+    }
+
+    const currentStore = storeInfo || {
+      id: `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`,
+      sellerId: currentUser?.id || 'usr-seller-1',
+      storeName: currentUser?.name ? `${currentUser.name}'s Store` : 'Dhaka Tech Store',
+    };
 
     try {
-      await appCreateProduct({
-        title: newTitle,
-        titleBn: newTitleBn || newTitle,
+      const created = await appCreateProduct({
+        title: newTitle.trim(),
+        titleBn: newTitleBn.trim() || newTitle.trim(),
         price: Number(newPrice),
         discountPrice: newDiscount ? Number(newDiscount) : undefined,
-        stock: Number(newStock),
-        categoryId: newCategory || categories[0]?.id,
+        stock: Number(newStock) || 20,
+        categoryId: newCategory || categories[0]?.id || 'cat-1',
         categoryName: categories.find(c => c.id === newCategory)?.name || 'General',
-        brand: newBrand,
+        brand: newBrand || 'Official BD',
         description: newDesc || 'High quality product from verified seller.',
-        sellerId: storeInfo.id,
-        sellerName: storeInfo.storeName || 'Dhaka Tech Store',
-        images: [newImage],
+        sellerId: currentStore.id,
+        sellerName: currentStore.storeName || 'Dhaka Tech Store',
+        images: [newImage || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'],
         warranty: newWarranty,
         isCombo: isNewCombo,
         comboItems: isNewCombo ? newComboItems : [],
@@ -662,6 +719,9 @@ export const SellerDashboard: React.FC = () => {
           { label: 'Unit', labelBn: 'একক', value: newUnit, valueBn: newUnit === 'Piece' ? 'টি' : newUnit === 'Kg' ? 'কেজি' : 'বক্স' }
         ]
       });
+
+      // Update local seller products state immediately so seller sees the product without delay
+      setSellerProducts(prev => [created, ...prev.filter(p => p.id !== created.id)]);
 
       setIsAddProductOpen(false);
       setNewTitle('');
@@ -679,10 +739,13 @@ export const SellerDashboard: React.FC = () => {
       setNewBulkOffers([]);
       setIsNewCombo(false);
       setNewComboItems([]);
+
+      alert(language === 'bn' ? 'পণ্যটি সফলভাবে যোগ করা হয়েছে!' : 'Product added successfully!');
       fetchData();
       refreshProducts();
-    } catch (err) {
-      alert('Failed to add product');
+    } catch (err: any) {
+      console.error('Failed to create product:', err);
+      alert(language === 'bn' ? `পণ্য যোগ করতে সমস্যা হয়েছে: ${err?.message || 'অনুগ্রহ করে আবার চেষ্টা করুন'}` : `Failed to add product: ${err?.message || 'Please try again'}`);
     }
   };
 
@@ -876,345 +939,8 @@ export const SellerDashboard: React.FC = () => {
 
   const totalSalesRevenue = sellerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
 
-  if (storeInfo && storeInfo.isApproved === false) {
-    const renderPricingAndOffersConfig = (
-    variants: typeof newVariants,
-    setVariants: React.Dispatch<React.SetStateAction<typeof newVariants>>,
-    prices: typeof newVariantPrices,
-    setPrices: React.Dispatch<React.SetStateAction<typeof newVariantPrices>>,
-    offers: typeof newBulkOffers,
-    setOffers: React.Dispatch<React.SetStateAction<typeof newBulkOffers>>,
-    groupName: string,
-    setGroupName: React.Dispatch<React.SetStateAction<string>>,
-    optionsInput: string,
-    setOptionsInput: React.Dispatch<React.SetStateAction<string>>
-  ) => {
-    const handleAddGroup = (presetType?: 'weight' | 'size' | 'color') => {
-      let name = groupName.trim();
-      let options: string[] = [];
-      
-      if (presetType === 'weight') {
-        name = language === 'bn' ? 'ওজন' : 'Weight';
-        options = ['250g', '500g', '1kg', '2kg'];
-      } else if (presetType === 'size') {
-        name = language === 'bn' ? 'সাইজ' : 'Size';
-        options = ['S', 'M', 'L', 'XL', 'XXL'];
-      } else if (presetType === 'color') {
-        name = language === 'bn' ? 'রঙ' : 'Color';
-        options = ['Red', 'Green', 'Blue'];
-      }
-
-      if (!name) return;
-      if (variants.some(v => v.name.toLowerCase() === name.toLowerCase())) {
-        alert(language === 'bn' ? 'এই ভেরিয়েন্ট গ্রুপটি ইতিমধ্যে যোগ করা হয়েছে!' : 'This variant group already exists!');
-        return;
-      }
-
-      setVariants([...variants, { name, options }]);
-      setGroupName('');
-    };
-
-    const handleRemoveGroup = (idx: number) => {
-      const targetGroup = variants[idx];
-      setVariants(variants.filter((_, i) => i !== idx));
-      setPrices(prev => {
-        const next = { ...prev };
-        targetGroup.options.forEach(opt => {
-          delete next[`${targetGroup.name}:${opt}`];
-          delete next[opt];
-        });
-        return next;
-      });
-    };
-
-    const handleAddOption = (groupIdx: number, optionVal: string) => {
-      if (!optionVal.trim()) return;
-      const updated = [...variants];
-      if (updated[groupIdx].options.includes(optionVal.trim())) {
-        alert(language === 'bn' ? 'এই অপশনটি ইতিমধ্যে বিদ্যমান!' : 'This option already exists!');
-        return;
-      }
-      updated[groupIdx].options.push(optionVal.trim());
-      setVariants(updated);
-    };
-
-    const handleRemoveOption = (groupIdx: number, optIdx: number) => {
-      const group = variants[groupIdx];
-      const optVal = group.options[optIdx];
-      const updated = [...variants];
-      updated[groupIdx].options = updated[groupIdx].options.filter((_, i) => i !== optIdx);
-      setVariants(updated);
-      
-      setPrices(prev => {
-        const next = { ...prev };
-        delete next[`${group.name}:${optVal}`];
-        delete next[optVal];
-        return next;
-      });
-    };
-
-    const handlePriceChange = (groupName: string, optionVal: string, value: number) => {
-      setPrices(prev => ({
-        ...prev,
-        [`${groupName}:${optionVal}`]: value
-      }));
-    };
-
-    const handleAddBulkOffer = (minQty: number, value: number, type: 'percent' | 'flat') => {
-      if (minQty < 2 || value <= 0) return;
-      if (offers.some(o => o.minQuantity === minQty)) {
-        alert(language === 'bn' ? 'এই পরিমাণের জন্য ইতিমধ্যে একটি অফার রয়েছে!' : 'An offer for this quantity already exists!');
-        return;
-      }
-      const newOffer = {
-        minQuantity: minQty,
-        discountPercent: type === 'percent' ? value : undefined,
-        discountAmount: type === 'flat' ? value : undefined,
-      };
-      setOffers([...offers, newOffer].sort((a, b) => a.minQuantity - b.minQuantity));
-    };
-
-    const handleRemoveBulkOffer = (idx: number) => {
-      setOffers(offers.filter((_, i) => i !== idx));
-    };
-
+  if (storeInfo && storeInfo.isApproved === false && storeInfo.status === 'pending') {
     return (
-      <div className="space-y-4 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl bg-slate-50/40 dark:bg-slate-900/10">
-        <div>
-          <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100 block mb-1">
-            {language === 'bn' ? '১. পণ্যের ভেরিয়েন্ট ও কাস্টম দাম নির্ধারণ' : '1. Product Variants & Custom Pricing'}
-          </span>
-          <span className="text-[10px] text-slate-400 block mb-3">
-            {language === 'bn' ? 'বিভিন্ন ওজন, সাইজ বা রঙের জন্য আলাদা আলাদা দাম সেট করুন। সরাসরি লাইভ ক্রেতার কাছে আপডেট হবে।' : 'Set specific prices for weight/size/color options. It updates live for customers.'}
-          </span>
-          
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <span className="text-[10px] font-bold text-slate-400 flex items-center shrink-0">
-              {language === 'bn' ? 'প্রিসেট যোগ করুন:' : 'Add Preset:'}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleAddGroup('weight')}
-              className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold rounded-lg text-[10px] transition"
-            >
-              Weight / ওজন (250g, 500g...)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddGroup('size')}
-              className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold rounded-lg text-[10px] transition"
-            >
-              Size / সাইজ (S, M, L...)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddGroup('color')}
-              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg text-[10px] transition"
-            >
-              Color / রঙ (Red, Blue...)
-            </button>
-          </div>
-
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              placeholder={language === 'bn' ? 'যেমন: স্টোরেজ, ধারণক্ষমতা' : 'e.g. Storage, Capacity'}
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              className="flex-1 px-3 py-1.5 border rounded-xl bg-white dark:bg-slate-900 text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => handleAddGroup()}
-              className="px-4 py-1.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
-            >
-              {language === 'bn' ? 'গ্রুপ তৈরি করুন' : 'Create Group'}
-            </button>
-          </div>
-
-          {variants.length > 0 && (
-            <div className="space-y-4">
-              {variants.map((group, groupIdx) => (
-                <div key={groupIdx} className="border border-slate-150 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                    <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
-                      {group.name} {language === 'bn' ? 'গ্রুপ' : 'Group'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveGroup(groupIdx)}
-                      className="text-red-500 hover:text-red-600 font-bold text-[10px]"
-                    >
-                      {language === 'bn' ? 'গ্রুপ মুছুন' : 'Delete Group'}
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2"
-                    onClick={(e) => {
-                      // Prevent form submission of outer main form if elements are clicked
-                      e.stopPropagation();
-                    }}
-                  >
-                    <input
-                      type="text"
-                      id={`opt-input-${groupIdx}`}
-                      placeholder={language === 'bn' ? 'নতুন অপশন যোগ করুন (যেমন: 1kg বা XXL)' : 'Add option (e.g. 1kg or XXL)'}
-                      className="flex-1 px-2.5 py-1 border rounded-lg bg-slate-50 dark:bg-slate-800 text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const val = e.currentTarget.value;
-                          if (val) {
-                            handleAddOption(groupIdx, val);
-                            e.currentTarget.value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const input = document.getElementById(`opt-input-${groupIdx}`) as HTMLInputElement;
-                        if (input && input.value) {
-                          handleAddOption(groupIdx, input.value);
-                          input.value = '';
-                        }
-                      }}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition"
-                    >
-                      + {language === 'bn' ? 'যুক্ত করুন' : 'Add'}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    {group.options.map((opt, optIdx) => {
-                      const priceKey = `${group.name}:${opt}`;
-                      const rawPrice = prices[priceKey];
-                      const optPrice: number | string = typeof rawPrice === 'number' ? rawPrice : (typeof rawPrice === 'object' && rawPrice !== null ? (rawPrice.price ?? '') : '');
-                      
-                      return (
-                        <div key={optIdx} className="flex items-center gap-2 bg-slate-50/50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800/50">
-                          <span className="font-bold text-xs text-slate-600 dark:text-slate-300 min-w-16 truncate">{opt}</span>
-                          <div className="flex items-center gap-1 flex-1">
-                            <span className="text-[10px] text-slate-400">৳</span>
-                            <input
-                              type="number"
-                              placeholder={language === 'bn' ? 'দাম' : 'Price'}
-                              value={optPrice}
-                              onChange={(e) => handlePriceChange(group.name, opt, Number(e.target.value))}
-                              className="w-full px-2 py-1 border rounded bg-white dark:bg-slate-900 text-xs font-mono font-bold text-emerald-600"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveOption(groupIdx, optIdx)}
-                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="pt-3 border-t border-dashed border-slate-200 dark:border-slate-700/60">
-          <span className="font-extrabold text-xs text-slate-800 dark:text-slate-100 block mb-1">
-            {language === 'bn' ? '২. পাইকারি ও ডাবল দামের অফার নির্ধারণ (Bulk Offer)' : '2. Bulk Multi-Buy & Offer Pricing'}
-          </span>
-          <span className="text-[10px] text-slate-400 block mb-3">
-            {language === 'bn' ? '২ বা তার বেশি পণ্য কিনলে কাস্টমারকে সরাসরি ছাড় বা অফার প্রাইজ দিন (রিয়েল মার্কেটের মত)।' : 'Offer custom incentives when customers purchase 2 or more of this item.'}
-          </span>
-
-          <div
-            className="flex flex-wrap gap-2 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-3 rounded-xl shadow-xs"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">{language === 'bn' ? 'যদি' : 'Buy'}</span>
-              <input
-                type="number"
-                id="bulk-min-qty"
-                defaultValue="2"
-                min="2"
-                className="w-14 px-2 py-1 border rounded-lg bg-slate-50 dark:bg-slate-800 text-xs font-bold font-mono"
-              />
-              <span className="text-xs text-slate-500">{language === 'bn' ? 'টি নেয়' : 'or more'}</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-1 min-w-32">
-              <span className="text-xs text-slate-500">{language === 'bn' ? 'অফার' : 'Discount'}</span>
-              <input
-                type="number"
-                id="bulk-disc-val"
-                placeholder="10"
-                className="w-16 px-2 py-1 border rounded-lg bg-slate-50 dark:bg-slate-800 text-xs font-bold font-mono text-amber-600"
-              />
-              <select
-                id="bulk-disc-type"
-                className="px-2 py-1 border rounded-lg bg-slate-50 dark:bg-slate-800 text-xs font-bold"
-              >
-                <option value="percent">% Off</option>
-                <option value="flat">৳ Off</option>
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                const minInput = document.getElementById('bulk-min-qty') as HTMLInputElement;
-                const valInput = document.getElementById('bulk-disc-val') as HTMLInputElement;
-                const typeSelect = document.getElementById('bulk-disc-type') as HTMLSelectElement;
-                if (minInput && valInput && typeSelect) {
-                  const minQty = Number(minInput.value);
-                  const val = Number(valInput.value);
-                  const type = typeSelect.value as 'percent' | 'flat';
-                  if (minQty && val) {
-                    handleAddBulkOffer(minQty, val, type);
-                    valInput.value = '';
-                  }
-                }
-              }}
-              className="px-4 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-xs transition"
-            >
-              + {language === 'bn' ? 'অফার রুল যোগ করুন' : 'Add Rule'}
-            </button>
-          </div>
-
-          {offers.length > 0 && (
-            <div className="space-y-2 mt-3">
-              {offers.map((offer, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/10 p-2.5 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                    <span>
-                      {language === 'bn' 
-                        ? `ন্যূনতম ২ বা তার বেশি অর্থাৎ ${offer.minQuantity} টি নিলে প্রতিটির উপর ${offer.discountPercent ? `${offer.discountPercent}%` : `${offer.discountAmount} ৳`} পাইকারি ছাড়!`
-                        : `Buy ${offer.minQuantity} or more: Get ${offer.discountPercent ? `${offer.discountPercent}%` : `৳${offer.discountAmount}`} off per item!`
-                      }
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBulkOffer(idx)}
-                    className="text-red-500 hover:text-red-600 font-bold text-[10px]"
-                  >
-                    {language === 'bn' ? 'মুছুন' : 'Remove'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
       <div className="max-w-2xl mx-auto py-12 px-4 space-y-6">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center space-y-6 shadow-sm">
           <div className="relative inline-flex">

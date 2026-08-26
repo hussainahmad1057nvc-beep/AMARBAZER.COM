@@ -425,6 +425,54 @@ export const firebaseDb = {
   },
 
   // USERS
+  async getUsers(): Promise<User[]> {
+    const path = 'users';
+    try {
+      const snap = await getDocs(collection(db, path));
+      const list: User[] = [];
+      snap.forEach(docSnap => {
+        list.push({ ...docSnap.data(), id: docSnap.id } as User);
+      });
+      return list;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return [];
+    }
+  },
+
+  async getUserById(id: string): Promise<User | null> {
+    const path = `users/${id}`;
+    try {
+      const snap = await getDoc(doc(db, 'users', id));
+      if (snap.exists()) {
+        return { ...snap.data(), id: snap.id } as User;
+      }
+      return null;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return null;
+    }
+  },
+
+  async findUser(query: string): Promise<User | null> {
+    if (!query) return null;
+    const cleanQ = query.trim().toLowerCase();
+    const cleanDigits = cleanQ.replace(/[^0-9]/g, '');
+
+    try {
+      const users = await this.getUsers();
+      const found = users.find(u => {
+        const uName = (u.username || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase();
+        const uPhone = (u.phone || '').replace(/[^0-9]/g, '');
+        return uName === cleanQ || uEmail === cleanQ || (cleanDigits && uPhone.includes(cleanDigits)) || (cleanQ === 'admin' && u.role === 'admin') || (cleanQ === 'seller' && u.role === 'seller') || (cleanQ === 'customer' && u.role === 'customer');
+      });
+      return found || null;
+    } catch (err) {
+      return null;
+    }
+  },
+
   async insertUser(user: User): Promise<User> {
     const path = `users/${user.id}`;
     try {
@@ -442,6 +490,37 @@ export const firebaseDb = {
       await setDoc(doc(db, 'users', id), updates, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  },
+
+  async deleteUser(id: string): Promise<void> {
+    const path = `users/${id}`;
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  },
+
+  subscribeToUsers(callback: (users: User[]) => void): Unsubscribe {
+    const path = 'users';
+    try {
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          const list: User[] = [];
+          snap.forEach(docSnap => {
+            list.push({ ...docSnap.data(), id: docSnap.id } as User);
+          });
+          callback(list);
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, path);
+        }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, path);
+      return () => {};
     }
   },
 
@@ -486,6 +565,64 @@ export const firebaseDb = {
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, path);
       return () => {};
+    }
+  },
+
+  // AUTO-SEEDING INITIAL DATA TO FIRESTORE
+  async seedInitialDataIfEmpty(initialData: {
+    products?: Product[];
+    categories?: Category[];
+    sellers?: SellerStore[];
+    users?: User[];
+    settings?: SystemSettings;
+  }): Promise<void> {
+    try {
+      // 1. Seed Settings if not present
+      const currentSettings = await this.getSettings();
+      if (!currentSettings && initialData.settings) {
+        await this.saveSettings(initialData.settings);
+      }
+
+      // 2. Seed Users if collection is empty
+      const existingUsers = await this.getUsers();
+      if (existingUsers.length === 0 && initialData.users && initialData.users.length > 0) {
+        for (const u of initialData.users) {
+          await this.insertUser(u);
+        }
+      } else if (initialData.users) {
+        // Ensure default admin exists in Firestore
+        const adminExists = existingUsers.some(u => u.username === 'admin' || u.role === 'admin');
+        if (!adminExists) {
+          const defaultAdmin = initialData.users.find(u => u.username === 'admin');
+          if (defaultAdmin) await this.insertUser(defaultAdmin);
+        }
+      }
+
+      // 3. Seed Categories if empty
+      const existingCats = await this.getCategories();
+      if (existingCats.length === 0 && initialData.categories && initialData.categories.length > 0) {
+        for (const cat of initialData.categories) {
+          await this.insertCategory(cat);
+        }
+      }
+
+      // 4. Seed Sellers if empty
+      const existingSellers = await this.getSellers();
+      if (existingSellers.length === 0 && initialData.sellers && initialData.sellers.length > 0) {
+        for (const sel of initialData.sellers) {
+          await this.insertSeller(sel);
+        }
+      }
+
+      // 5. Seed Products if empty
+      const existingProducts = await this.getProducts();
+      if (existingProducts.length === 0 && initialData.products && initialData.products.length > 0) {
+        for (const prod of initialData.products) {
+          await this.insertProduct(prod);
+        }
+      }
+    } catch (e) {
+      console.warn('Firestore auto-seed notice:', e);
     }
   }
 };

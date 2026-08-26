@@ -29,6 +29,7 @@ import { CustomerTrackingSupport } from './components/customer/CustomerTrackingS
 import { BottomNavigation } from './components/common/BottomNavigation';
 import { OutletsView } from './components/customer/OutletsView';
 import { Product, Address, getProductUnitPrice } from './types';
+import { addressService } from './services/addressService';
 import { ShieldAlert, KeyRound, LogOut, ArrowLeft } from 'lucide-react';
 import { nativeBridge } from './services/nativeBridge';
 import { backNavigationManager } from './services/backNavigationManager';
@@ -278,6 +279,7 @@ function MainLayout() {
   const handleProceedToCheckout = (
     subtotal: number, discount: number, shipping: number, total: number, coupon?: string
   ) => {
+    const defaultAddr = addressService.getDefaultAddress(currentUser);
     setCheckoutPayload({
       subtotal,
       discount,
@@ -285,17 +287,7 @@ function MainLayout() {
       total,
       coupon,
       items: cart,
-      shippingAddress: {
-        id: 'addr-dhaka-1',
-        title: 'Home Address',
-        recipientName: 'Rahim Chowdhury',
-        phone: '01712345678',
-        division: 'Dhaka',
-        district: 'Dhaka',
-        thana: 'Dhanmondi',
-        fullAddress: 'House 42, Road 10/A, Dhanmondi R/A, Dhaka-1209',
-        isDefault: true
-      }
+      shippingAddress: defaultAddr
     });
     setIsPaymentModalOpen(true);
   };
@@ -306,23 +298,14 @@ function MainLayout() {
     const sub = price * quantity;
     const ship = 60;
     const tot = sub + ship;
+    const defaultAddr = addressService.getDefaultAddress(currentUser);
     setCheckoutPayload({
       subtotal: sub,
       discount: 0,
       shipping: ship,
       total: tot,
       items: [{ product, quantity, calculatedPrice: price, selectedVariants: variants }],
-      shippingAddress: {
-        id: 'addr-dhaka-1',
-        title: 'Home Address',
-        recipientName: 'Rahim Chowdhury',
-        phone: '01712345678',
-        division: 'Dhaka',
-        district: 'Dhaka',
-        thana: 'Dhanmondi',
-        fullAddress: 'House 42, Road 10/A, Dhanmondi R/A, Dhaka-1209',
-        isDefault: true
-      }
+      shippingAddress: defaultAddr
     });
     setIsPaymentModalOpen(true);
   };
