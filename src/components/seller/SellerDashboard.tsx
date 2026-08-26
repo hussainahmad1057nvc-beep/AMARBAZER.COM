@@ -5576,7 +5576,8 @@ export const SellerDashboard: React.FC = () => {
         language={language}
         sellerId={storeInfo?.id}
         storeName={storeInfo?.name || 'আমার বাজার শপ'}
-        planName={storeInfo?.cloudSubscriptionPlan === 'gcs_subscription' ? 'Google Cloud Storage Pro' : storeInfo?.cloudSubscriptionPlan === 'firebase_subscription' ? 'Firebase Enterprise' : 'Supabase Live Free Tier'}
+        planName={storeInfo?.cloudSubscriptionPlan === 'gcs_subscription' ? 'Google Cloud Storage Pro' : storeInfo?.cloudSubscriptionPlan === 'firebase_subscription' ? 'Firebase Enterprise' : 'Live Database'}
+        storageType={storeInfo?.storageType || 'firebase'}
         totalCapacityGb={displayStorageTotal}
         onStorageUpdated={refreshStorageFiles}
       />

@@ -24,6 +24,7 @@ import { CurrencySettingsTab } from './CurrencySettingsTab';
 import { OrderSlipsHub } from './OrderSlipsHub';
 import { getLanguageMeta, getTranslation } from '../../services/languageService';
 import { getCurrencyMeta } from '../../services/currencyService';
+import { backNavigationManager } from '../../services/backNavigationManager';
 
 // Mock list of Bangladesh divisions, districts and thanas for address form
 const BD_DIVISIONS = ['Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Sylhet', 'Barisal', 'Rangpur', 'Mymensingh'];
@@ -234,6 +235,41 @@ export const CustomerProfilePanel: React.FC = () => {
       localStorage.setItem(`points_${currentUser.id}`, String(rewardPoints));
     }
   }, [rewardPoints, currentUser]);
+
+  // Single-step Back Button handling in CustomerProfilePanel
+  useEffect(() => {
+    const unregister = backNavigationManager.registerHandler('customer_profile_inner', () => {
+      if (showBiometricModal) {
+        setShowBiometricModal(false);
+        return true;
+      }
+      if (showCancelReasonModal) {
+        setShowCancelReasonModal(false);
+        return true;
+      }
+      if (showRefundModal) {
+        setShowRefundModal(false);
+        return true;
+      }
+      if (showTicketForm) {
+        setShowTicketForm(false);
+        return true;
+      }
+      if (selectedOrder) {
+        setSelectedOrder(null);
+        return true;
+      }
+      if (activeTab !== 'dashboard') {
+        setActiveTab('dashboard');
+        return true;
+      }
+      return false; // delegate to parent to return to storefront
+    }, 120);
+
+    return () => {
+      unregister();
+    };
+  }, [showBiometricModal, showCancelReasonModal, showRefundModal, showTicketForm, selectedOrder, activeTab]);
 
   // Trigger Action feedback banners
   const triggerBanner = (message: string) => {

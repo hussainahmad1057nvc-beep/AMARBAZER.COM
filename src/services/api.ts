@@ -748,6 +748,7 @@ export const api = {
   // Firebase Status & Sync
   getFirebaseStatus: () => fetchJson<{ connected: boolean; configured: boolean; message: string; error?: string }>('/api/firebase/status'),
   syncToFirebase: () => fetchJson<{ success: boolean; message: string; synced?: any }>('/api/firebase/sync', { method: 'POST' }),
+  getStorageTelemetry: (sellerId?: string) => fetchJson<any>(`/api/storage/telemetry${sellerId ? `?sellerId=${encodeURIComponent(sellerId)}` : ''}`),
 
   // Gemini AI Assistant
   askAiAssistant: (prompt: string, language: string) => fetchJson<{ reply: string }>('/api/ai/assistant', { method: 'POST', body: JSON.stringify({ prompt, language }) }),

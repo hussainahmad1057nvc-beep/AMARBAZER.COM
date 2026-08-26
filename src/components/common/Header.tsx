@@ -7,7 +7,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getTranslation } from '../../translations';
 import { Role } from '../../types';
-import { SHWAPNO_DETAILED_CATEGORIES } from '../../data/categoriesData';
+import { SHWAPNO_DETAILED_CATEGORIES, CATEGORY_EMOJIS } from '../../data/categoriesData';
 
 export const Header: React.FC = () => {
   const { 
@@ -72,6 +72,24 @@ export const Header: React.FC = () => {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [hoveredMainId, setHoveredMainId] = useState<string | null>(null);
   const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
+
+  const allNavCategories = React.useMemo(() => {
+    const list = [...(categories || [])];
+    SHWAPNO_DETAILED_CATEGORIES.forEach(item => {
+      const idx = list.findIndex(c => c.id === item.id);
+      if (idx === -1) {
+        list.push(item as any);
+      } else {
+        list[idx] = {
+          ...item,
+          ...list[idx],
+          emoji: list[idx].emoji || item.emoji || CATEGORY_EMOJIS[item.id] || '✨',
+          subcategories: (list[idx].subcategories && list[idx].subcategories.length > 0) ? list[idx].subcategories : item.subcategories
+        };
+      }
+    });
+    return list;
+  }, [categories]);
 
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const cartTotalPrice = cart.reduce((acc, item) => acc + ((item.product.discountPrice || item.product.price) * item.quantity), 0);
@@ -285,18 +303,25 @@ export const Header: React.FC = () => {
             <div className="relative select-none">
               <button 
                 onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                className="flex items-center space-x-2 text-slate-900 dark:text-white hover:text-[#da1c24] dark:hover:text-red-400 transition"
+                className="flex items-center space-x-2 text-slate-900 dark:text-white hover:text-[#da1c24] dark:hover:text-red-400 transition cursor-pointer"
               >
                 <Menu className="w-4 h-4 text-[#da1c24]" />
                 <span>{language === 'bn' ? 'ক্যাটাগরি' : 'SHOP BY CATEGORY'}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showCategoryDropdown ? 'rotate-180' : ''}`} />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
 
               {showCategoryDropdown && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => { setShowCategoryDropdown(false); setHoveredMainId(null); setHoveredSubId(null); }} />
                   <div 
-                    className="absolute left-0 mt-3 w-64 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl p-2.5 z-50"
+                    className="fixed inset-0 z-40" 
+                    onClick={() => {
+                      setShowCategoryDropdown(false);
+                      setHoveredMainId(null);
+                      setHoveredSubId(null);
+                    }} 
+                  />
+                  <div 
+                    className="absolute left-0 mt-3 w-64 sm:w-72 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl p-2.5 z-50 max-h-[460px] overflow-y-auto"
                     onMouseLeave={() => {
                       setHoveredMainId(null);
                       setHoveredSubId(null);
@@ -305,9 +330,11 @@ export const Header: React.FC = () => {
                     <div className="text-[9px] uppercase font-black text-slate-400 px-3 py-2 tracking-widest border-b border-slate-100 dark:border-slate-900 mb-1">
                       {language === 'bn' ? 'সকল ক্যাটাগরি' : 'All Categories'}
                     </div>
-                    {SHWAPNO_DETAILED_CATEGORIES.map((cat) => {
-                      const hasSubs = cat.subCategories && cat.subCategories.length > 0;
+                    {allNavCategories.map((cat) => {
+                      const subs = cat.subcategories || (cat as any).subCategories || [];
+                      const hasSubs = subs && subs.length > 0;
                       const isHovered = hoveredMainId === cat.id;
+                      const catEmoji = cat.emoji || CATEGORY_EMOJIS[cat.id] || '✨';
                       
                       return (
                         <div 
@@ -321,18 +348,21 @@ export const Header: React.FC = () => {
                           <button
                             onClick={() => {
                               setSelectedCategory(cat.id);
+                              setActivePanel('customer');
                               setSearchQuery('');
                               setShowCategoryDropdown(false);
+                              setHoveredMainId(null);
+                              setHoveredSubId(null);
                             }}
-                            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center justify-between ${
+                            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center justify-between cursor-pointer ${
                               selectedCategory === cat.id || isHovered
                                 ? 'bg-red-50 dark:bg-red-950/40 text-[#da1c24] dark:text-red-400 font-black' 
                                 : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
                             }`}
                           >
                             <div className="flex items-center space-x-2.5 truncate">
-                              <span>{cat.emoji}</span>
-                              <span className="truncate">{language === 'bn' ? cat.nameBn : cat.name}</span>
+                              <span className="text-sm">{catEmoji}</span>
+                              <span className="truncate">{language === 'bn' ? (cat.nameBn || cat.name) : cat.name}</span>
                             </div>
                             {hasSubs && <span className="text-slate-400 dark:text-slate-600 text-[9px]">▶</span>}
                           </button>
@@ -342,12 +372,13 @@ export const Header: React.FC = () => {
                     <button
                       onClick={() => {
                         setSelectedCategory(null);
+                        setActivePanel('customer');
                         setSearchQuery('');
                         setShowCategoryDropdown(false);
                         setHoveredMainId(null);
                         setHoveredSubId(null);
                       }}
-                      className="w-full text-center mt-1.5 py-2 text-[10px] font-black bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl transition"
+                      className="w-full text-center mt-1.5 py-2 text-[10px] font-black bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl transition cursor-pointer"
                     >
                       {language === 'bn' ? 'সব ক্যাটাগরি দেখুন' : 'View All Products'}
                     </button>
@@ -355,8 +386,9 @@ export const Header: React.FC = () => {
                     {/* SECOND TIER FLYOUT */}
                     {hoveredMainId && (
                       (() => {
-                        const activeMain = SHWAPNO_DETAILED_CATEGORIES.find(m => m.id === hoveredMainId);
-                        if (!activeMain || !activeMain.subCategories || activeMain.subCategories.length === 0) return null;
+                        const activeMain = allNavCategories.find(m => m.id === hoveredMainId);
+                        const subs: any[] = activeMain?.subcategories || (activeMain as any)?.subCategories || [];
+                        if (!activeMain || subs.length === 0) return null;
                         
                         return (
                           <div 
@@ -364,31 +396,35 @@ export const Header: React.FC = () => {
                             onMouseEnter={() => setHoveredMainId(activeMain.id)}
                           >
                             <div className="text-[9px] uppercase font-black text-slate-400 px-3 py-1 tracking-widest border-b border-slate-100 dark:border-slate-900/40 mb-1">
-                              {language === 'bn' ? activeMain.nameBn : activeMain.name}
+                              {language === 'bn' ? (activeMain.nameBn || activeMain.name) : activeMain.name}
                             </div>
                             <div className="max-h-[380px] overflow-y-auto space-y-0.5">
-                              {activeMain.subCategories.map((sub) => {
-                                const hasSubSubs = sub.subSubCategories && sub.subSubCategories.length > 0;
+                              {subs.map((sub: any) => {
+                                const subSubs = sub.subSubCategories || sub.subcategories || [];
+                                const hasSubSubs = subSubs.length > 0;
                                 const isSubHovered = hoveredSubId === sub.id;
                                 return (
                                   <div 
-                                    key={sub.id}
+                                    key={sub.id} 
                                     className="relative"
                                     onMouseEnter={() => setHoveredSubId(sub.id)}
                                   >
                                     <button
                                       onClick={() => {
                                         setSelectedCategory(sub.id);
+                                        setActivePanel('customer');
                                         setSearchQuery('');
                                         setShowCategoryDropdown(false);
+                                        setHoveredMainId(null);
+                                        setHoveredSubId(null);
                                       }}
-                                      className={`w-full flex items-center justify-between p-2 rounded-lg text-[11px] text-left transition-colors ${
+                                      className={`w-full flex items-center justify-between p-2 rounded-lg text-[11px] text-left transition-colors cursor-pointer ${
                                         selectedCategory === sub.id || isSubHovered
                                           ? 'bg-red-50 dark:bg-red-950/40 text-[#da1c24] dark:text-red-400 font-black'
                                           : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900/40'
                                       }`}
                                     >
-                                      <span className="truncate">{language === 'bn' ? sub.nameBn : sub.name}</span>
+                                      <span className="truncate">{language === 'bn' ? (sub.nameBn || sub.name) : sub.name}</span>
                                       {hasSubSubs && <span className="text-slate-400 dark:text-slate-600 text-[9px]">▶</span>}
                                     </button>
                                   </div>
@@ -403,9 +439,11 @@ export const Header: React.FC = () => {
                     {/* THIRD TIER FLYOUT */}
                     {hoveredMainId && hoveredSubId && (
                       (() => {
-                        const activeMain = SHWAPNO_DETAILED_CATEGORIES.find(m => m.id === hoveredMainId);
-                        const activeSub = activeMain?.subCategories?.find(s => s.id === hoveredSubId);
-                        if (!activeSub || !activeSub.subSubCategories || activeSub.subSubCategories.length === 0) return null;
+                        const activeMain = allNavCategories.find(m => m.id === hoveredMainId);
+                        const subs: any[] = activeMain?.subcategories || (activeMain as any)?.subCategories || [];
+                        const activeSub: any = subs.find((s: any) => s.id === hoveredSubId);
+                        const subSubs: any[] = activeSub?.subSubCategories || activeSub?.subcategories || [];
+                        if (!activeSub || subSubs.length === 0) return null;
                         
                         return (
                           <div 
@@ -416,27 +454,28 @@ export const Header: React.FC = () => {
                             }}
                           >
                             <div className="text-[9px] uppercase font-black text-[#da1c24] dark:text-red-400 px-3 py-1 tracking-widest border-b border-slate-100 dark:border-slate-900/40 mb-1">
-                              {language === 'bn' ? activeSub.nameBn : activeSub.name}
+                              {language === 'bn' ? (activeSub.nameBn || activeSub.name) : activeSub.name}
                             </div>
                             <div className="max-h-[340px] overflow-y-auto space-y-0.5">
-                              {activeSub.subSubCategories.map((subSub) => {
+                              {subSubs.map((subSub: any) => {
                                 return (
                                   <button
                                     key={subSub.id}
                                     onClick={() => {
                                       setSelectedCategory(subSub.id);
+                                      setActivePanel('customer');
                                       setSearchQuery('');
                                       setShowCategoryDropdown(false);
                                       setHoveredMainId(null);
                                       setHoveredSubId(null);
                                     }}
-                                    className={`w-full block p-2 rounded-lg text-[11px] text-left transition-colors ${
+                                    className={`w-full block p-2 rounded-lg text-[11px] text-left transition-colors cursor-pointer ${
                                       selectedCategory === subSub.id
                                         ? 'bg-[#da1c24]/10 text-[#da1c24] font-black'
                                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900/40'
                                     }`}
                                   >
-                                    {language === 'bn' ? subSub.nameBn : subSub.name}
+                                    {language === 'bn' ? (subSub.nameBn || subSub.name) : subSub.name}
                                   </button>
                                 );
                               })}
@@ -450,7 +489,7 @@ export const Header: React.FC = () => {
                 </>
               )}
             </div>
-
+            
             {/* Middle Nav Links */}
             <div className="hidden md:flex items-center space-x-5 lg:space-x-7 text-[11px] font-black">
               {campaignList.filter(link => link.isActive !== false).map((link) => (

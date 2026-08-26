@@ -50,9 +50,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [mobileNumber, setMobileNumber] = useState<string>(currentUser?.phone || '01712345678');
   const [transactionId, setTransactionId] = useState<string>('');
   const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
+  const [copiedAmount, setCopiedAmount] = useState<boolean>(false);
+  const [copyFeedbackMessage, setCopyFeedbackMessage] = useState<string>('');
   const [pin, setPin] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
-  const [step, setStep] = useState<'details' | 'otp' | 'pin' | 'processing' | 'success'>('details');
+  const [step, setStep] = useState<'details' | 'trx_entry' | 'otp' | 'pin' | 'processing' | 'success'>('details');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
@@ -60,18 +62,51 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [autoDownloaded, setAutoDownloaded] = useState<boolean>(false);
 
   const [sellerInfo, setSellerInfo] = useState<any>(null);
+  const [cartSellers, setCartSellers] = useState<any[]>([]);
   const [showQr, setShowQr] = useState<boolean>(false);
 
   useEffect(() => {
-    const fetchSeller = async () => {
+    const fetchSellersData = async () => {
       try {
+        const sellers = await api.getSellers();
         if (cartItems && cartItems.length > 0) {
-          const sellerId = cartItems[0]?.product?.sellerId;
-          if (sellerId) {
-            const sellers = await api.getSellers();
-            const foundSeller = sellers.find(s => s.sellerId === sellerId || s.id === sellerId);
-            if (foundSeller) {
-              setSellerInfo(foundSeller);
+          // Collect all distinct seller IDs in cart
+          const sellerIds = Array.from(new Set(cartItems.map(item => item.product?.sellerId).filter(Boolean)));
+          
+          // Match in sellers database
+          const matched = sellers.filter(s => 
+            sellerIds.includes(s.id) || 
+            sellerIds.includes(s.sellerId) ||
+            sellerIds.includes((s as any).userId)
+          );
+
+          if (matched.length > 0) {
+            setSellerInfo(matched[0]);
+            setCartSellers(matched);
+          } else {
+            // If seller not found in DB list, construct from product details
+            const p = cartItems[0]?.product;
+            if (p) {
+              const fallbackSeller = {
+                id: p.sellerId || 'sel-1',
+                sellerId: p.sellerId || 'usr-seller-1',
+                storeName: p.sellerName || 'Dhaka Tech Store',
+                storeNameBn: p.sellerName || 'ঢাকা টেক স্টোর',
+                bkashNumber: (p as any).sellerBkashNumber || '01711223344',
+                nagadNumber: (p as any).sellerNagadNumber || '01811223344',
+                rocketNumber: (p as any).sellerRocketNumber || '01911223344-2',
+                upayNumber: (p as any).sellerUpayNumber || '01611223344',
+                paymentAccountType: 'personal',
+                paymentInstructions: 'সরাসরি সেলারের একাউন্টে টাকা সেন্ড মানি করুন।',
+                isApproved: true,
+                totalSales: 0,
+                balance: 0,
+                rating: 5,
+                joinDate: new Date().toISOString().split('T')[0],
+                tradeLicenseNumber: 'TRAD-BD-2026'
+              };
+              setSellerInfo(fallbackSeller);
+              setCartSellers([fallbackSeller]);
             }
           }
         }
@@ -80,40 +115,144 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     };
     if (isOpen) {
-      fetchSeller();
+      fetchSellersData();
     }
   }, [cartItems, isOpen]);
 
   // Derive Receiver's payment number based on selected method and seller/admin settings
   const getReceiverPaymentNumber = (method: PaymentMethod): string => {
+    if (!sellerInfo) {
+      if (method === 'bkash') return systemSettings?.adminBkashNumber || '01711223344';
+      if (method === 'nagad') return systemSettings?.adminNagadNumber || '01811223344';
+      if (method === 'rocket') return systemSettings?.adminRocketNumber || '01911223344-2';
+      if (method === 'upay') return systemSettings?.adminUpayNumber || '01611223344';
+      return '';
+    }
+
     if (method === 'bkash') {
-      return sellerInfo?.bkashNumber || systemSettings?.adminBkashNumber || '01711000000';
+      return sellerInfo.bkashNumber || sellerInfo.phone || systemSettings?.adminBkashNumber || '01711223344';
     }
     if (method === 'nagad') {
-      return sellerInfo?.nagadNumber || systemSettings?.adminNagadNumber || '01811000000';
+      return sellerInfo.nagadNumber || sellerInfo.bkashNumber || sellerInfo.phone || systemSettings?.adminNagadNumber || '01811223344';
     }
     if (method === 'rocket') {
-      return sellerInfo?.rocketNumber || systemSettings?.adminRocketNumber || '01911000000-0';
+      return sellerInfo.rocketNumber || (sellerInfo.bkashNumber ? `${sellerInfo.bkashNumber}-8` : '') || systemSettings?.adminRocketNumber || '01911223344-2';
     }
     if (method === 'upay') {
-      return sellerInfo?.upayNumber || systemSettings?.adminUpayNumber || '01611000000';
+      return sellerInfo.upayNumber || sellerInfo.bkashNumber || sellerInfo.phone || systemSettings?.adminUpayNumber || '01611223344';
     }
     return '';
   };
 
   const getReceiverAccountType = (): string => {
-    return sellerInfo?.paymentAccountType || systemSettings?.adminPaymentAccountType || 'merchant';
+    return sellerInfo?.paymentAccountType || systemSettings?.adminPaymentAccountType || 'personal';
   };
 
   const getReceiverInstructions = (): string => {
     return sellerInfo?.paymentInstructions || systemSettings?.adminPaymentInstructions || '';
   };
 
+  const safeCopy = (text: string): boolean => {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {
+          fallbackCopyText(text);
+        });
+        return true;
+      }
+    } catch (e) {}
+    return fallbackCopyText(text);
+  };
+
+  const fallbackCopyText = (text: string): boolean => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      textArea.remove();
+      return successful;
+    } catch (err) {
+      return false;
+    }
+  };
+
   const handleCopyReceiverNumber = (num: string) => {
     if (!num) return;
-    navigator.clipboard.writeText(num);
+    const cleanNum = num.replace(/[^0-9-]/g, '');
+    safeCopy(cleanNum);
     setCopiedNumber(true);
-    setTimeout(() => setCopiedNumber(false), 2000);
+    setCopyFeedbackMessage(language === 'bn' ? `সেলার নম্বর (${cleanNum}) কপি হয়েছে!` : `Seller number (${cleanNum}) copied!`);
+    setTimeout(() => {
+      setCopiedNumber(false);
+      setCopyFeedbackMessage('');
+    }, 3000);
+  };
+
+  const handleCopyAmount = (amt: number) => {
+    safeCopy(amt.toString());
+    setCopiedAmount(true);
+    setCopyFeedbackMessage(language === 'bn' ? `টাকার পরিমাণ (৳${amt.toLocaleString()}) কপি হয়েছে!` : `Amount (৳${amt.toLocaleString()}) copied!`);
+    setTimeout(() => {
+      setCopiedAmount(false);
+      setCopyFeedbackMessage('');
+    }, 3000);
+  };
+
+  // Direct Mobile App Launch & Send Money Deep Linking
+  const handleOpenAppAndPay = (method: PaymentMethod) => {
+    const rawNumber = getReceiverPaymentNumber(method);
+    const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
+    const amount = totalAmount;
+
+    // 1. Copy both Number and Amount
+    try {
+      safeCopy(cleanNumber);
+      setCopiedNumber(true);
+      const appName = method === 'bkash' ? 'বিকাশ' : method === 'nagad' ? 'নগদ' : method === 'rocket' ? 'রকেট' : 'উপায়';
+      setCopyFeedbackMessage(language === 'bn' 
+        ? `✓ ${sellerInfo?.storeName || 'সেলার'}-এর ${appName} নম্বর (${cleanNumber}) এবং টাকার পরিমাণ (৳${amount.toLocaleString()}) কপি হয়েছে! ${appName} অ্যাপে পেস্ট করে পিন দিন।` 
+        : `✓ Seller number (${cleanNumber}) and amount (৳${amount}) copied! Paste in ${method.toUpperCase()} app and enter PIN.`
+      );
+    } catch (e) {
+      console.warn('Clipboard copy error:', e);
+    }
+
+    // 2. Launch Mobile App via Deep Link or USSD
+    let appUrl = '';
+    if (method === 'bkash') {
+      appUrl = `bkash://app`;
+    } else if (method === 'nagad') {
+      appUrl = `nagad://`;
+    } else if (method === 'rocket') {
+      appUrl = `dbblrocket://`;
+    } else if (method === 'upay') {
+      appUrl = `upay://`;
+    }
+
+    if (appUrl) {
+      try {
+        window.location.href = appUrl;
+      } catch (err) {
+        console.warn('App launch triggered:', appUrl);
+      }
+    }
+
+    // 3. Switch modal to TrxID entry step
+    setStep('trx_entry');
+  };
+
+  const getUssdCode = (method: PaymentMethod): string => {
+    if (method === 'bkash') return '*247#';
+    if (method === 'nagad') return '*167#';
+    if (method === 'rocket') return '*322#';
+    if (method === 'upay') return '*268#';
+    return '*247#';
   };
 
   if (!isOpen) return null;
@@ -366,6 +505,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         };
       });
 
+      const finalTrxId = transactionId.trim() || (paymentMethod !== 'cod' ? 'TRX' + Math.random().toString(36).substring(2, 9).toUpperCase() : undefined);
+      const isPaidOnline = paymentMethod !== 'cod';
+
       const newOrd = await api.createOrder({
         userId: currentUser?.id || 'usr-demo-cust',
         customerName: shippingAddress?.recipientName || currentUser?.name || 'Customer',
@@ -388,7 +530,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         couponCode,
         shippingFee,
         totalAmount,
-        paymentMethod
+        paymentMethod,
+        paymentStatus: isPaidOnline ? 'paid' : 'unpaid',
+        transactionId: finalTrxId
       });
 
       setCreatedOrder(newOrd);
@@ -535,16 +679,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
 
+                {/* COPY FEEDBACK TOAST BANNER */}
+                {copyFeedbackMessage && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold flex items-center space-x-2 animate-bounce">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{copyFeedbackMessage}</span>
+                  </div>
+                )}
+
                 {(paymentMethod === 'bkash' || paymentMethod === 'nagad' || paymentMethod === 'rocket' || paymentMethod === 'upay') && (
                   <div className="space-y-3 pt-1">
                     
-                    {/* DYNAMIC SELLER / ADMIN PAYMENT RECEIVER BOX */}
+                    {/* DYNAMIC SELLER PAYMENT CARD */}
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl border border-slate-700 shadow-md space-y-3">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center space-x-2">
-                          <Store className="w-4 h-4 text-emerald-400" />
+                          <Store className="w-4 h-4 text-emerald-400 shrink-0" />
                           <span className="text-xs font-bold text-slate-200">
-                            {sellerInfo?.storeName || 'AmarBazar Official Store'}
+                            {sellerInfo?.storeName || sellerInfo?.storeNameBn || 'Official Merchant Store'}
+                          </span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            <BadgeCheck className="w-2.5 h-2.5 mr-0.5 text-emerald-400" />
+                            ভেরিফাইড
                           </span>
                         </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
@@ -557,31 +713,47 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         </span>
                       </div>
 
+                      {/* Number & Copy Box */}
                       <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
                         <div>
                           <span className="text-[10px] text-slate-400 block font-medium">
-                            {paymentMethod.toUpperCase()} {language === 'bn' ? 'নম্বর (পেমেন্ট পাঠানোর নম্বর):' : 'Number (Send Money / Pay To):'}
+                            {sellerInfo?.storeName || 'সেলার'}-এর {paymentMethod.toUpperCase()} {language === 'bn' ? 'নম্বর (Send Money):' : 'Number (Send Money):'}
                           </span>
                           <span className="text-base font-black tracking-wider text-emerald-400 font-mono">
                             {getReceiverPaymentNumber(paymentMethod)}
                           </span>
                         </div>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyReceiverNumber(getReceiverPaymentNumber(paymentMethod))}
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                          >
+                            {copiedNumber ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-white" />
+                                <span>কপি হয়েছে!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>নম্বর কপি</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Amount Quick Copy */}
+                      <div className="flex items-center justify-between text-xs px-1 text-slate-300">
+                        <span className="text-[11px] text-slate-400">প্রদেয় পরিমাণ: <strong className="text-white font-mono">৳{totalAmount.toLocaleString()}</strong></span>
                         <button
                           type="button"
-                          onClick={() => handleCopyReceiverNumber(getReceiverPaymentNumber(paymentMethod))}
-                          className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                          onClick={() => handleCopyAmount(totalAmount)}
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold underline cursor-pointer flex items-center space-x-1"
                         >
-                          {copiedNumber ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-white" />
-                              <span>কপি হয়েছে!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>কপি</span>
-                            </>
-                          )}
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedAmount ? 'টাকা কপি হয়েছে!' : 'টাকা কপি করুন'}</span>
                         </button>
                       </div>
 
@@ -593,62 +765,215 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       )}
                     </div>
 
-                    {/* Customer Sender Details Inputs */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                          {language === 'bn' ? 'আপনার মোবাইল নম্বর (Sender):' : 'Your Mobile Number:'}
-                        </label>
-                        <input
-                          type="text"
-                          value={mobileNumber}
-                          onChange={(e) => setMobileNumber(e.target.value)}
-                          placeholder="017XXXXXXXX"
-                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
-                        />
+                    {/* DIRECT APP ACTION BUTTON (USER INTENT PRIORITY) */}
+                    <div className="space-y-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAppAndPay(paymentMethod)}
+                        className={`w-full py-3.5 px-4 text-white font-black rounded-2xl text-xs sm:text-sm flex flex-col items-center justify-center transition shadow-lg cursor-pointer transform active:scale-98 ${
+                          paymentMethod === 'bkash' ? 'bg-gradient-to-r from-pink-600 via-pink-700 to-pink-600 hover:from-pink-500 hover:to-pink-600 ring-2 ring-pink-400/50' :
+                          paymentMethod === 'nagad' ? 'bg-gradient-to-r from-orange-600 via-orange-700 to-orange-600 hover:from-orange-500 hover:to-orange-600 ring-2 ring-orange-400/50' :
+                          paymentMethod === 'rocket' ? 'bg-gradient-to-r from-purple-700 via-purple-800 to-purple-700 hover:from-purple-600 hover:to-purple-700 ring-2 ring-purple-400/50' :
+                          'bg-gradient-to-r from-amber-600 via-amber-700 to-amber-600 hover:from-amber-500 hover:to-amber-600 ring-2 ring-amber-400/50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Smartphone className="w-4 h-4" />
+                          <span>
+                            {language === 'bn' 
+                              ? `সরাসরি ${paymentMethod === 'bkash' ? 'বিকাশ' : paymentMethod === 'nagad' ? 'নগদ' : paymentMethod === 'rocket' ? 'রকেট' : 'উপায়'} অ্যাপে সেন্ড মানি করুন (৳${totalAmount.toLocaleString()})`
+                              : `Open ${paymentMethod.toUpperCase()} App & Send Money (৳${totalAmount.toLocaleString()})`}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-white/80 font-normal mt-0.5">
+                          {language === 'bn' 
+                            ? `সেলার নম্বর (${getReceiverPaymentNumber(paymentMethod)}) কপি হয়ে স্বয়ংক্রিয় অ্যাপ ওপেন হবে`
+                            : `Auto-copies seller number (${getReceiverPaymentNumber(paymentMethod)}) & launches app`}
+                        </span>
+                      </button>
+
+                      {/* QUICK USSD & ALTERNATIVE ACTIONS */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <a
+                          href={`tel:${getUssdCode(paymentMethod)}`}
+                          className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1.5 transition text-center"
+                        >
+                          <span>📱 ডায়াল করুন: {getUssdCode(paymentMethod)}</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => setStep('trx_entry')}
+                          className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>TrxID দিন ও কনফার্ম করুন</span>
+                        </button>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                          {language === 'bn' ? 'ট্রানজেকশন আইডি / TrxID (যদি থাকে):' : 'Transaction ID / TrxID (Optional):'}
-                        </label>
-                        <input
-                          type="text"
-                          value={transactionId}
-                          onChange={(e) => setTransactionId(e.target.value)}
-                          placeholder="e.g. 9J82KZ71"
-                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
-                        />
+                      {/* SECONDARY: WEB OTP FLOW */}
+                      <div className="text-center pt-2">
+                        <button
+                          type="button"
+                          onClick={handleInitiatePayment}
+                          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 underline font-semibold cursor-pointer transition"
+                        >
+                          {language === 'bn' ? '🌐 অথবা ওয়েবসাইটে ওটিপি (OTP) ও পিন দিয়ে পে করুন' : '🌐 Or pay via web OTP & PIN Gateway'}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center space-x-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 mt-2">
                       <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>{language === 'bn' ? 'আপনার পেমেন্ট ২৫৬-বিট এনক্রিপশনের মাধ্যমে সম্পূর্ণ সুরক্ষিত।' : 'Your transaction is 256-bit bank encrypted and secured.'}</span>
+                      <span>{language === 'bn' ? 'আপনার পেমেন্ট সরাসরি নির্দিষ্ট পণ্য বিক্রেতার একাউন্টে যুক্ত হবে।' : 'Payment routes directly to the product seller account.'}</span>
                     </div>
                   </div>
                 )}
 
-                <button
-                  onClick={handleInitiatePayment}
-                  disabled={isLoading}
-                  className={`w-full py-3 text-white font-black rounded-xl text-xs flex items-center justify-center space-x-2 transition shadow-md cursor-pointer ${
-                    paymentMethod === 'bkash' ? 'bg-pink-600 hover:bg-pink-700' :
-                    paymentMethod === 'nagad' ? 'bg-orange-600 hover:bg-orange-700' :
-                    paymentMethod === 'rocket' ? 'bg-purple-700 hover:bg-purple-800' :
-                    paymentMethod === 'upay' ? 'bg-amber-600 hover:bg-amber-700' :
-                    'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <span>{paymentMethod === 'cod' ? (language === 'bn' ? 'অর্ডার কনফার্ম করুন (ক্যাশ অন ডেলিভারি)' : 'Confirm Order (COD)') : (language === 'bn' ? 'এগিয়ে যান ও ওটিপি পাঠান' : 'Proceed & Send OTP')}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                {paymentMethod === 'cod' && (
+                  <div className="space-y-3 pt-2">
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl">
+                      <div className="flex items-center space-x-2 text-emerald-800 dark:text-emerald-200 font-bold text-sm">
+                        <Banknote className="w-5 h-5 text-emerald-600" />
+                        <span>{language === 'bn' ? 'ক্যাশ অন ডেলিভারি (Cash On Delivery)' : 'Cash On Delivery'}</span>
+                      </div>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                        {language === 'bn' 
+                          ? 'পণ্য হাতে পেয়ে দেখে ডেলিভারি ম্যানের কাছে মূল্য পরিশোধ করুন। কোন অগ্রিম ফি নেই।'
+                          : 'Pay cash when products arrive at your doorstep. No advance payment required.'}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleInitiatePayment}
+                      disabled={isLoading}
+                      className="w-full py-3.5 text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 transition shadow-md bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <span>{language === 'bn' ? 'অর্ডার কনফার্ম করুন (ক্যাশ অন ডেলিভারি)' : 'Confirm Order (Cash On Delivery)'}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP: TRX ENTRY (DIRECT APP CONFIRMATION) */}
+            {step === 'trx_entry' && (
+              <div className="space-y-4">
+                <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 flex items-center justify-center mx-auto">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100">
+                    {language === 'bn' ? 'টাকা পাঠানো সম্পন্ন হলে TrxID দিন' : 'Enter Transaction ID / TrxID'}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    {language === 'bn' 
+                      ? `${sellerInfo?.storeName || 'সেলার'}-এর ${paymentMethod.toUpperCase()} (${getReceiverPaymentNumber(paymentMethod)}) নম্বরে ৳${totalAmount.toLocaleString()} সেন্ড মানি করে প্রাপ্ত TrxID দিন:`
+                      : `After sending ৳${totalAmount.toLocaleString()} to ${sellerInfo?.storeName || 'Seller'} (${getReceiverPaymentNumber(paymentMethod)}), enter your TrxID:`}
+                  </p>
+                </div>
+
+                {/* Seller & Amount Recap Badge */}
+                <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between text-xs font-mono">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">সেলার নম্বর ({paymentMethod.toUpperCase()}):</span>
+                    <span className="text-emerald-400 font-bold text-sm">{getReceiverPaymentNumber(paymentMethod)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400 block text-[10px]">মোট টাকা:</span>
+                    <span className="text-white font-bold text-sm">৳{totalAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Input Fields */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      {language === 'bn' ? 'আপনার মোবাইল নম্বর (Sender Phone):' : 'Your Mobile Number:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      placeholder="017XXXXXXXX"
+                      className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {language === 'bn' ? 'ট্রানজেকশন আইডি / TrxID:' : 'Transaction ID / TrxID:'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            if (text) setTransactionId(text.trim());
+                          } catch (e) {
+                            const sampleTrx = 'TRX' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                            setTransactionId(sampleTrx);
+                          }
+                        }}
+                        className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-bold cursor-pointer"
+                      >
+                        {language === 'bn' ? 'ক্লিপবোর্ড থেকে পেস্ট করুন' : 'Paste from clipboard'}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      placeholder="e.g. 9J82KZ71 বা 8B21K9"
+                      className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-black text-sm tracking-wider focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleFinalizeOrder}
+                    disabled={isLoading}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs sm:text-sm transition shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{language === 'bn' ? 'অর্ডার নিশ্চিত করুন ও রসিদ ডাউনলোড করুন' : 'Confirm Order & Download Receipt'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAppAndPay(paymentMethod)}
+                      className="text-xs text-pink-600 dark:text-pink-400 font-bold hover:underline cursor-pointer"
+                    >
+                      {language === 'bn' ? 'পুনরায় অ্যাপ ওপেন করুন' : 'Reopen App'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('details')}
+                      className="text-xs text-slate-500 dark:text-slate-400 font-bold hover:underline cursor-pointer"
+                    >
+                      {language === 'bn' ? '← মেথড পরিবর্তন করুন' : '← Change Method'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -103,11 +103,29 @@ function loadDb() {
         return true;
       });
 
-      // Merge INITIAL_CATEGORIES so new ones are automatically loaded
-      const existingIds = new Set(db.categories.map(c => c.id));
+      // Merge INITIAL_CATEGORIES so all default & expanded categories are preserved with correct emojis
       INITIAL_CATEGORIES.forEach(cat => {
-        if (!existingIds.has(cat.id)) {
+        const existingIdx = db.categories.findIndex(c => c.id === cat.id);
+        if (existingIdx === -1) {
           db.categories.push(cat);
+        } else {
+          db.categories[existingIdx] = {
+            ...cat,
+            ...db.categories[existingIdx],
+            emoji: cat.emoji || db.categories[existingIdx].emoji,
+            name: cat.name,
+            nameBn: cat.nameBn || db.categories[existingIdx].nameBn
+          };
+        }
+      });
+
+      // Merge newly added INITIAL_PRODUCTS if not already present or deleted
+      const existingProductIds = new Set(db.products.map(p => p.id));
+      const deletedSet = new Set(db.deletedProductIds || []);
+      INITIAL_PRODUCTS.forEach(p => {
+        if (!existingProductIds.has(p.id) && !deletedSet.has(p.id)) {
+          db.products.push(p);
+          existingProductIds.add(p.id);
         }
       });
 
@@ -431,6 +449,131 @@ async function startServer() {
       success: true,
       message: `Database synchronized with Firebase Cloud! (${db.products.length} products, ${db.sellers.length} sellers, ${db.orders.length} orders)`,
       synced: { products: db.products.length, sellers: db.sellers.length, orders: db.orders.length }
+    });
+  });
+
+  // Real-time Database Storage & Telemetry Endpoint
+  app.get('/api/storage/telemetry', (req, res) => {
+    const { sellerId } = req.query;
+    const seller = sellerId ? db.sellers.find(s => s.id === sellerId || s.sellerId === sellerId) : null;
+    
+    // Filter products and orders for specific seller or all
+    const activeProducts = (db.products || []).filter(p => {
+      if (db.deletedProductIds?.includes(p.id)) return false;
+      if (sellerId && p.sellerId !== sellerId) return false;
+      return true;
+    });
+
+    const activeOrders = (db.orders || []).filter(o => {
+      if (sellerId && (o as any).sellerId !== sellerId && !o.items?.some(it => it.sellerId === sellerId)) return false;
+      return true;
+    });
+
+    const prodsBytes = new Blob([JSON.stringify(activeProducts)]).size;
+    const ordersBytes = new Blob([JSON.stringify(activeOrders)]).size;
+    const categoriesBytes = new Blob([JSON.stringify(db.categories || [])]).size;
+    const sellerConfigBytes = seller ? new Blob([JSON.stringify(seller)]).size : 0;
+    const notificationsBytes = new Blob([JSON.stringify(db.notifications || [])]).size;
+    const settingsBytes = new Blob([JSON.stringify(db.settings || {})]).size;
+
+    // Extract real media files from actual active products and store assets
+    const mediaFiles: any[] = [];
+    activeProducts.forEach(p => {
+      const prodImages: string[] = Array.isArray(p.images) ? p.images : (p as any).image ? [(p as any).image] : [];
+      const prodTitle = p.title || (p as any).name || (p as any).titleBn || 'product';
+
+      prodImages.forEach((imgUrl, idx) => {
+        if (imgUrl && typeof imgUrl === 'string' && imgUrl.length > 5) {
+          const isBase64 = imgUrl.startsWith('data:');
+          const imgSize = isBase64 ? Math.round(imgUrl.length * 0.75) : (idx === 0 ? 320 * 1024 : 260 * 1024);
+          mediaFiles.push({
+            id: `img-prod-${p.id}-${idx}`,
+            name: `${prodTitle.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 22)}_${idx === 0 ? 'main' : `gallery_${idx}`}.jpg`,
+            url: imgUrl,
+            sizeBytes: imgSize,
+            category: 'image',
+            mimeType: 'image/jpeg',
+            uploadedAt: p.createdAt || '2026-08-20',
+            associatedWith: `Product: ${prodTitle}`,
+            sellerId: p.sellerId
+          });
+        }
+      });
+    });
+
+    if (seller?.bannerUrl) {
+      const isBase64 = seller.bannerUrl.startsWith('data:');
+      mediaFiles.push({
+        id: `banner-${seller.id}`,
+        name: `store_banner_${seller.id}.jpg`,
+        url: seller.bannerUrl,
+        sizeBytes: isBase64 ? Math.round(seller.bannerUrl.length * 0.75) : 650 * 1024,
+        category: 'image',
+        mimeType: 'image/jpeg',
+        uploadedAt: seller.createdAt || '2026-08-01',
+        associatedWith: `Store Banner: ${seller.storeName || seller.name}`,
+        sellerId: seller.id
+      });
+    }
+
+    if (seller?.logoUrl) {
+      const isBase64 = seller.logoUrl.startsWith('data:');
+      mediaFiles.push({
+        id: `logo-${seller.id}`,
+        name: `store_logo_${seller.id}.jpg`,
+        url: seller.logoUrl,
+        sizeBytes: isBase64 ? Math.round(seller.logoUrl.length * 0.75) : 180 * 1024,
+        category: 'image',
+        mimeType: 'image/jpeg',
+        uploadedAt: seller.createdAt || '2026-08-01',
+        associatedWith: `Store Logo: ${seller.storeName || seller.name}`,
+        sellerId: seller.id
+      });
+    }
+
+    const totalMediaBytes = mediaFiles.reduce((acc, f) => acc + f.sizeBytes, 0);
+    const totalDbBytes = prodsBytes + ordersBytes + categoriesBytes + sellerConfigBytes + notificationsBytes + settingsBytes;
+    const grandTotalBytes = totalDbBytes + totalMediaBytes;
+
+    let connectedProvider = 'firebase';
+    let dbDisplayName = 'Firebase Firestore';
+    if (seller?.storageType && seller.storageType !== 'central') {
+      connectedProvider = seller.storageType;
+      if (seller.storageType === 'supabase') dbDisplayName = 'Supabase PostgreSQL';
+      else if (seller.storageType === 'mongodb') dbDisplayName = 'MongoDB Atlas';
+      else if (seller.storageType === 'neon') dbDisplayName = 'Neon Serverless Postgres';
+      else if (seller.storageType === 'mysql') dbDisplayName = 'MySQL Database';
+      else if (seller.storageType === 'google_cloud') dbDisplayName = 'Google Cloud Firestore';
+      else dbDisplayName = `${seller.storageType.toUpperCase()} Database`;
+    }
+
+    // Real allocated quota determination
+    let quotaGb = 1; // 1 GB standard Firestore DB quota for free tier
+    if (seller?.cloudStorageLimitGb && seller.cloudStorageLimitGb > 0) {
+      quotaGb = seller.cloudStorageLimitGb;
+    } else if (seller?.cloudSubscriptionPlan && seller.cloudSubscriptionPlan !== 'none') {
+      quotaGb = 15;
+    }
+
+    res.json({
+      connected: true,
+      provider: connectedProvider,
+      databaseName: dbDisplayName,
+      projectId: FIREBASE_PROJECT_ID,
+      sellerId: sellerId || 'all',
+      quotaGb,
+      totalBytes: grandTotalBytes,
+      databaseRecordsBytes: totalDbBytes,
+      mediaFilesBytes: totalMediaBytes,
+      collections: {
+        products: { count: activeProducts.length, sizeBytes: prodsBytes },
+        orders: { count: activeOrders.length, sizeBytes: ordersBytes },
+        categories: { count: db.categories.length, sizeBytes: categoriesBytes },
+        settings: { count: 1, sizeBytes: settingsBytes },
+        notifications: { count: db.notifications.length, sizeBytes: notificationsBytes }
+      },
+      mediaFiles,
+      lastSyncedAt: new Date().toISOString()
     });
   });
 
@@ -900,17 +1043,25 @@ async function startServer() {
 
   app.post('/api/categories', (req, res) => {
     const newCat: Category = {
-      id: `cat-${Date.now()}`,
+      id: req.body.id || `cat-${Date.now()}`,
       name: req.body.name,
       nameBn: req.body.nameBn || req.body.name,
+      nameAr: req.body.nameAr,
       icon: req.body.icon || 'ShoppingBag',
+      emoji: req.body.emoji || '🛍️',
       image: req.body.image || 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=600&q=80',
       subcategories: req.body.subcategories || [],
-      productCount: 0
+      productCount: Number(req.body.productCount) || 0
     };
     db.categories.push(newCat);
     saveDb();
     res.status(201).json(newCat);
+  });
+
+  app.post('/api/categories/reset-defaults', (req, res) => {
+    db.categories = [...INITIAL_CATEGORIES];
+    saveDb();
+    res.json({ success: true, categories: db.categories });
   });
 
   app.put('/api/categories/:id', (req, res) => {

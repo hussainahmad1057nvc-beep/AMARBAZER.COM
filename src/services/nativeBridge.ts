@@ -2,16 +2,16 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { backNavigationManager } from './backNavigationManager';
 
 export interface NativeBridgeContext {
-  closeAnyOpenModal: () => boolean;
-  navigateToHome: () => boolean;
-  canGoBack: () => boolean;
+  closeAnyOpenModal?: () => boolean;
+  navigateToHome?: () => boolean;
+  canGoBack?: () => boolean;
 }
 
 class NativeBridgeService {
   private isInitialized = false;
-  private lastBackPressTime = 0;
 
   /**
    * Check if running on Android native platform (Capacitor)
@@ -47,9 +47,12 @@ class NativeBridgeService {
   /**
    * Initialize native Android features (Status bar, Splash screen, Back button listener)
    */
-  public async initNativeFeatures(callbacks: NativeBridgeContext) {
+  public async initNativeFeatures(callbacks?: NativeBridgeContext) {
     if (this.isInitialized) return;
     this.isInitialized = true;
+
+    // Initialize Web / Browser popstate back button interceptor as well
+    backNavigationManager.initBrowserBackHandling();
 
     if (this.isNative()) {
       try {
@@ -68,28 +71,12 @@ class NativeBridgeService {
       }
 
       try {
-        // 3. Setup Android Hardware Back Button
-        CapApp.addListener('backButton', ({ canGoBack }) => {
-          // Priority 1: If any open modal/drawer is active, close it
-          const modalClosed = callbacks.closeAnyOpenModal();
-          if (modalClosed) {
-            return;
-          }
-
-          // Priority 2: If inside a sub-panel (Seller, Admin, Settings, Profile), go to Home Storefront
-          const navigatedHome = callbacks.navigateToHome();
-          if (navigatedHome) {
-            return;
-          }
-
-          // Priority 3: Double-tap back button within 2 seconds to exit app
-          const now = Date.now();
-          if (now - this.lastBackPressTime < 2000) {
+        // 3. Setup Android Hardware Back Button via backNavigationManager
+        CapApp.addListener('backButton', () => {
+          const wasHandled = backNavigationManager.handleBackAction();
+          if (!wasHandled) {
+            // Exit native app on second back press
             CapApp.exitApp();
-          } else {
-            this.lastBackPressTime = now;
-            // Optionally notify user
-            console.log('Press BACK again to exit AmarBazar app');
           }
         });
       } catch (err) {
@@ -100,3 +87,4 @@ class NativeBridgeService {
 }
 
 export const nativeBridge = new NativeBridgeService();
+

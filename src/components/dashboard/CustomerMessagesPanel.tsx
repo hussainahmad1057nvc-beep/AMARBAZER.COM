@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { User as AppUser, Role } from '../../types';
 import { FacebookMessengerWidget } from '../common/FacebookMessengerWidget';
+import { backNavigationManager } from '../../services/backNavigationManager';
 
 // Helper to generate a 100% valid, playable synthesizer sound WAV Data URL
 const generateMockAudioUrl = () => {
@@ -309,13 +310,6 @@ export const CustomerMessagesPanel: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<'all' | 'customer' | 'seller' | 'admin'>('all');
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
 
-  useEffect(() => {
-    setIsMobileChatActive(mobileView === 'chat');
-    return () => {
-      setIsMobileChatActive(false);
-    };
-  }, [mobileView, setIsMobileChatActive]);
-  
   // Audio/Video Calling Mock State
   const [activeCall, setActiveCall] = useState<{
     isOpen: boolean;
@@ -324,6 +318,36 @@ export const CustomerMessagesPanel: React.FC = () => {
     type: 'audio' | 'video';
     status: 'ringing' | 'connected' | 'ended';
   } | null>(null);
+
+  useEffect(() => {
+    setIsMobileChatActive(mobileView === 'chat');
+    return () => {
+      setIsMobileChatActive(false);
+    };
+  }, [mobileView, setIsMobileChatActive]);
+
+  // Single-step Back Button handling in CustomerMessagesPanel
+  useEffect(() => {
+    const unregister = backNavigationManager.registerHandler('customer_messages_inner', () => {
+      if (activeCall && activeCall.isOpen) {
+        setActiveCall(null);
+        return true;
+      }
+      if (mobileView === 'chat') {
+        setMobileView('list');
+        return true;
+      }
+      if (searchQuery) {
+        setSearchQuery('');
+        return true;
+      }
+      return false; // delegate to parent
+    }, 130);
+
+    return () => {
+      unregister();
+    };
+  }, [activeCall, mobileView, searchQuery]);
 
   // --- REAL-TIME INTERACTIVE CHAT UTILITIES & MEDIA STAGES ---
   const [isRecording, setIsRecording] = useState<boolean>(false);

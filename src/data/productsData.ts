@@ -1172,6 +1172,526 @@ export const INITIAL_PRODUCTS: Product[] = [
   },
 
   // ==========================================
+  // SPICES & MASALA (মসলাপাতি ও গুঁড়া)
+  // ==========================================
+  {
+    id: 'prod-spice-01',
+    title: 'Radhuni Pure Turmeric Powder (হলুদ গুঁড়া 200g)',
+    titleBn: 'রাঁধুনী খাঁটি হলুদ গুঁড়া ২০০ গ্রাম',
+    slug: 'radhuni-pure-turmeric-powder-200g',
+    description: '100% natural and unadulterated turmeric powder from selected dry roots, giving deep natural golden color and rich aroma.',
+    descriptionBn: 'বাছাইকৃত খাঁটি শুকনা হলুদ থেকে প্রস্তুত রাঁধুনী হলুদ গুঁড়া। তরকারিতে দেয় নিখুঁত সোনালী রঙ ও সুন্দর সুবাস।',
+    price: 130,
+    discountPrice: 110,
+    categoryId: 'cat-spices',
+    categoryName: 'Spices & Masala',
+    subCategory: 'Turmeric & Chili Powder',
+    brand: 'Radhuni',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 160,
+    sku: 'RADH-TURM-200G',
+    images: [
+      'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 112,
+    tags: ['spices', 'turmeric', 'radhuni', 'masala', 'grocery', 'হলুদ', 'মসলা'],
+    createdAt: '2026-08-15T10:00:00Z'
+  },
+  {
+    id: 'prod-spice-02',
+    title: 'Pran Special Garam Masala Powder (গরম মসলা 100g)',
+    titleBn: 'প্রাণ স্পেশাল শাহী গরম মসলা গুঁড়া ১০০ গ্রাম',
+    slug: 'pran-special-garam-masala-100g',
+    description: 'A rich royal aromatic blend of cardamom, cinnamon, cloves, mace, nutmeg, and black pepper for biryani and rich curries.',
+    descriptionBn: 'এলাচ, দারুচিনি, লবঙ্গ, জয়ফল ও জয়ত্রী সমৃদ্ধ শাহী গরম মসলা। বিরিয়ানি ও মাংসের স্বাদ বাড়ায় বহুগুণ।',
+    price: 190,
+    discountPrice: 165,
+    categoryId: 'cat-spices',
+    categoryName: 'Spices & Masala',
+    subCategory: 'Whole Garam Masala',
+    brand: 'Pran Foods',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 140,
+    sku: 'PRAN-GMAS-100G',
+    images: [
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 78,
+    tags: ['spices', 'garam masala', 'masala', 'radhuni', 'biryani', 'মসলা', 'গরম মসলা'],
+    createdAt: '2026-08-15T11:00:00Z'
+  },
+
+  // ==========================================
+  // PURE ORGANIC HONEY (খাঁটি মধু)
+  // ==========================================
+  {
+    id: 'prod-honey-01',
+    title: 'Sundarbans Natural Kholisa Flower Honey (সুন্দরবনের খাঁটি মধু 500g)',
+    titleBn: 'সুন্দরবনের খাঁটি প্রাকৃতিক খলিসা ফুলের মধু ৫০০ গ্রাম',
+    slug: 'sundarbans-natural-kholisa-flower-honey-500g',
+    description: '100% raw, unheated, and unfiltered natural mangrove honey collected straight from the core deep forests of Sundarbans.',
+    descriptionBn: 'সুন্দরবনের গভীর অরণ্যের চাক থেকে সরাসরি সংগৃহীত ১০০% নির্ভেজাল প্রাকৃতিক খলিসা ফুলের মধু। কোনো প্রকার চিনি বা কৃত্রিম মিশ্রণমুক্ত।',
+    price: 650,
+    discountPrice: 560,
+    categoryId: 'cat-honey',
+    categoryName: 'Pure Organic Honey',
+    subCategory: 'Sundarbans Natural Honey',
+    brand: 'Khaas Food',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 95,
+    sku: 'KHAS-HONEY-500G',
+    images: [
+      'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 5.0,
+    reviewCount: 148,
+    tags: ['honey', 'sundarbans', 'organic', 'raw honey', 'মধু', 'সুন্দরবন'],
+    isFeatured: true,
+    createdAt: '2026-08-15T12:00:00Z'
+  },
+  {
+    id: 'prod-honey-02',
+    title: 'Natural Mustard Flower Honey (সরিষা ফুলের খাঁটি মধু 1kg)',
+    titleBn: 'প্রাকৃতিক সরিষা ফুলের জমে যাওয়া খাঁটি মধু ১ কেজি',
+    slug: 'natural-mustard-flower-honey-1kg',
+    description: 'Mild sweetness and creamy texture mustard blossom honey, packed with antioxidants and natural pollen.',
+    descriptionBn: 'সরিষা ফুলের সুমিষ্ট ও ক্রিমযুক্ত প্রাকৃতিক মধু। ঠান্ডা লাগা ও রোগ প্রতিরোধ ক্ষমতা বাড়াতে অতুলনীয়।',
+    price: 550,
+    discountPrice: 480,
+    categoryId: 'cat-honey',
+    categoryName: 'Pure Organic Honey',
+    subCategory: 'Mustard Flower Honey',
+    brand: 'Nature Pure BD',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 110,
+    sku: 'NAT-MUST-HONEY-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 84,
+    tags: ['honey', 'mustard honey', 'organic', 'মধু', 'সরিষা মধু'],
+    createdAt: '2026-08-15T13:00:00Z'
+  },
+
+  // ==========================================
+  // JAGGERY & GUR (খেজুরের গুড় ও চিনি)
+  // ==========================================
+  {
+    id: 'prod-gur-01',
+    title: 'Jessore Traditional Date Palm Patali Gur (যশোরের খাঁটি পাটালি গুড় 1kg)',
+    titleBn: 'যশোরের বিখ্যাত খাঁটি খেজুরের পাটালি গুড় ১ কেজি',
+    slug: 'jessore-date-palm-patali-gur-1kg',
+    description: 'Authentic winter delicacy collected and brewed traditionally from pure date palm sap without sugar adulteration.',
+    descriptionBn: 'যশোরের গাছিদের তৈরি চিনিমুক্ত শতভাগ খাঁটি সুগন্ধি খেজুরের পাটালি গুড়। পায়েস, পিঠা ও মিষ্টি তৈরির জন্য সেরা।',
+    price: 450,
+    discountPrice: 390,
+    categoryId: 'cat-gur',
+    categoryName: 'Jaggery & Natural Sugar',
+    subCategory: 'Jessore Patali Gur',
+    brand: 'Gramin Sombhar',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 75,
+    sku: 'GUR-PATALI-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 92,
+    tags: ['gur', 'jaggery', 'patali gur', 'khejur gur', 'গুড়', 'পাটালি গুড়'],
+    isFeatured: true,
+    createdAt: '2026-08-15T14:00:00Z'
+  },
+  {
+    id: 'prod-gur-02',
+    title: 'Pure Liquid Nolen Jhol Gur (নলেন ঝোলা গুড় 1 Litre Jar)',
+    titleBn: 'খাঁটি তরল নলেন ঝোলা খেজুরের গুড় ১ লিটার জার',
+    slug: 'pure-liquid-nolen-jhol-gur-1l',
+    description: 'Smooth, aromatic fresh liquid date juice jaggery, perfect for winter pitha, payesh, and rotis.',
+    descriptionBn: 'তাজা খেজুরের রস থেকে তৈরি সুস্বাদু ও চমৎকার সুবাসযুক্ত নলেন ঝোলা গুড়।',
+    price: 420,
+    discountPrice: 370,
+    categoryId: 'cat-gur',
+    categoryName: 'Jaggery & Natural Sugar',
+    subCategory: 'Nolen Jhol Gur',
+    brand: 'Gramin Sombhar',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 60,
+    sku: 'GUR-NOLEN-1L',
+    images: [
+      'https://images.unsplash.com/photo-1546554137-f86b9593a222?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 63,
+    tags: ['gur', 'nolen gur', 'jaggery', 'গুড়', 'নলেন গুড়'],
+    createdAt: '2026-08-15T15:00:00Z'
+  },
+
+  // ==========================================
+  // FLOUR, ATTA, MAIDA & SUJI (আটা, ময়দা ও সুজি)
+  // ==========================================
+  {
+    id: 'prod-flour-01',
+    title: 'Teer Premium White Fortified Maida (তীর স্পেশাল ময়দা 2kg Pack)',
+    titleBn: 'তীর স্পেশাল ফর্টিফাইড সাদা ময়দা ২ কেজি প্যাক',
+    slug: 'teer-premium-white-fortified-maida-2kg',
+    description: 'Ultra-fine European wheat milled maida enriched with Vitamin A & Zinc for softest puris, parathas, breads, and baking cakes.',
+    descriptionBn: 'উন্নত গমে তৈরি তীর স্পেশাল সাদা ময়দা। পরোটা, লুচি, বিস্কুট ও কেক তৈরির জন্য সেরা পছন্দ।',
+    price: 155,
+    discountPrice: 140,
+    categoryId: 'cat-flour',
+    categoryName: 'Flour, Atta & Suji',
+    subCategory: 'Special White Maida',
+    brand: 'Teer',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 180,
+    sku: 'TEER-MAIDA-2KG',
+    images: [
+      'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 165,
+    tags: ['maida', 'flour', 'teer', 'atta', 'ময়দা', 'আটা'],
+    createdAt: '2026-08-15T16:00:00Z'
+  },
+  {
+    id: 'prod-flour-02',
+    title: 'Fresh 100% Whole Wheat Red Atta (ফ্রেশ খাঁটি লাল আটা 2kg)',
+    titleBn: 'ফ্রেশ খাঁটি লাল গমের ফাইবারযুক্ত আটা ২ কেজি',
+    slug: 'fresh-whole-wheat-red-atta-2kg',
+    description: 'Fiber-rich unrefined whole wheat flour, ideal for soft, healthy diabetic-friendly handmade rotis.',
+    descriptionBn: 'খোসা ও ফাইবারসমৃদ্ধ স্বাস্থ্যসম্মত লাল গমের আটা। নরম ফুলকো রুটি ও সুস্বাস্থ্যের নিশ্চয়তা।',
+    price: 145,
+    discountPrice: 130,
+    categoryId: 'cat-flour',
+    categoryName: 'Flour, Atta & Suji',
+    subCategory: 'Whole Wheat Red Atta',
+    brand: 'Fresh',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 210,
+    sku: 'FRESH-ATTA-2KG',
+    images: [
+      'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 130,
+    tags: ['atta', 'flour', 'fresh', 'wheat', 'আটা', 'লাল আটা'],
+    createdAt: '2026-08-15T17:00:00Z'
+  },
+  {
+    id: 'prod-flour-03',
+    title: 'Chashi Pure Chickpea Gram Flour / Besan (খাঁটি ছোলার বেসন 500g)',
+    titleBn: 'চাষী খাঁটি ছোলার বেসন ৫০০ গ্রাম',
+    slug: 'chashi-pure-chickpea-besan-500g',
+    description: 'Finely ground 100% pure chickpeas for crispy telebhaja, pakoras, beguni, and traditional sweets.',
+    descriptionBn: '১০০% খাঁটি ছোলা থেকে প্রস্তুত চাষী বেসন। পেঁয়াজু, বেগুনি ও চপ তৈরির জন্য অনন্য মুচমুচে স্বাদ।',
+    price: 90,
+    discountPrice: 75,
+    categoryId: 'cat-flour',
+    categoryName: 'Flour, Atta & Suji',
+    subCategory: 'Besan & Gram Flour',
+    brand: 'Chashi Pure',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 150,
+    sku: 'CHASHI-BESAN-500G',
+    images: [
+      'https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 95,
+    tags: ['besan', 'flour', 'chashi', 'gram flour', 'বেসন'],
+    createdAt: '2026-08-15T17:30:00Z'
+  },
+
+  // ==========================================
+  // CHICKPEAS & CHOLA (ছোলা ও বুট)
+  // ==========================================
+  {
+    id: 'prod-chola-01',
+    title: 'Premium Deshi Brown Chickpeas (দেশি পরিষ্কার লাল ছোলা 1kg)',
+    titleBn: 'বাছাইকৃত দেশি পরিষ্কার বড় লাল ছোলা ১ কেজি',
+    slug: 'premium-deshi-brown-chickpeas-1kg',
+    description: 'Top-grade hand-picked unpolished brown chickpeas packed with protein and dietary fiber, perfect for iftar and ghugni.',
+    descriptionBn: 'পাথর ও ময়লামুক্ত বাছাই করা দেশি লাল ছোলা। ইফতারের ভুনা ছোলা ও ঘুঘনির জন্য সেরা।',
+    price: 135,
+    discountPrice: 118,
+    categoryId: 'cat-chola',
+    categoryName: 'Chickpeas & Chola',
+    subCategory: 'Deshi Brown Chickpeas',
+    brand: 'Chashi Pure',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 140,
+    sku: 'CHOLA-DESHI-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 110,
+    tags: ['chola', 'chickpeas', 'gram', 'ছোলা', 'বুট', 'iftar'],
+    createdAt: '2026-08-15T18:00:00Z'
+  },
+  {
+    id: 'prod-chola-02',
+    title: 'White Jumbo Kabuli Chana (সাদা কাবলি বুট 1kg)',
+    titleBn: 'বড় দানার প্রিমিয়াম সাদা কাবলি বুট ১ কেজি',
+    slug: 'white-jumbo-kabuli-chana-1kg',
+    description: 'Large size buttery soft cooked Kabuli chickpeas for delicious Chana Masala, salads, and Hummus.',
+    descriptionBn: 'চমৎকার সেদ্ধ হওয়া বড় দানার সাদা কাবলি ছোলা/বুট। চানা মসলা ও সালাদের জন্য আদর্শ।',
+    price: 180,
+    discountPrice: 155,
+    categoryId: 'cat-chola',
+    categoryName: 'Chickpeas & Chola',
+    subCategory: 'Kabuli Chana (White)',
+    brand: 'Khaas Food',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 90,
+    sku: 'CHOLA-KABULI-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1585994192701-f1a505c8574a?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 72,
+    tags: ['kabuli chana', 'chickpeas', 'chola', 'কাবলি বুট', 'ছোলা'],
+    createdAt: '2026-08-15T18:30:00Z'
+  },
+
+  // ==========================================
+  // LENTILS & PULSES / DAAL (ডাল)
+  // ==========================================
+  {
+    id: 'prod-daal-01',
+    title: 'Premium Roasted Sonali Moong Dal (ভাজা সোনালী মুগ ডাল 1kg)',
+    titleBn: 'ঘিয়ে ভাজা প্রিমিয়াম সোনালী মুগ ডাল ১ কেজি',
+    slug: 'premium-roasted-sonali-moong-dal-1kg',
+    description: 'Pre-roasted aromatic yellow split mung dal that cooks into velvety, rich textured traditional Dal and Khichuri.',
+    descriptionBn: 'হালকা ভাজা চমৎকার সুবাসযুক্ত সোনালী মুগ ডাল। ভুনা ডাল ও শাহী খিচুড়ির আসল স্বাদ।',
+    price: 190,
+    discountPrice: 165,
+    categoryId: 'cat-daal',
+    categoryName: 'Lentils & Pulses (Daal)',
+    subCategory: 'Moong Dal (Yellow)',
+    brand: 'Chashi Pure',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 120,
+    sku: 'DAL-MOONG-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 96,
+    tags: ['dal', 'moong dal', 'lentils', 'ডাল', 'মুগ ডাল', 'খিচুড়ি'],
+    createdAt: '2026-08-15T19:00:00Z'
+  },
+  {
+    id: 'prod-daal-02',
+    title: 'Chana Dal / Split Chickpea Lentils (ছোলার ডাল / বুটের ডাল 1kg)',
+    titleBn: 'বাছাইকৃত খাঁটি ছোলার ডাল / বুটের ডাল ১ কেজি',
+    slug: 'chana-dal-split-chickpeas-1kg',
+    description: 'Firm, sweet nutty chana dal, perfect for pairing with coconut, beef, or making halwa.',
+    descriptionBn: 'গরুর মাংস বা নারকেল দিয়ে রান্নার জন্য পারফেক্ট বড় দানার ছোলার ডাল। হালুয়া তৈরির সেরা উপাদান।',
+    price: 150,
+    discountPrice: 135,
+    categoryId: 'cat-daal',
+    categoryName: 'Lentils & Pulses (Daal)',
+    subCategory: 'Chana Dal (Booter Dal)',
+    brand: 'Fresh',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 110,
+    sku: 'DAL-CHANA-1KG',
+    images: [
+      'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 68,
+    tags: ['chana dal', 'dal', 'booter dal', 'ডাল', 'ছোলার ডাল'],
+    createdAt: '2026-08-15T19:30:00Z'
+  },
+
+  // ==========================================
+  // MUSTARD OIL & GHEE (তেল ও ঘি)
+  // ==========================================
+  {
+    id: 'prod-oil-01',
+    title: 'Radhuni Pure Kachi Ghani Mustard Oil (সরিষার তেল 1 Litre Bottle)',
+    titleBn: 'রাঁধুনী খাঁটি ঘানিভাঙ্গা ঝাঁঝালো সরিষার তেল ১ লিটার',
+    slug: 'radhuni-pure-kachi-ghani-mustard-oil-1l',
+    description: 'First cold-pressed mustard seeds providing intense pungent aroma and authentic Bangladeshi culinary zest.',
+    descriptionBn: 'তাজা সরিষা থেকে ঘানিতে ভাঙ্গানো তীব্র ঝাঁঝযুক্ত খাঁটি সরিষার তেল। ভর্তা ও রান্নায় অনন্য স্বাদ।',
+    price: 360,
+    discountPrice: 315,
+    categoryId: 'cat-oil-ghee',
+    categoryName: 'Mustard Oil & Pure Ghee',
+    subCategory: 'Cold-Pressed Mustard Oil',
+    brand: 'Radhuni',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 130,
+    sku: 'RADH-MUST-1L',
+    images: [
+      'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 5.0,
+    reviewCount: 210,
+    tags: ['mustard oil', 'oil', 'radhuni', 'সরিষার তেল', 'তেল'],
+    isFeatured: true,
+    createdAt: '2026-08-15T20:00:00Z'
+  },
+  {
+    id: 'prod-ghee-01',
+    title: 'Pabna Pure Traditional Bilona Cow Ghee (পাবনার খাঁটি গাওয়া ঘি 500g)',
+    titleBn: 'পাবনার বিখ্যাত ঐতিহ্যবাহী খাঁটি দানাদার গাওয়া ঘি ৫০০ গ্রাম',
+    slug: 'pabna-pure-bilona-cow-ghee-500g',
+    description: 'Crafted from cultured cow milk butter, highly aromatic with a distinct golden granulated texture.',
+    descriptionBn: 'গরুর খাঁটি দুধের মাখন থেকে তৈরি সুগন্ধি দানাদার গাওয়া ঘি। গরম ভাতে বা পোলাও-বিরিয়ানিতে অপূর্ব স্বাদ ও ঘ্রাণ।',
+    price: 850,
+    discountPrice: 760,
+    categoryId: 'cat-oil-ghee',
+    categoryName: 'Mustard Oil & Pure Ghee',
+    subCategory: 'Pure Bilona Cow Ghee',
+    brand: 'Baghabari Ghee',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 65,
+    sku: 'GHEE-PABNA-500G',
+    images: [
+      'https://images.unsplash.com/photo-1631451095765-2c91616fc9e6?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 5.0,
+    reviewCount: 175,
+    tags: ['ghee', 'cow ghee', 'organic', 'ঘি', 'গাওয়া ঘি'],
+    isFeatured: true,
+    createdAt: '2026-08-15T20:30:00Z'
+  },
+
+  // ==========================================
+  // RICE & AROMATIC GRAINS (চাল ও পোলাও চাল)
+  // ==========================================
+  {
+    id: 'prod-rice-01',
+    title: 'Dinajpur Special Aromatic Chinigura Rice (দিনাজপুরের সুগন্ধি চিনিগুঁড়া চাল 2kg)',
+    titleBn: 'দিনাজপুরের প্রিমিয়াম সুবাসিত চিনিগুঁড়া পোলাওয়ের চাল ২ কেজি',
+    slug: 'dinajpur-aromatic-chinigura-rice-2kg',
+    description: 'Famous aged small-grain sweet scented rice from Dinajpur for biryani, polao, firni, and payesh.',
+    descriptionBn: 'দিনাজপুরের বিখ্যাত ছোট দানার সুবাসিত চিনিগুঁড়া চাল। পোলাও, বিরিয়ানি ও পায়েসের জন্য অতুলনীয়।',
+    price: 320,
+    discountPrice: 285,
+    categoryId: 'cat-rice',
+    categoryName: 'Aromatic Rice & Grains',
+    subCategory: 'Chinigura Polao Rice',
+    brand: 'Chashi Pure',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 120,
+    sku: 'RICE-CHINI-2KG',
+    images: [
+      'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 140,
+    tags: ['rice', 'chinigura', 'polao', 'biryani', 'চাল', 'পোলাও চাল'],
+    createdAt: '2026-08-15T21:00:00Z'
+  },
+
+  // ==========================================
+  // TEA & COFFEE (চা ও কফি)
+  // ==========================================
+  {
+    id: 'prod-tea-01',
+    title: 'Ispahani Mirzapore Best Leaf Black Tea (ইস্পাহানি মির্জাপুর চা 400g)',
+    titleBn: 'ইস্পাহানি মির্জাপুর প্রিমিয়াম ব্ল্যাক টি ৪০০ গ্রাম',
+    slug: 'ispahani-mirzapore-black-tea-400g',
+    description: 'Blended from the finest Sreemangal tea gardens, delivering rich strong liquor, aroma, and vibrant color.',
+    descriptionBn: 'শ্রীমঙ্গলের সেরা বাগানের পাতা থেকে প্রস্তুত কড়া লিকার ও চমৎকার ঘ্রাণের মির্জাপুর চা।',
+    price: 240,
+    discountPrice: 215,
+    categoryId: 'cat-tea-coffee',
+    categoryName: 'Tea & Coffee',
+    subCategory: 'Sreemangal Black Tea',
+    brand: 'Ispahani',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 170,
+    sku: 'TEA-ISPAH-400G',
+    images: [
+      'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.9,
+    reviewCount: 128,
+    tags: ['tea', 'black tea', 'ispahani', 'চা', 'কফি'],
+    createdAt: '2026-08-15T21:30:00Z'
+  },
+
+  // ==========================================
+  // DRY FRUITS & DATES (খেজুর ও বাদাম)
+  // ==========================================
+  {
+    id: 'prod-dates-01',
+    title: 'Medina Premium Ajwa Dates (মদিনার খাঁটি আজওয়া খেজুর 500g Box)',
+    titleBn: 'মদিনা শরিফের প্রিমিয়াম গ্রেড আজওয়া খেজুর ৫০০ গ্রাম বক্স',
+    slug: 'medina-premium-ajwa-dates-500g',
+    description: 'Imported Grade-A soft textured Ajwa dates from holy Medina, packed with natural iron, minerals, and spiritual blessings.',
+    descriptionBn: 'মদিনা শরিফের আসল ও প্রিমিয়াম গ্রেডের নরম আজওয়া খেজুর। উচ্চ পুষ্টিগুণসমৃদ্ধ ও সুস্বাদু।',
+    price: 850,
+    discountPrice: 720,
+    categoryId: 'cat-dry-fruits',
+    categoryName: 'Dry Fruits, Nuts & Dates',
+    subCategory: 'Medina Ajwa & Maryam Dates',
+    brand: 'Barakah Foods',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 80,
+    sku: 'DATE-AJWA-500G',
+    images: [
+      'https://images.unsplash.com/photo-1508061253366-f7da158b6d46?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 5.0,
+    reviewCount: 195,
+    tags: ['dates', 'ajwa', 'dry fruits', 'khejur', 'খেজুর', 'আজওয়া'],
+    isFeatured: true,
+    createdAt: '2026-08-15T22:00:00Z'
+  },
+  {
+    id: 'prod-nuts-01',
+    title: 'Royal Roasted Salted Cashew Nuts (কাজুবাদাম 250g Jar)',
+    titleBn: 'মুচমুচে রোস্টেড প্রিমিয়াম কাজুবাদাম ২৫০ গ্রাম জার',
+    slug: 'royal-roasted-salted-cashew-nuts-250g',
+    description: 'Jumbo size crunchy roasted cashews with mild pink Himalayan salt seasoning.',
+    descriptionBn: 'বড় দানার মুচমুচে ভাজা সুস্বাদু কাজুবাদাম। স্বাস্থ্যকর সকালের নাস্তা বা আড্ডার সঙ্গী।',
+    price: 490,
+    discountPrice: 420,
+    categoryId: 'cat-dry-fruits',
+    categoryName: 'Dry Fruits, Nuts & Dates',
+    subCategory: 'Cashews & Almonds',
+    brand: 'NutriDelight',
+    sellerId: 'sel-3',
+    sellerName: 'Bengal Organic Foods',
+    stock: 90,
+    sku: 'NUT-CASHEW-250G',
+    images: [
+      'https://images.unsplash.com/photo-1536591375312-e54c0e4b7bf1?auto=format&fit=crop&w=800&q=80'
+    ],
+    rating: 4.8,
+    reviewCount: 88,
+    tags: ['cashew', 'nuts', 'dry fruits', 'কাজুবাদাম', 'বাদাম'],
+    createdAt: '2026-08-15T22:30:00Z'
+  },
+
+  // ==========================================
   // CAT-8: Shoes & Sandals (জুতা ও স্যান্ডেল)
   // ==========================================
   {

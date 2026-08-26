@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, Language } from '../../types';
-import { SHWAPNO_DETAILED_CATEGORIES, MainCategory, SubCategory, SubSubCategory } from '../../data/categoriesData';
+import { SHWAPNO_DETAILED_CATEGORIES, MainCategory, SubCategory, SubSubCategory, CATEGORY_EMOJIS } from '../../data/categoriesData';
 
 interface CustomerViewProps {
   onOpenProduct: (product: Product) => void;
@@ -255,7 +255,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, []);
+  }, [categories]);
 
   const [dynamicCampaigns, setDynamicCampaigns] = useState(() => {
     try {
@@ -484,17 +484,40 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
   // Flat list of all category levels for simple search/filter integrations
   const flatCategories = useMemo(() => {
     const list: { id: string; name: string; nameBn: string; emoji: string }[] = [];
-    SHWAPNO_DETAILED_CATEGORIES.forEach(main => {
-      list.push({ id: main.id, name: main.name, nameBn: main.nameBn, emoji: main.emoji });
-      main.subCategories?.forEach(sub => {
-        list.push({ id: sub.id, name: `${main.name} → ${sub.name}`, nameBn: `${main.nameBn} → ${sub.nameBn}`, emoji: main.emoji });
-        sub.subSubCategories?.forEach(subSub => {
-          list.push({ id: subSub.id, name: `${main.name} → ${sub.name} → ${subSub.name}`, nameBn: `${main.nameBn} → ${sub.nameBn} → ${subSub.nameBn}`, emoji: main.emoji });
+    
+    // Add dynamically managed categories
+    categories.forEach(cat => {
+      list.push({ 
+        id: cat.id, 
+        name: cat.name, 
+        nameBn: cat.nameBn || cat.name, 
+        emoji: cat.emoji || '🛍️' 
+      });
+      cat.subcategories?.forEach(sub => {
+        list.push({ 
+          id: sub.id, 
+          name: `${cat.name} → ${sub.name}`, 
+          nameBn: `${cat.nameBn || cat.name} → ${sub.nameBn || sub.name}`, 
+          emoji: cat.emoji || '🛍️' 
         });
       });
     });
+
+    // Fallback if categories is still loading
+    if (list.length === 0) {
+      SHWAPNO_DETAILED_CATEGORIES.forEach(main => {
+        list.push({ id: main.id, name: main.name, nameBn: main.nameBn, emoji: main.emoji });
+        main.subCategories?.forEach(sub => {
+          list.push({ id: sub.id, name: `${main.name} → ${sub.name}`, nameBn: `${main.nameBn} → ${sub.nameBn}`, emoji: main.emoji });
+          sub.subSubCategories?.forEach(subSub => {
+            list.push({ id: subSub.id, name: `${main.name} → ${sub.name} → ${subSub.name}`, nameBn: `${main.nameBn} → ${sub.nameBn} → ${subSub.nameBn}`, emoji: main.emoji });
+          });
+        });
+      });
+    }
+
     return list;
-  }, []);
+  }, [categories]);
 
   // Filtered and sorted products list
   const filteredProducts = useMemo(() => {
@@ -511,9 +534,134 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
         // Direct category ID match
         if (p.categoryId === selectedCategory) return true;
 
+        // Matching with active categories object (including subcategories & dynamic names)
+        const activeCat = categories.find(c => c.id === selectedCategory);
+        if (activeCat) {
+          if (p.categoryId === activeCat.id) return true;
+          if (p.categoryName && (p.categoryName.toLowerCase() === activeCat.name.toLowerCase() || p.categoryName.toLowerCase() === (activeCat.nameBn || '').toLowerCase())) return true;
+          if (p.subCategory && activeCat.subcategories?.some(s => s.name.toLowerCase() === p.subCategory?.toLowerCase() || s.nameBn?.toLowerCase() === p.subCategory?.toLowerCase() || s.id === p.subCategory)) return true;
+        }
+
+        // Check if selectedCategory is a Subcategory ID across all categories
+        for (const c of categories) {
+          const sub = c.subcategories?.find(s => s.id === selectedCategory);
+          if (sub) {
+            if (p.categoryId === c.id) {
+              const sNameEn = sub.name.toLowerCase();
+              const sNameBn = (sub.nameBn || '').toLowerCase();
+              const pSub = (p.subCategory || '').toLowerCase();
+              const pSubId = ((p as any).subCategoryId || '').toLowerCase();
+              if (pSub === sNameEn || pSub === sNameBn || pSubId === sub.id.toLowerCase()) return true;
+
+              const titleCombined = (p.title + ' ' + (p.titleBn || '')).toLowerCase();
+              const pTags = (p.tags || []).map(t => t.toLowerCase());
+              // Match any key words of the subcategory
+              const keywords = [...sNameEn.split(/[\s,&/]+/), ...sNameBn.split(/[\s,&/]+/)].filter(w => w.length > 2);
+              if (keywords.some(k => titleCombined.includes(k) || pTags.some(t => t.includes(k)))) {
+                return true;
+              }
+              // If no specific subcategory is tagged on product, still show products from this parent category
+              return true;
+            }
+          }
+        }
+
         // Custom child/grandchild matching to make it look 100% functional
         const nameLower = (p.title + ' ' + (p.titleBn || '') + ' ' + (p.categoryName || '') + ' ' + (p.subCategory || '') + ' ' + p.brand).toLowerCase();
         const tagsLower = (p.tags || []).map(t => t.toLowerCase()).join(' ');
+
+        if (selectedCategory === 'cat-1' || selectedCategory === 'electronics') {
+          return p.categoryId === 'cat-1' || tagsLower.includes('phone') || tagsLower.includes('laptop') || tagsLower.includes('gadget') || tagsLower.includes('smart') || nameLower.includes('phone') || nameLower.includes('laptop') || nameLower.includes('tv') || nameLower.includes('headphone') || nameLower.includes('watch');
+        }
+        if (selectedCategory === 'cat-2' || selectedCategory === 'clothing') {
+          return p.categoryId === 'cat-2' || tagsLower.includes('clothing') || tagsLower.includes('panjabi') || tagsLower.includes('shirt') || tagsLower.includes('t-shirt') || nameLower.includes('panjabi') || nameLower.includes('shirt') || nameLower.includes('polo') || nameLower.includes('পোশাক');
+        }
+        if (selectedCategory === 'cat-3' || selectedCategory === 'saree-ethnic') {
+          return p.categoryId === 'cat-3' || tagsLower.includes('saree') || tagsLower.includes('jamdani') || tagsLower.includes('silk') || nameLower.includes('saree') || nameLower.includes('শাড়ি') || nameLower.includes('jamdani') || nameLower.includes('কাতান');
+        }
+        if (selectedCategory === 'cat-4' || selectedCategory === 'grocery-products') {
+          return p.categoryId === 'cat-4' || tagsLower.includes('oil') || tagsLower.includes('rice') || tagsLower.includes('honey') || tagsLower.includes('ghee') || nameLower.includes('oil') || nameLower.includes('চাল') || nameLower.includes('মধু') || nameLower.includes('ঘি') || nameLower.includes('তেল') || nameLower.includes('মসলা');
+        }
+        if (selectedCategory === 'cat-5' || selectedCategory === 'shoes') {
+          return p.categoryId === 'cat-5' || tagsLower.includes('shoe') || tagsLower.includes('sandal') || tagsLower.includes('sneaker') || nameLower.includes('shoe') || nameLower.includes('জুতা') || nameLower.includes('sandal') || nameLower.includes('sneaker');
+        }
+        if (selectedCategory === 'cat-6' || selectedCategory === 'watches') {
+          return p.categoryId === 'cat-6' || tagsLower.includes('watch') || nameLower.includes('watch') || nameLower.includes('ঘড়ি') || nameLower.includes('chronograph');
+        }
+        if (selectedCategory === 'cat-7' || selectedCategory === 'cosmetics') {
+          return p.categoryId === 'cat-7' || tagsLower.includes('cosmetics') || tagsLower.includes('cream') || tagsLower.includes('lipstick') || nameLower.includes('lipstick') || nameLower.includes('cream') || nameLower.includes('sunscreen') || nameLower.includes('কসমেটিক্স');
+        }
+        if (selectedCategory === 'cat-8' || selectedCategory === 'baby-care') {
+          return p.categoryId === 'cat-8' || tagsLower.includes('baby') || tagsLower.includes('diaper') || nameLower.includes('baby') || nameLower.includes('diaper') || nameLower.includes('ডায়াপার') || nameLower.includes('বেবি');
+        }
+        if (selectedCategory === 'cat-9' || selectedCategory === 'toys') {
+          return p.categoryId === 'cat-9' || tagsLower.includes('toy') || tagsLower.includes('puzzle') || nameLower.includes('toy') || nameLower.includes('খেলনা') || nameLower.includes('lego') || nameLower.includes('puzzle');
+        }
+        if (selectedCategory === 'cat-10' || selectedCategory === 'sports') {
+          return p.categoryId === 'cat-10' || tagsLower.includes('sports') || tagsLower.includes('cricket') || tagsLower.includes('football') || nameLower.includes('bat') || nameLower.includes('ball') || nameLower.includes('cricket') || nameLower.includes('football') || nameLower.includes('খেলাধুলা');
+        }
+        if (selectedCategory === 'cat-11' || selectedCategory === 'medicine') {
+          return p.categoryId === 'cat-11' || tagsLower.includes('medicine') || tagsLower.includes('health') || tagsLower.includes('tablet') || nameLower.includes('napa') || nameLower.includes('seclo') || nameLower.includes('vitamin') || nameLower.includes('ওষুধ') || nameLower.includes('ঔষধ');
+        }
+        if (selectedCategory === 'cat-12' || selectedCategory === 'books') {
+          return p.categoryId === 'cat-12' || tagsLower.includes('book') || tagsLower.includes('stationery') || nameLower.includes('book') || nameLower.includes('বই') || nameLower.includes('novel') || nameLower.includes('উপন্যাস');
+        }
+
+        // New Grocery & Daily Essential Categories
+        if (selectedCategory === 'cat-spices' || selectedCategory === 'spices' || selectedCategory === 'groceries-spices') {
+          return p.categoryId === 'cat-spices' || tagsLower.includes('spice') || tagsLower.includes('masala') || tagsLower.includes('turmeric') || tagsLower.includes('chili') || tagsLower.includes('cumin') || tagsLower.includes('coriander') || nameLower.includes('মসলা') || nameLower.includes('হলুদ') || nameLower.includes('মরিচ') || nameLower.includes('জিরা') || nameLower.includes('ধনিয়া') || nameLower.includes('এলাচ') || nameLower.includes('গরম মসলা');
+        }
+        if (selectedCategory === 'cat-honey' || selectedCategory === 'honey' || selectedCategory === 'organic-honey') {
+          return p.categoryId === 'cat-honey' || tagsLower.includes('honey') || tagsLower.includes('মধু') || nameLower.includes('honey') || nameLower.includes('মধু') || nameLower.includes('সুন্দরবন') || nameLower.includes('খলিসা');
+        }
+        if (selectedCategory === 'cat-gur' || selectedCategory === 'gur' || selectedCategory === 'jaggery') {
+          return p.categoryId === 'cat-gur' || tagsLower.includes('gur') || tagsLower.includes('jaggery') || tagsLower.includes('sugar') || nameLower.includes('গুড়') || nameLower.includes('পাটালি') || nameLower.includes('নলেন') || nameLower.includes('jaggery') || nameLower.includes('চিনি');
+        }
+        if (selectedCategory === 'cat-flour' || selectedCategory === 'flour' || selectedCategory === 'atta' || selectedCategory === 'maida') {
+          return p.categoryId === 'cat-flour' || tagsLower.includes('atta') || tagsLower.includes('maida') || tagsLower.includes('flour') || tagsLower.includes('besan') || tagsLower.includes('suji') || nameLower.includes('আটা') || nameLower.includes('ময়দা') || nameLower.includes('সুজি') || nameLower.includes('বেসন') || nameLower.includes('flour');
+        }
+        if (selectedCategory === 'cat-chola' || selectedCategory === 'chola' || selectedCategory === 'chickpeas') {
+          return p.categoryId === 'cat-chola' || tagsLower.includes('chola') || tagsLower.includes('chickpea') || tagsLower.includes('kabuli') || nameLower.includes('ছোলা') || nameLower.includes('বুট') || nameLower.includes('ডাবলি') || nameLower.includes('কাবলি') || nameLower.includes('মটর');
+        }
+        if (selectedCategory === 'cat-daal' || selectedCategory === 'daal' || selectedCategory === 'dal' || selectedCategory === 'lentils') {
+          return p.categoryId === 'cat-daal' || tagsLower.includes('dal') || tagsLower.includes('daal') || tagsLower.includes('lentil') || tagsLower.includes('masoor') || tagsLower.includes('moong') || nameLower.includes('ডাল') || nameLower.includes('মসুর') || nameLower.includes('মুগ') || nameLower.includes('বুটের ডাল');
+        }
+        if (selectedCategory === 'cat-oil-ghee' || selectedCategory === 'oil-ghee' || selectedCategory === 'oil' || selectedCategory === 'ghee') {
+          return p.categoryId === 'cat-oil-ghee' || tagsLower.includes('oil') || tagsLower.includes('ghee') || tagsLower.includes('mustard') || nameLower.includes('তেল') || nameLower.includes('ঘি') || nameLower.includes('সরিষা') || nameLower.includes('সয়াবিন') || nameLower.includes('গাওয়া ঘি');
+        }
+        if (selectedCategory === 'cat-rice' || selectedCategory === 'rice' || selectedCategory === 'grain-rice') {
+          return p.categoryId === 'cat-rice' || tagsLower.includes('rice') || tagsLower.includes('chinigura') || tagsLower.includes('polao') || nameLower.includes('চাল') || nameLower.includes('পোলাও') || nameLower.includes('মিনিকেট') || nameLower.includes('নাজিরশাইল') || nameLower.includes('চিনিগুঁড়া');
+        }
+        if (selectedCategory === 'cat-tea-coffee' || selectedCategory === 'tea-coffee' || selectedCategory === 'tea') {
+          return p.categoryId === 'cat-tea-coffee' || tagsLower.includes('tea') || tagsLower.includes('coffee') || nameLower.includes('চা') || nameLower.includes('কফি') || nameLower.includes('ispahani') || nameLower.includes('nescafe');
+        }
+        if (selectedCategory === 'cat-dry-fruits' || selectedCategory === 'dry-fruits' || selectedCategory === 'dry-fruits-nuts' || selectedCategory === 'dry-fruits-dates') {
+          return p.categoryId === 'cat-dry-fruits' || tagsLower.includes('date') || tagsLower.includes('nut') || tagsLower.includes('cashew') || tagsLower.includes('almond') || nameLower.includes('খেজুর') || nameLower.includes('বাদাম') || nameLower.includes('আজওয়া') || nameLower.includes('কাজুবাদাম') || nameLower.includes('কাঠবাদাম');
+        }
+        if (selectedCategory === 'cat-dairy-milk' || selectedCategory === 'dairy-milk' || selectedCategory === 'milk') {
+          return p.categoryId === 'cat-dairy-milk' || tagsLower.includes('milk') || tagsLower.includes('dairy') || tagsLower.includes('egg') || tagsLower.includes('butter') || tagsLower.includes('cheese') || nameLower.includes('দুধ') || nameLower.includes('ডিম') || nameLower.includes('মাখন') || nameLower.includes('পনির') || nameLower.includes('দই');
+        }
+        if (selectedCategory === 'cat-snacks' || selectedCategory === 'snacks-biscuits' || selectedCategory === 'snacks') {
+          return p.categoryId === 'cat-snacks' || tagsLower.includes('snack') || tagsLower.includes('biscuit') || tagsLower.includes('cookie') || tagsLower.includes('chanachur') || tagsLower.includes('chips') || nameLower.includes('বিস্কুট') || nameLower.includes('চানাচুর') || nameLower.includes('চিপস') || nameLower.includes('নিমকি');
+        }
+        if (selectedCategory === 'cat-beverages' || selectedCategory === 'beverages') {
+          return p.categoryId === 'cat-beverages' || tagsLower.includes('drink') || tagsLower.includes('juice') || tagsLower.includes('beverage') || nameLower.includes('শরবত') || nameLower.includes('জুস') || nameLower.includes('পানি') || nameLower.includes('কোকা') || nameLower.includes('পানীয়');
+        }
+        if (selectedCategory === 'cat-fruits' || selectedCategory === 'fresh-fruits') {
+          return p.categoryId === 'cat-fruits' || tagsLower.includes('fruit') || nameLower.includes('ফল') || nameLower.includes('আম') || nameLower.includes('আপেল') || nameLower.includes('কলা') || nameLower.includes('মাল্টা') || nameLower.includes('বেদানা');
+        }
+        if (selectedCategory === 'cat-vegetables' || selectedCategory === 'fresh-vegetables' || selectedCategory === 'fruits-veg') {
+          return p.categoryId === 'cat-vegetables' || tagsLower.includes('vegetable') || nameLower.includes('শাক') || nameLower.includes('সবজি') || nameLower.includes('আলু') || nameLower.includes('পেঁয়াজ') || nameLower.includes('রসুন') || nameLower.includes('টমেটো');
+        }
+        if (selectedCategory === 'cat-fish-meat' || selectedCategory === 'meat-fish' || selectedCategory === 'fresh-fish') {
+          return p.categoryId === 'cat-fish-meat' || tagsLower.includes('meat') || tagsLower.includes('fish') || tagsLower.includes('chicken') || tagsLower.includes('beef') || nameLower.includes('মাছ') || nameLower.includes('মাংস') || nameLower.includes('মুরগি') || nameLower.includes('খাসি') || nameLower.includes('গরু') || nameLower.includes('ইলিশ');
+        }
+        if (selectedCategory === 'cat-cleaning' || selectedCategory === 'home-cleaning') {
+          return p.categoryId === 'cat-cleaning' || tagsLower.includes('cleaning') || tagsLower.includes('detergent') || tagsLower.includes('soap') || nameLower.includes('ডিটারজেন্ট') || nameLower.includes('সার্ফ এক্সেল') || nameLower.includes('পরিষ্কার') || nameLower.includes('সাবান') || nameLower.includes('হারপিক');
+        }
+        if (selectedCategory === 'cat-kitchen' || selectedCategory === 'home-kitchen') {
+          return p.categoryId === 'cat-kitchen' || tagsLower.includes('kitchen') || tagsLower.includes('cooker') || tagsLower.includes('blender') || nameLower.includes('চুলা') || nameLower.includes('ব্লেন্ডার') || nameLower.includes('রান্নাঘর') || nameLower.includes('ফ্রাই প্যান') || nameLower.includes('কুকার');
+        }
 
         if (selectedCategory === 'combo-deals' || selectedCategory === 'combo-package-builder') {
           return p.categoryId === 'combo-deals' || 
@@ -963,88 +1111,61 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
               ) : null
             )}
 
-            {/* 6. CIRCULAR CATEGORY SCROLLING ROW & SORTING BAR */}
+            {/* 6. SLEEK CIRCULAR AUTO-SCROLLING CATEGORY ROW (Dynamic with Backend) */}
             <div 
-              className="w-full bg-slate-50 dark:bg-slate-950/40 rounded-xl py-1 px-2 border border-slate-200/60 dark:border-slate-800/80 shadow-xs flex flex-col"
+              className="w-full bg-slate-50/90 dark:bg-slate-950/40 rounded-xl py-1 px-2 border border-slate-200/60 dark:border-slate-800/80 shadow-xs flex flex-col relative overflow-hidden"
               onMouseEnter={() => { isHoveredRef.current = true; }}
               onMouseLeave={() => { isHoveredRef.current = false; }}
               onTouchStart={() => { isHoveredRef.current = true; }}
               onTouchEnd={() => { isHoveredRef.current = false; }}
             >
-              {/* Horizontal Scrollable Row */}
+              {/* Horizontal Endless Auto-Scrolling Row */}
               <div 
                 ref={categoryRowRef}
-                className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1"
+                className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5"
               >
                 {(() => {
-                  const categoriesList = [
+                  const dynamicCategoryItems = categories.map(c => ({
+                    id: c.id,
+                    emoji: c.emoji || (CATEGORY_EMOJIS[c.id] || '🛍️'),
+                    name: c.name,
+                    nameBn: c.nameBn || c.name
+                  }));
+
+                  const allItems = [
                     { id: null, emoji: '🛍️', name: 'All', nameBn: 'সব পণ্য' },
-                    { id: 'combo-deals', emoji: '🎁', name: 'Combo', nameBn: 'কম্বো' },
-                    { id: 'fast-food', emoji: '🍔', name: 'Fast Food', nameBn: 'ফাস্টফুড' },
-                    { id: 'pizza-pasta', emoji: '🍕', name: 'Pizza', nameBn: 'পিজ্জা' },
-                    { id: 'cakes-pastry', emoji: '🎂', name: 'Cakes', nameBn: 'কেক' },
-                    { id: 'sweets-desserts', emoji: '🧁', name: 'Sweets', nameBn: 'মিষ্টি' },
-                    { id: 'restaurant-meals', emoji: '🍲', name: 'Biryani', nameBn: 'বিরিয়ানি' },
-                    { id: 'ice-cream', emoji: '🍦', name: 'Ice Cream', nameBn: 'আইসক্রিম' },
-                    { id: 'chocolates-candy', emoji: '🍫', name: 'Chocolates', nameBn: 'চকলেট' },
-                    { id: 'dry-fruits-nuts', emoji: '🥜', name: 'Nuts', nameBn: 'বাদাম' },
-                    { id: 'dry-fruits-dates', emoji: '🌴', name: 'Dates', nameBn: 'খেজুর' },
-                    { id: 'grain-rice', emoji: '🌾', name: 'Rice', nameBn: 'চাল' },
-                    { id: 'organic-honey', emoji: '🍯', name: 'Honey', nameBn: 'মধু' },
-                    { id: 'oil-ghee', emoji: '🧈', name: 'Oil & Ghee', nameBn: 'তেল ও ঘি' },
-                    { id: 'dairy-milk', emoji: '🥛', name: 'Dairy & Milk', nameBn: 'দুধ ও দুগ্ধজাত' },
-                    { id: 'tea-coffee', emoji: '☕', name: 'Tea & Coffee', nameBn: 'চা ও কফি' },
-                    { id: 'snacks-biscuits', emoji: '🍪', name: 'Snacks', nameBn: 'স্ন্যাক্স' },
-                    { id: 'beverages', emoji: '🥤', name: 'Beverages', nameBn: 'পানীয়' },
-                    { id: 'bakery', emoji: '🍞', name: 'Bakery', nameBn: 'বেকারি' },
-                    { id: 'frozen-food', emoji: '❄️', name: 'Frozen Food', nameBn: 'ফ্রোজেন ফুড' },
-                    { id: 'fresh-fruits', emoji: '🍎', name: 'Fruits', nameBn: 'ফলমূল' },
-                    { id: 'fresh-vegetables', emoji: '🥦', name: 'Vegetables', nameBn: 'শাকসবজি' },
-                    { id: 'meat-fish', emoji: '🥩', name: 'Meat & Fish', nameBn: 'মাছ ও মাংস' },
-                    { id: 'eggs', emoji: '🥚', name: 'Eggs', nameBn: 'ডিম' },
-                    { id: 'groceries-spices', emoji: '🌶️', name: 'Spices', nameBn: 'মসলাপাতি' },
-                    { id: 'cat-1', emoji: '📱', name: 'Electronics', nameBn: 'ইলেকট্রনিক্স' },
-                    { id: 'cat-2', emoji: '👕', name: 'Clothing', nameBn: 'পোশাক' },
-                    { id: 'sarees-ethnic', emoji: '👘', name: 'Saree & Ethnic', nameBn: 'শাড়ি' },
-                    { id: 'cat-7', emoji: '📦', name: 'Grocery Packs', nameBn: 'গ্রোসারি প্যাক' },
-                    { id: 'cat-8', emoji: '👟', name: 'Shoes', nameBn: 'জুতা' },
-                    { id: 'watch-accessories', emoji: '⌚', name: 'Watches', nameBn: 'ঘড়ি' },
-                    { id: 'cat-9', emoji: '💄', name: 'Cosmetics', nameBn: 'কসমেটিক্স' },
-                    { id: 'baby-food', emoji: '🍼', name: 'Baby Care', nameBn: 'শিশু যত্ন' },
-                    { id: 'cat-10', emoji: '🧸', name: 'Toys', nameBn: 'খেলনা' },
-                    { id: 'sports-fitness', emoji: '⚽', name: 'Sports', nameBn: 'খেলাধুলা' },
-                    { id: 'cat-11', emoji: '💊', name: 'Medicine', nameBn: 'ওষুধ' },
-                    { id: 'cat-12', emoji: '📚', name: 'Books', nameBn: 'বই' },
-                    { id: 'home-cleaning', emoji: '🧼', name: 'Cleaning', nameBn: 'ক্লিনিং' },
-                    { id: 'pickles-sauces', emoji: '🏺', name: 'Pickles', nameBn: 'আচার ও সস' },
-                    { id: 'home-kitchen', emoji: '🍳', name: 'Kitchen', nameBn: 'রান্নাঘর' },
-                    { id: 'gardening', emoji: '🌱', name: 'Gardening', nameBn: 'বাগান' },
-                    { id: 'automotive', emoji: '🚗', name: 'Automotive', nameBn: 'গাড়ি' },
-                    { id: 'pet-care', emoji: '🐶', name: 'Pet Care', nameBn: 'পোষা প্রাণী' }
+                    ...dynamicCategoryItems
                   ];
 
-                  // Duplicate array twice for seamless endless marquee looping
-                  const duplicatedList = [...categoriesList, ...categoriesList];
+                  // Duplicate array for seamless endless marquee looping
+                  const duplicatedList = allItems.length < 8
+                    ? [...allItems, ...allItems, ...allItems, ...allItems]
+                    : [...allItems, ...allItems];
 
                   return duplicatedList.map((item, idx) => {
                     const isSelected = selectedCategory === item.id;
+                    const displayName = language === 'bn' ? item.nameBn : item.name;
+
                     return (
                       <button
                         key={`${item.id ?? 'all'}-${idx}`}
-                        onClick={() => setSelectedCategory(item.id)}
-                        className="flex flex-col items-center justify-center shrink-0 w-12 cursor-pointer group focus:outline-none"
+                        onClick={() => setSelectedCategory(isSelected && item.id !== null ? null : item.id)}
+                        className="flex flex-col items-center justify-center shrink-0 w-12 sm:w-14 cursor-pointer group focus:outline-none"
+                        title={displayName}
                       >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition-all duration-300 relative ${
+                        {/* Compact Circular Icon */}
+                        <div className={`w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-full flex items-center justify-center text-sm sm:text-base transition-all duration-200 relative ${
                           isSelected 
-                            ? 'bg-[#da1c24] text-white ring-2 ring-[#da1c24]/30 ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-md' 
+                            ? 'bg-[#da1c24] text-white ring-2 ring-[#da1c24]/30 ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-sm' 
                             : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:border-red-300 hover:scale-105'
                         }`}>
                           {item.emoji}
                         </div>
-                        <span className={`text-[8px] text-center mt-0.5 w-full truncate select-none transition-colors duration-200 font-extrabold ${
-                          isSelected ? 'text-[#da1c24] font-black' : 'text-slate-500 dark:text-slate-400'
+                        {/* Clean Small Category Label */}
+                        <span className={`text-[8.5px] sm:text-[9px] text-center mt-0.5 w-full truncate select-none transition-colors duration-200 ${
+                          isSelected ? 'text-[#da1c24] font-black' : 'text-slate-500 dark:text-slate-400 font-bold group-hover:text-[#da1c24]'
                         }`}>
-                          {language === 'bn' ? item.nameBn : item.name}
+                          {displayName}
                         </span>
                       </button>
                     );

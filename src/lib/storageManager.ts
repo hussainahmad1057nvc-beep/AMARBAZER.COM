@@ -1,14 +1,16 @@
 import { StorageFile, Product, SellerStore } from '../types';
+import { safeStorage } from './safeStorage';
 
 const STORAGE_KEY = 'amarbazar_custom_storage_files';
 const PURCHASED_STORAGE_KEY = 'amarbazar_purchased_storage_plans';
 
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (!bytes || bytes <= 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const val = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
+  return `${val} ${sizes[i] || 'B'}`;
 }
 
 export interface FirebaseStoragePlan {
@@ -33,24 +35,24 @@ export const FIREBASE_STORAGE_PLANS: FirebaseStoragePlan[] = [
     id: 'spark_free',
     nameBn: 'ফায়ারবেস স্পার্ক (ফ্রি টিয়ার)',
     nameEn: 'Firebase Spark (Free Tier)',
-    totalGb: 5,
+    totalGb: 1,
     firestoreDbGb: 1,
     storageGb: 5,
     priceBdt: 0,
     billingCycle: 'লাইফটাইম ফ্রি',
     badgeBn: 'ফ্রি প্ল্যান',
     badgeEn: 'Free Plan',
-    descriptionBn: 'নতুন বিক্রেতা ও প্রাথমিক পণ্য ক্যাটালগের জন্য বিনামূল্যে লাইভ ক্লাউড স্টোরেজ।',
-    descriptionEn: 'Default free cloud storage for new stores and initial product catalogs.',
+    descriptionBn: 'নতুন বিক্রেতা ও প্রাথমিক পণ্য ক্যাটালগের জন্য বিনামূল্যে ১ জিবি লাইভ ডাটাবেজ স্টোরেজ।',
+    descriptionEn: 'Default free 1 GB cloud database storage for new stores and initial product catalogs.',
     featuresBn: [
-      '৫ জিবি ফায়ারবেস ফাইল ও মিডিয়া স্টোরেজ',
-      '১ জিবি ফায়ারস্টোর নো-এসকিউএল ডাটাবেজ',
+      '১ জিবি ফায়ারস্টোর নো-এসকিউএল ডাটাবেজ স্পেস',
+      '৫ জিবি ক্লাউড ফাইল ও মিডিয়া বাকেট',
       'রিয়েলটাইম স্ন্যাপশট লাইভ সিঙ্ক',
       'অটো ব্যাকআপ ও সিকিউর এনক্রিপশন'
     ],
     featuresEn: [
-      '5 GB Firebase Cloud File & Media Storage',
       '1 GB Firestore NoSQL Live Database',
+      '5 GB Firebase Cloud File & Media Storage',
       'Real-time Snapshots Multi-Device Sync',
       'Encrypted Storage & Automatic Cloud Sync'
     ]
@@ -135,159 +137,147 @@ export const FIREBASE_STORAGE_PLANS: FirebaseStoragePlan[] = [
   }
 ];
 
-// Initial mock files to provide a rich, realistic cloud storage state
-const DEFAULT_FILES: StorageFile[] = [
-  {
-    id: 'file-img-1',
-    name: 'rajshahi_himsagar_mango_hd.jpg',
-    url: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=800&q=80',
-    sizeBytes: 3.4 * 1024 * 1024,
-    formattedSize: '3.40 MB',
-    category: 'image',
-    mimeType: 'image/jpeg',
-    uploadedAt: '2026-08-15 11:20 AM',
-    associatedWith: 'Product: Rajshahi Himsagar Mango',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-img-2',
-    name: 'smart_watch_ultra_pro_titanium.webp',
-    url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80',
-    sizeBytes: 2.1 * 1024 * 1024,
-    formattedSize: '2.10 MB',
-    category: 'image',
-    mimeType: 'image/webp',
-    uploadedAt: '2026-08-16 02:45 PM',
-    associatedWith: 'Product: Ultra Smart Watch',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-img-3',
-    name: 'dhaka_tech_store_banner_4k.jpg',
-    url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
-    sizeBytes: 5.8 * 1024 * 1024,
-    formattedSize: '5.80 MB',
-    category: 'image',
-    mimeType: 'image/jpeg',
-    uploadedAt: '2026-08-10 09:12 AM',
-    associatedWith: 'Store Banner: Dhaka Tech Store',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-pdf-1',
-    name: 'trade_license_gov_bd_2026.pdf',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    sizeBytes: 1.85 * 1024 * 1024,
-    formattedSize: '1.85 MB',
-    category: 'pdf',
-    mimeType: 'application/pdf',
-    uploadedAt: '2026-08-01 04:30 PM',
-    associatedWith: 'Legal: Trade License (ঢাকা উত্তর সিটি)',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-pdf-2',
-    name: 'tax_return_certificate_etin.pdf',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    sizeBytes: 2.4 * 1024 * 1024,
-    formattedSize: '2.40 MB',
-    category: 'pdf',
-    mimeType: 'application/pdf',
-    uploadedAt: '2026-08-05 01:10 PM',
-    associatedWith: 'Legal: e-TIN / Tax Certificate',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-pdf-3',
-    name: 'order_memo_inv_98412.pdf',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    sizeBytes: 680 * 1024,
-    formattedSize: '680 KB',
-    category: 'pdf',
-    mimeType: 'application/pdf',
-    uploadedAt: '2026-08-18 06:14 PM',
-    associatedWith: 'Invoice: Order #ORD-83921',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-audio-1',
-    name: 'customer_voice_order_memo.mp3',
-    url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg',
-    sizeBytes: 1.4 * 1024 * 1024,
-    formattedSize: '1.40 MB',
-    category: 'audio',
-    mimeType: 'audio/mpeg',
-    uploadedAt: '2026-08-17 08:22 PM',
-    associatedWith: 'Customer Chat: Voice Note (Karim)',
-    sellerId: 'sel-1'
-  },
-  {
-    id: 'file-data-1',
-    name: 'firestore_products_collection_sync.json',
-    url: '#',
-    sizeBytes: 420 * 1024,
-    formattedSize: '420 KB',
-    category: 'data',
-    mimeType: 'application/json',
-    uploadedAt: '2026-08-18 10:00 AM',
-    associatedWith: 'Firebase: Firestore Live Products Catalog',
-    sellerId: 'sel-1'
-  }
-];
-
 export const storageManager = {
+  // Extract genuine live files dynamically from actual store products, banners, and manual uploads
   getFiles(sellerId?: string): StorageFile[] {
+    const filesMap = new Map<string, StorageFile>();
+
+    // 1. Read manual uploads from safeStorage
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          if (sellerId) {
-            return parsed.filter((f: StorageFile) => !f.sellerId || f.sellerId === sellerId);
+      const saved = safeStorage.getJSON<StorageFile[]>(STORAGE_KEY, []);
+      if (Array.isArray(saved)) {
+        saved.forEach(f => {
+          if (!sellerId || !f.sellerId || f.sellerId === sellerId) {
+            filesMap.set(f.id, f);
           }
-          return parsed;
+        });
+      }
+    } catch (e) {}
+
+    // 2. Read real products from store and extract actual real product media assets
+    try {
+      const storedProds = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
+      const deletedIds = new Set(safeStorage.getJSON<string[]>('amarbazar_deleted_product_ids', []));
+
+      if (Array.isArray(storedProds)) {
+        storedProds
+          .filter(p => !deletedIds.has(p.id))
+          .filter(p => !sellerId || p.sellerId === sellerId)
+          .forEach(p => {
+            const prodImages: string[] = Array.isArray(p.images) ? p.images : (p as any).image ? [(p as any).image] : [];
+            const prodTitle = p.title || (p as any).name || p.titleBn || 'product';
+
+            prodImages.forEach((imgUrl, idx) => {
+              if (imgUrl && typeof imgUrl === 'string' && imgUrl.length > 5) {
+                const isBase64 = imgUrl.startsWith('data:');
+                const calculatedSize = isBase64 ? Math.round(imgUrl.length * 0.75) : (idx === 0 ? 320 * 1024 : 260 * 1024);
+                const fileId = `media-prod-${p.id}-${idx}`;
+                if (!filesMap.has(fileId)) {
+                  filesMap.set(fileId, {
+                    id: fileId,
+                    name: `${prodTitle.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 22)}_${idx === 0 ? 'main' : `gallery_${idx}`}.jpg`,
+                    url: imgUrl,
+                    sizeBytes: calculatedSize,
+                    formattedSize: formatBytes(calculatedSize),
+                    category: 'image',
+                    mimeType: 'image/jpeg',
+                    uploadedAt: p.createdAt || '2026-08-20 10:00 AM',
+                    associatedWith: `Product: ${prodTitle}`,
+                    sellerId: p.sellerId
+                  });
+                }
+              }
+            });
+          });
+      }
+    } catch (e) {}
+
+    // 3. Read real store branding assets (Banner & Logo)
+    try {
+      const storedSellers = safeStorage.getJSON<SellerStore[]>('amarbazar_sellers_store', []);
+      if (Array.isArray(storedSellers)) {
+        const targetSeller = sellerId 
+          ? storedSellers.find(s => s.id === sellerId || s.sellerId === sellerId)
+          : storedSellers[0];
+
+        if (targetSeller) {
+          if (targetSeller.bannerUrl && targetSeller.bannerUrl.length > 5) {
+            const isBase64 = targetSeller.bannerUrl.startsWith('data:');
+            const size = isBase64 ? Math.round(targetSeller.bannerUrl.length * 0.75) : 480 * 1024;
+            const fileId = `media-banner-${targetSeller.id}`;
+            if (!filesMap.has(fileId)) {
+              filesMap.set(fileId, {
+                id: fileId,
+                name: `store_banner_${targetSeller.id}.jpg`,
+                url: targetSeller.bannerUrl,
+                sizeBytes: size,
+                formattedSize: formatBytes(size),
+                category: 'image',
+                mimeType: 'image/jpeg',
+                uploadedAt: targetSeller.createdAt || '2026-08-01 12:00 PM',
+                associatedWith: `Store Banner: ${targetSeller.storeName || targetSeller.name}`,
+                sellerId: targetSeller.id
+              });
+            }
+          }
+
+          if (targetSeller.logoUrl && targetSeller.logoUrl.length > 5) {
+            const isBase64 = targetSeller.logoUrl.startsWith('data:');
+            const size = isBase64 ? Math.round(targetSeller.logoUrl.length * 0.75) : 150 * 1024;
+            const fileId = `media-logo-${targetSeller.id}`;
+            if (!filesMap.has(fileId)) {
+              filesMap.set(fileId, {
+                id: fileId,
+                name: `store_logo_${targetSeller.id}.jpg`,
+                url: targetSeller.logoUrl,
+                sizeBytes: size,
+                formattedSize: formatBytes(size),
+                category: 'image',
+                mimeType: 'image/jpeg',
+                uploadedAt: targetSeller.createdAt || '2026-08-01 12:00 PM',
+                associatedWith: `Store Logo: ${targetSeller.storeName || targetSeller.name}`,
+                sellerId: targetSeller.id
+              });
+            }
+          }
         }
       }
     } catch (e) {}
 
-    // First time setup
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_FILES));
-    } catch (e) {}
-    return DEFAULT_FILES;
+    return Array.from(filesMap.values());
   },
 
   saveFiles(files: StorageFile[]) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
+      safeStorage.setItem(STORAGE_KEY, JSON.stringify(files));
     } catch (e) {}
   },
 
   addFile(file: Omit<StorageFile, 'id' | 'uploadedAt' | 'formattedSize'>): StorageFile {
-    const files = this.getFiles();
+    const currentManualFiles = safeStorage.getJSON<StorageFile[]>(STORAGE_KEY, []);
     const newFile: StorageFile = {
       ...file,
       id: `file-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       uploadedAt: new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }),
       formattedSize: formatBytes(file.sizeBytes)
     };
-    const updated = [newFile, ...files];
+    const updated = [newFile, ...currentManualFiles];
     this.saveFiles(updated);
     return newFile;
   },
 
   deleteFile(id: string): StorageFile[] {
-    const files = this.getFiles();
-    const updated = files.filter(f => f.id !== id);
+    const currentManualFiles = safeStorage.getJSON<StorageFile[]>(STORAGE_KEY, []);
+    const updated = currentManualFiles.filter(f => f.id !== id);
     this.saveFiles(updated);
-    return updated;
+    return this.getFiles();
   },
 
   // Save purchased or upgraded Firebase storage plan for a store
   savePurchasedPlan(sellerId: string, planId: string, customGb?: number, txnId?: string): { success: boolean; totalGb: number; plan: FirebaseStoragePlan | null } {
     try {
-      let limitGb = 5;
-      let matchedPlan = FIREBASE_STORAGE_PLANS.find(p => p.id === planId) || null;
+      let limitGb = 1;
+      const matchedPlan = FIREBASE_STORAGE_PLANS.find(p => p.id === planId) || null;
       if (matchedPlan) {
         limitGb = matchedPlan.totalGb;
       } else if (customGb && customGb > 0) {
@@ -306,9 +296,9 @@ export const storageManager = {
         status: 'active'
       };
 
-      localStorage.setItem(PURCHASED_STORAGE_KEY, JSON.stringify(storedMap));
+      safeStorage.setItem(PURCHASED_STORAGE_KEY, JSON.stringify(storedMap));
 
-      // Also trigger a storage event so all components react immediately
+      // Trigger a live storage update event across the app
       window.dispatchEvent(new CustomEvent('amarbazar_storage_quota_updated', {
         detail: { sellerId, totalGb: limitGb, planId }
       }));
@@ -316,16 +306,16 @@ export const storageManager = {
       return { success: true, totalGb: limitGb, plan: matchedPlan };
     } catch (e) {
       console.error('Error saving purchased plan:', e);
-      return { success: false, totalGb: 5, plan: null };
+      return { success: false, totalGb: 1, plan: null };
     }
   },
 
   getAllPurchasedPlans(): Record<string, any> {
     try {
-      const data = localStorage.getItem(PURCHASED_STORAGE_KEY);
-      if (data) return JSON.parse(data);
-    } catch (e) {}
-    return {};
+      return safeStorage.getJSON<Record<string, any>>(PURCHASED_STORAGE_KEY, {});
+    } catch (e) {
+      return {};
+    }
   },
 
   getPurchasedPlan(sellerId?: string): { totalGb: number; planId: string; expiryDate?: string; status?: string } | null {
@@ -334,8 +324,9 @@ export const storageManager = {
     return all[sellerId] || null;
   },
 
-  getEffectiveStorageLimit(sellerId?: string, storePlan?: string, storeCustomLimit?: number): number {
-    // 1. Check if an explicit purchased storage record exists
+  // Determine the real, accurate storage limit based on the connected database and active subscription
+  getEffectiveStorageLimit(sellerId?: string, storePlan?: string, storeCustomLimit?: number, storageType?: string): number {
+    // 1. Check if an explicit purchased storage plan exists
     if (sellerId) {
       const purchased = this.getPurchasedPlan(sellerId);
       if (purchased && purchased.totalGb > 0) {
@@ -348,21 +339,30 @@ export const storageManager = {
       return storeCustomLimit;
     }
 
-    // 3. Check store's cloudSubscriptionPlan
+    // 3. Check store's cloud subscription plan
     if (storePlan === 'firebase_subscription' || storePlan === 'gcs_subscription') {
       return 15;
     } else if (storePlan && storePlan !== 'none') {
       return 15;
     }
 
-    // 4. Default Firebase Free Spark Tier limit (5 GB)
-    return 5;
+    // 4. If connected to custom third-party database (Supabase, MongoDB, Neon, MySQL, etc.)
+    if (storageType && storageType !== 'central' && storageType !== 'firebase') {
+      if (storageType === 'supabase') return 1; // 1 GB Supabase free tier
+      if (storageType === 'mongodb') return 0.512; // 512 MB Atlas free M0
+      if (storageType === 'neon') return 0.5; // 500 MB
+      if (storageType === 'mysql') return 1;
+    }
+
+    // 5. Default Firebase Free Spark Tier (1 GB Firestore Database / 5 GB Storage)
+    return 1;
   },
 
-  // Calculate live database memory size (Firestore collections: Products, Orders, Categories, Users, Messages)
-  estimateFirestoreDatabaseSize(sellerId?: string): {
+  // Calculate live database memory size (Firestore collections: Products, Orders, Categories, Store Config, Settings)
+  estimateFirestoreDatabaseSize(sellerId?: string, storageType?: string): {
     totalBytes: number;
     formattedSize: string;
+    databaseName: string;
     collections: {
       name: string;
       nameBn: string;
@@ -377,73 +377,70 @@ export const storageManager = {
     let ordersCount = 0;
     let categoriesBytes = 0;
     let categoriesCount = 0;
-    let messagesBytes = 0;
-    let messagesCount = 0;
+    let storeConfigBytes = 0;
+    let settingsBytes = 0;
 
+    // 1. Products in real storage
     try {
-      // 1. Products in localStorage/store
-      const storedProds = localStorage.getItem('amarbazar_products_store');
-      if (storedProds) {
-        const prods = JSON.parse(storedProds);
-        if (Array.isArray(prods)) {
-          const sellerProds = sellerId ? prods.filter((p: any) => p.sellerId === sellerId) : prods;
-          productsCount = sellerProds.length;
-          // Each product JSON string size + 500 bytes Firestore indexing overhead
-          productsBytes = new Blob([JSON.stringify(sellerProds)]).size + (productsCount * 512);
-        }
+      const storedProds = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
+      const deletedIds = new Set(safeStorage.getJSON<string[]>('amarbazar_deleted_product_ids', []));
+      if (Array.isArray(storedProds)) {
+        const activeProds = storedProds
+          .filter(p => !deletedIds.has(p.id))
+          .filter(p => !sellerId || p.sellerId === sellerId);
+        productsCount = activeProds.length;
+        productsBytes = new Blob([JSON.stringify(activeProds)]).size;
       }
     } catch (e) {}
 
-    // Fallback baseline for products if not in localStorage yet
-    if (productsBytes === 0) {
-      productsCount = 12;
-      productsBytes = 480 * 1024; // ~480 KB
-    }
-
+    // 2. Orders in real storage
     try {
-      // 2. Orders
-      const storedOrders = localStorage.getItem('amarbazar_orders_store');
-      if (storedOrders) {
-        const ords = JSON.parse(storedOrders);
-        if (Array.isArray(ords)) {
-          const sellerOrds = sellerId ? ords.filter((o: any) => o.sellerId === sellerId) : ords;
-          ordersCount = sellerOrds.length;
-          ordersBytes = new Blob([JSON.stringify(sellerOrds)]).size + (ordersCount * 256);
-        }
+      const storedOrders = safeStorage.getJSON<any[]>('amarbazar_orders_store', []);
+      if (Array.isArray(storedOrders)) {
+        const activeOrders = storedOrders.filter(o => !sellerId || o.sellerId === sellerId);
+        ordersCount = activeOrders.length;
+        ordersBytes = new Blob([JSON.stringify(activeOrders)]).size;
       }
     } catch (e) {}
 
-    if (ordersBytes === 0) {
-      ordersCount = 8;
-      ordersBytes = 160 * 1024; // ~160 KB
-    }
-
+    // 3. Categories in real storage
     try {
-      // 3. Categories
-      const storedCats = localStorage.getItem('amarbazar_categories_store');
-      if (storedCats) {
-        const cats = JSON.parse(storedCats);
-        if (Array.isArray(cats)) {
-          categoriesCount = cats.length;
-          categoriesBytes = new Blob([JSON.stringify(cats)]).size + 1024;
-        }
+      const storedCats = safeStorage.getJSON<any[]>('amarbazar_categories_store', []);
+      if (Array.isArray(storedCats)) {
+        categoriesCount = storedCats.length;
+        categoriesBytes = new Blob([JSON.stringify(storedCats)]).size;
       }
     } catch (e) {}
 
-    if (categoriesBytes === 0) {
-      categoriesCount = 10;
-      categoriesBytes = 45 * 1024; // ~45 KB
+    // 4. Store Config & Settings
+    try {
+      const storedSellers = safeStorage.getJSON<SellerStore[]>('amarbazar_sellers_store', []);
+      const matchedSeller = sellerId 
+        ? storedSellers.find(s => s.id === sellerId || s.sellerId === sellerId)
+        : storedSellers[0];
+      if (matchedSeller) {
+        storeConfigBytes = new Blob([JSON.stringify(matchedSeller)]).size;
+      }
+      const settings = safeStorage.getJSON<any>('amarbazar_system_settings_store', {});
+      settingsBytes = new Blob([JSON.stringify(settings)]).size;
+    } catch (e) {}
+
+    const totalDbRecordsBytes = productsBytes + ordersBytes + categoriesBytes + storeConfigBytes + settingsBytes;
+
+    let dbName = 'Firebase Firestore';
+    if (storageType && storageType !== 'central' && storageType !== 'firebase') {
+      if (storageType === 'supabase') dbName = 'Supabase PostgreSQL';
+      else if (storageType === 'mongodb') dbName = 'MongoDB Atlas';
+      else if (storageType === 'neon') dbName = 'Neon PostgreSQL';
+      else if (storageType === 'mysql') dbName = 'MySQL Database';
+      else if (storageType === 'google_cloud') dbName = 'Google Cloud Firestore';
+      else dbName = `${storageType.toUpperCase()} Database`;
     }
-
-    // 4. Chat & Messages & Activity Logs
-    messagesCount = 24;
-    messagesBytes = 95 * 1024; // ~95 KB
-
-    const totalBytes = productsBytes + ordersBytes + categoriesBytes + messagesBytes;
 
     return {
-      totalBytes,
-      formattedSize: formatBytes(totalBytes),
+      totalBytes: totalDbRecordsBytes,
+      formattedSize: formatBytes(totalDbRecordsBytes),
+      databaseName: dbName,
       collections: [
         {
           name: 'products',
@@ -467,22 +464,22 @@ export const storageManager = {
           formattedSize: formatBytes(categoriesBytes)
         },
         {
-          name: 'messages',
-          nameBn: 'চ্যাট ও হিস্টোরি (Chat & Logs)',
-          count: messagesCount,
-          sizeBytes: messagesBytes,
-          formattedSize: formatBytes(messagesBytes)
+          name: 'store_profile',
+          nameBn: 'স্টোর ও কনফিগ (Store Profile)',
+          count: 1,
+          sizeBytes: storeConfigBytes + settingsBytes,
+          formattedSize: formatBytes(storeConfigBytes + settingsBytes)
         }
       ]
     };
   },
 
-  calculateStats(files: StorageFile[], totalGb: number = 5, sellerId?: string) {
+  calculateStats(files: StorageFile[], totalGb: number = 1, sellerId?: string, storageType?: string) {
     const totalBytes = totalGb * 1024 * 1024 * 1024;
     const filesBytes = files.reduce((acc, f) => acc + (f.sizeBytes || 0), 0);
     
-    // Calculate live Firestore Database footprint
-    const firestoreDb = this.estimateFirestoreDatabaseSize(sellerId);
+    // Calculate live connected Database footprint
+    const firestoreDb = this.estimateFirestoreDatabaseSize(sellerId, storageType);
     const usedBytes = filesBytes + firestoreDb.totalBytes;
     const freeBytes = Math.max(0, totalBytes - usedBytes);
 
@@ -497,17 +494,17 @@ export const storageManager = {
 
     const breakdown: Record<string, { sizeBytes: number; formattedSize: string; count: number }> = {
       firestore: { sizeBytes: firestoreDb.totalBytes, formattedSize: firestoreDb.formattedSize, count: firestoreDb.collections.length },
-      image: { sizeBytes: 0, formattedSize: '0 MB', count: 0 },
-      pdf: { sizeBytes: 0, formattedSize: '0 MB', count: 0 },
-      audio: { sizeBytes: 0, formattedSize: '0 MB', count: 0 },
-      document: { sizeBytes: 0, formattedSize: '0 MB', count: 0 },
-      data: { sizeBytes: 0, formattedSize: '0 MB', count: 0 },
+      image: { sizeBytes: 0, formattedSize: '0 B', count: 0 },
+      pdf: { sizeBytes: 0, formattedSize: '0 B', count: 0 },
+      audio: { sizeBytes: 0, formattedSize: '0 B', count: 0 },
+      document: { sizeBytes: 0, formattedSize: '0 B', count: 0 },
+      data: { sizeBytes: 0, formattedSize: '0 B', count: 0 },
     };
 
     files.forEach(f => {
       const cat = f.category || 'data';
       if (!breakdown[cat]) {
-        breakdown[cat] = { sizeBytes: 0, formattedSize: '0 MB', count: 0 };
+        breakdown[cat] = { sizeBytes: 0, formattedSize: '0 B', count: 0 };
       }
       breakdown[cat].sizeBytes += f.sizeBytes || 0;
       breakdown[cat].count += 1;
@@ -529,8 +526,8 @@ export const storageManager = {
       totalGb,
       formattedUsed: formatBytes(usedBytes),
       formattedFree: formatBytes(freeBytes),
-      formattedTotal: `${totalGb} GB`,
-      percentage: Math.max(0.1, percentage),
+      formattedTotal: totalGb < 1 ? `${Math.round(totalGb * 1024)} MB` : `${totalGb} GB`,
+      percentage: Math.max(0.05, percentage),
       count: files.length,
       breakdown,
       firestoreDb

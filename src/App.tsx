@@ -29,8 +29,9 @@ import { CustomerTrackingSupport } from './components/customer/CustomerTrackingS
 import { BottomNavigation } from './components/common/BottomNavigation';
 import { OutletsView } from './components/customer/OutletsView';
 import { Product, Address, getProductUnitPrice } from './types';
-import { ShieldAlert, KeyRound } from 'lucide-react';
+import { ShieldAlert, KeyRound, LogOut, ArrowLeft } from 'lucide-react';
 import { nativeBridge } from './services/nativeBridge';
+import { backNavigationManager } from './services/backNavigationManager';
 
 function MainLayout() {
   const { 
@@ -39,11 +40,17 @@ function MainLayout() {
     cart, addToCart, isCustomerOnlyMode, currentUser, isAuthOpen, setIsAuthOpen, 
     isAiOpen, setIsAiOpen, trackingOrderId, setTrackingOrderId,
     isCartOpen, setIsCartOpen, language,
-    isMobileChatActive
+    isMobileChatActive, setIsMobileChatActive,
+    searchQuery, setSearchQuery, selectedCategory, setSelectedCategory,
+    selectedSellerId, setSelectedSellerId
   } = useApp();
 
   // Payment Modal Trigger State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [exitToastMessage, setExitToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<any>(null);
+  const panelHistoryRef = useRef<string[]>(['customer']);
+
   const [checkoutPayload, setCheckoutPayload] = useState<{
     subtotal: number;
     discount: number;
@@ -63,7 +70,11 @@ function MainLayout() {
     isAuthOpen,
     isAiOpen,
     trackingOrderId,
-    activePanel
+    activePanel,
+    isMobileChatActive,
+    searchQuery,
+    selectedCategory,
+    selectedSellerId
   });
 
   useEffect(() => {
@@ -75,68 +86,194 @@ function MainLayout() {
       isAuthOpen,
       isAiOpen,
       trackingOrderId,
-      activePanel
+      activePanel,
+      isMobileChatActive,
+      searchQuery,
+      selectedCategory,
+      selectedSellerId
     };
-  }, [selectedProduct, sharingProduct, isPaymentModalOpen, isCartOpen, isAuthOpen, isAiOpen, trackingOrderId, activePanel]);
+  }, [
+    selectedProduct, sharingProduct, isPaymentModalOpen, isCartOpen, 
+    isAuthOpen, isAiOpen, trackingOrderId, activePanel, 
+    isMobileChatActive, searchQuery, selectedCategory, selectedSellerId
+  ]);
 
-  // Initialize Android Native Features (Back Button, Status Bar, Splash Screen)
+  // Track panel transitions in history stack
   useEffect(() => {
-    nativeBridge.initNativeFeatures({
-      closeAnyOpenModal: () => {
-        const s = stateRef.current;
-        if (s.isPaymentModalOpen) {
-          setIsPaymentModalOpen(false);
-          return true;
-        }
-        if (s.selectedProduct) {
-          setSelectedProduct(null);
-          return true;
-        }
-        if (s.sharingProduct) {
-          setSharingProduct(null);
-          return true;
-        }
-        if (s.isCartOpen) {
-          setIsCartOpen(false);
-          return true;
-        }
-        if (s.isAuthOpen) {
-          setIsAuthOpen(false);
-          return true;
-        }
-        if (s.isAiOpen) {
-          setIsAiOpen(false);
-          return true;
-        }
-        if (s.trackingOrderId) {
-          setTrackingOrderId(null);
-          return true;
-        }
-        return false;
-      },
-      navigateToHome: () => {
-        const s = stateRef.current;
-        if (s.activePanel !== 'customer') {
-          setActivePanel('customer');
-          return true;
-        }
-        return false;
-      },
-      canGoBack: () => {
-        const s = stateRef.current;
-        return (
-          !!s.selectedProduct ||
-          !!s.sharingProduct ||
-          s.isPaymentModalOpen ||
-          s.isCartOpen ||
-          s.isAuthOpen ||
-          s.isAiOpen ||
-          !!s.trackingOrderId ||
-          s.activePanel !== 'customer'
-        );
+    if (activePanel) {
+      const history = panelHistoryRef.current;
+      if (history[history.length - 1] !== activePanel) {
+        history.push(activePanel);
       }
-    });
+    }
+  }, [activePanel]);
+
+  // Push history steps to browser when modal or sub-panel is opened
+  const prevStatesRef = useRef({
+    selectedProduct: null as any,
+    sharingProduct: null as any,
+    isPaymentModalOpen: false,
+    isCartOpen: false,
+    isAuthOpen: false,
+    isAiOpen: false,
+    trackingOrderId: null as any,
+    activePanel: 'customer',
+    isMobileChatActive: false
+  });
+
+  useEffect(() => {
+    const prev = prevStatesRef.current;
+
+    if (selectedProduct && !prev.selectedProduct) {
+      backNavigationManager.pushStep('product_detail', { id: selectedProduct.id });
+    }
+    if (sharingProduct && !prev.sharingProduct) {
+      backNavigationManager.pushStep('share_product', { id: sharingProduct.id });
+    }
+    if (isPaymentModalOpen && !prev.isPaymentModalOpen) {
+      backNavigationManager.pushStep('payment_modal');
+    }
+    if (isCartOpen && !prev.isCartOpen) {
+      backNavigationManager.pushStep('cart_drawer');
+    }
+    if (isAuthOpen && !prev.isAuthOpen) {
+      backNavigationManager.pushStep('auth_modal');
+    }
+    if (isAiOpen && !prev.isAiOpen) {
+      backNavigationManager.pushStep('ai_modal');
+    }
+    if (trackingOrderId && !prev.trackingOrderId) {
+      backNavigationManager.pushStep('tracking_modal', { id: trackingOrderId });
+    }
+    if (isMobileChatActive && !prev.isMobileChatActive) {
+      backNavigationManager.pushStep('mobile_chat');
+    }
+    if (activePanel !== 'customer' && prev.activePanel === 'customer') {
+      backNavigationManager.pushStep('panel_' + activePanel);
+    }
+
+    prevStatesRef.current = {
+      selectedProduct,
+      sharingProduct,
+      isPaymentModalOpen,
+      isCartOpen,
+      isAuthOpen,
+      isAiOpen,
+      trackingOrderId,
+      activePanel,
+      isMobileChatActive
+    };
+  }, [
+    selectedProduct, sharingProduct, isPaymentModalOpen, isCartOpen,
+    isAuthOpen, isAiOpen, trackingOrderId, activePanel, isMobileChatActive
+  ]);
+
+  // Initialize Android Native & Web Back Button Handlers
+  useEffect(() => {
+    nativeBridge.initNativeFeatures();
   }, []);
+
+  // Register main hierarchical back handler
+  useEffect(() => {
+    backNavigationManager.setLanguage(language);
+    backNavigationManager.setToastCallback((msg, durationMs = 2500) => {
+      setExitToastMessage(msg);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        setExitToastMessage(null);
+      }, durationMs);
+    });
+
+    const unregister = backNavigationManager.registerHandler('global_app_layout', () => {
+      const s = stateRef.current;
+
+      // 1. Payment Modal
+      if (s.isPaymentModalOpen) {
+        setIsPaymentModalOpen(false);
+        return true;
+      }
+
+      // 2. Product Share Modal
+      if (s.sharingProduct) {
+        setSharingProduct(null);
+        return true;
+      }
+
+      // 3. Product Detail Modal
+      if (s.selectedProduct) {
+        setSelectedProduct(null);
+        return true;
+      }
+
+      // 4. Cart Drawer
+      if (s.isCartOpen) {
+        setIsCartOpen(false);
+        return true;
+      }
+
+      // 5. Auth Modal
+      if (s.isAuthOpen) {
+        setIsAuthOpen(false);
+        return true;
+      }
+
+      // 6. AI Assistant Modal
+      if (s.isAiOpen) {
+        setIsAiOpen(false);
+        return true;
+      }
+
+      // 7. Order Tracking Modal
+      if (s.trackingOrderId) {
+        setTrackingOrderId(null);
+        return true;
+      }
+
+      // 8. Mobile Support Chat active thread
+      if (s.isMobileChatActive) {
+        setIsMobileChatActive(false);
+        return true;
+      }
+
+      // 9. Active Search or Category Filter in Customer Storefront
+      if (s.activePanel === 'customer') {
+        if (s.searchQuery) {
+          setSearchQuery('');
+          return true;
+        }
+        if (s.selectedCategory) {
+          setSelectedCategory(null);
+          return true;
+        }
+        if (s.selectedSellerId) {
+          setSelectedSellerId(null);
+          return true;
+        }
+      }
+
+      // 10. Sub-panel navigation back to previous panel or customer storefront
+      if (s.activePanel !== 'customer') {
+        const history = panelHistoryRef.current;
+        if (history.length > 1) {
+          history.pop(); // Remove current panel
+          const prev = history[history.length - 1] || 'customer';
+          setActivePanel(prev as any);
+        } else {
+          setActivePanel('customer');
+        }
+        return true;
+      }
+
+      // At root storefront with no modals/filters open:
+      // Return false so backNavigationManager can show exit toast or allow exit
+      return false;
+    }, 100);
+
+    return () => {
+      unregister();
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [language]);
 
   const handleProceedToCheckout = (
     subtotal: number, discount: number, shipping: number, total: number, coupon?: string
@@ -380,8 +517,18 @@ function MainLayout() {
         <AiAssistantModal />
         <OrderTrackingModal />
 
+        {/* Exit Toast Notification on Double Back Press */}
+        {exitToastMessage && (
+          <div className="fixed bottom-20 sm:bottom-10 left-1/2 -translate-x-1/2 z-9999 animate-in fade-in slide-in-from-bottom-5 duration-200 pointer-events-none max-w-[90vw]">
+            <div className="bg-slate-900/95 dark:bg-slate-800/95 text-white text-[12px] font-bold px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 backdrop-blur-md flex items-center space-x-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+              <span className="truncate">{exitToastMessage}</span>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        {['customer', 'dashboard_home', 'store_directory', 'outlets'].includes(activePanel) && <Footer />}
+        {['customer', 'dashboard_home', 'outlets'].includes(activePanel) && <Footer />}
         {!isCustomerOnlyMode && <BottomNavigation />}
       </div>
     </div>

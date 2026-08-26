@@ -1,12 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
+import { backNavigationManager } from '../../services/backNavigationManager';
+import { CategoryQuickBarBackend } from './CategoryQuickBarBackend';
 import { 
   Store, ShieldCheck, CheckCircle2, Phone, Mail, MapPin, Star,
   DollarSign, ShoppingBag, ArrowUpRight, Plus, X, Sparkles, 
   Info, Tag, AlertCircle, ImageIcon, Sliders, ChevronRight, Check,
   Search, ChevronDown, Palette, Settings, ArrowRight, Flame, Upload,
-  Trash2
+  Trash2, Layers, BarChart3, Clock
 } from 'lucide-react';
 
 const PRESETS_BY_CAT: Record<string, { title: string; titleBn: string; url: string }[]> = {
@@ -47,7 +49,7 @@ const toBengaliNumber = (num: number): string => {
 
 export const StoreDirectory: React.FC = () => {
   const { language, categories, refreshProducts, setActivePanel, activePanel, setSelectedProduct, currentUser } = useApp();
-  const [subModule, setSubModule] = useState<'panel' | 'sandbox' | 'customer-rules'>('panel');
+  const [subModule, setSubModule] = useState<'panel' | 'sandbox' | 'customer-rules' | 'custom-module-3' | 'custom-module-4' | 'custom-module-5'>('panel');
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(() => {
     return 'all';
   });
@@ -236,6 +238,25 @@ export const StoreDirectory: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successItemTitle, setSuccessItemTitle] = useState('');
+
+  // Back Navigation handler for StoreDirectory submodules
+  useEffect(() => {
+    const unregister = backNavigationManager.registerHandler('store_directory_submodules', () => {
+      if (showCategoryPopup) {
+        setShowCategoryPopup(false);
+        return true;
+      }
+      if (subModule !== 'panel') {
+        setSubModule('panel');
+        return true;
+      }
+      return false; // let parent handle
+    }, 115);
+
+    return () => {
+      unregister();
+    };
+  }, [showCategoryPopup, subModule]);
 
   // Audio system chime
   const playChime = () => {
@@ -1355,6 +1376,179 @@ export const StoreDirectory: React.FC = () => {
             </div>
           )}
 
+          {/* Card 3: Categories & Quick Nav Bar Backend Control (Full CRUD) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition duration-200">
+            <div className="flex items-start sm:items-center space-x-4">
+              <div className="p-3.5 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-full text-indigo-500 shrink-0">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                    {language === 'bn' ? '৩. ক্যাটাগরি ও কুইক নেভিগেশন বার ব্যাকএন্ড কন্ট্রোল' : '3. Category & Quick Nav Bar Backend Control'}
+                  </h3>
+                  <span className="bg-indigo-500/10 text-indigo-500 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-500/30">
+                    LIVE BACKEND
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl font-sans">
+                  {language === 'bn'
+                    ? 'কাস্টমার ফ্রন্টএন্ডে প্রদর্শিত সকল ক্যাটাগরি এবং মার্ক করা কুইক নেভিগেশন বার আইটেমসমূহ নতুন যোগ (Add), এডিট (Edit) বা ডিলিট (Delete) করুন।'
+                    : 'Manage customer storefront categories and horizontal quick navigation marquee bar items with full Add, Edit, and Delete controls.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSubModule('custom-module-3')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-5 py-2.5 rounded-full transition duration-200 flex items-center justify-center space-x-2 shrink-0 shadow-sm shadow-indigo-600/20 uppercase tracking-wider cursor-pointer"
+            >
+              <span>{language === 'bn' ? 'ম্যানেজ করুন' : 'MANAGE'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Card 4: New Custom Module 4 (Configurable) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-cyan-500/40 dark:hover:border-cyan-500/40 transition duration-200">
+            <div className="flex items-start sm:items-center space-x-4">
+              <div className="p-3.5 bg-cyan-500/10 dark:bg-cyan-500/20 rounded-full text-cyan-500 shrink-0">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  {language === 'bn' ? '৪. নতুন মডিউল ৪ (কাস্টমাইজেবল কন্ট্রোল)' : '4. Custom Control Module 4'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl font-sans">
+                  {language === 'bn'
+                    ? 'আপনার নির্দেশনা অনুযায়ী এই মডিউলটিতে নির্দিষ্ট ফিচার বা কনফিগারেশন সেটআপ করা হবে।'
+                    : 'Configurable custom module ready for your tailored business logic and features.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSubModule('custom-module-4')}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-black text-xs px-5 py-2.5 rounded-full transition duration-200 flex items-center justify-center space-x-2 shrink-0 shadow-sm shadow-cyan-500/10 uppercase tracking-wider cursor-pointer"
+            >
+              <span>{language === 'bn' ? 'শুরু করুন' : 'START'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Card 5: New Custom Module 5 (Configurable) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-violet-500/40 dark:hover:border-violet-500/40 transition duration-200">
+            <div className="flex items-start sm:items-center space-x-4">
+              <div className="p-3.5 bg-violet-500/10 dark:bg-violet-500/20 rounded-full text-violet-500 shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  {language === 'bn' ? '৫. নতুন মডিউল ৫ (কাস্টমাইজেবল কন্ট্রোল)' : '5. Custom Control Module 5'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl font-sans">
+                  {language === 'bn'
+                    ? 'আপনার নির্দেশনা অনুযায়ী এই মডিউলটিতে নির্দিষ্ট ফিচার বা কনফিগারেশন সেটআপ করা হবে।'
+                    : 'Configurable custom module ready for your tailored business logic and features.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSubModule('custom-module-5')}
+              className="bg-violet-500 hover:bg-violet-600 text-white font-black text-xs px-5 py-2.5 rounded-full transition duration-200 flex items-center justify-center space-x-2 shrink-0 shadow-sm shadow-violet-500/10 uppercase tracking-wider cursor-pointer"
+            >
+              <span>{language === 'bn' ? 'শুরু করুন' : 'START'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  if (subModule === 'custom-module-3') {
+    return <CategoryQuickBarBackend onBack={() => setSubModule('panel')} />;
+  }
+
+  if (subModule === 'custom-module-4' || subModule === 'custom-module-5') {
+    const moduleInfo = {
+      'custom-module-4': {
+        num: '৪',
+        numEn: '4',
+        title: 'কাস্টম কন্ট্রোল মডিউল ৪',
+        titleEn: 'Custom Control Module 4',
+        desc: 'আপনার নির্দেশনা অনুযায়ী এই মডিউলটিতে নির্দিষ্ট ফিচার বা কনফিগারেশন সেটআপ করা হবে।',
+        descEn: 'This module container is ready for your tailored analytics, rules, or inventory configurations.',
+        icon: <BarChart3 className="w-8 h-8 text-cyan-500" />,
+        badgeColor: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20'
+      },
+      'custom-module-5': {
+        num: '৫',
+        numEn: '5',
+        title: 'কাস্টম কন্ট্রোল মডিউল ৫',
+        titleEn: 'Custom Control Module 5',
+        desc: 'আপনার নির্দেশনা অনুযায়ী এই মডিউলটিতে নির্দিষ্ট ফিচার বা কনফিগারেশন সেটআপ করা হবে।',
+        descEn: 'This module container is ready for additional integrations, automations, and settings.',
+        icon: <Clock className="w-8 h-8 text-violet-500" />,
+        badgeColor: 'bg-violet-500/10 text-violet-500 border-violet-500/20'
+      }
+    }[subModule];
+
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto animate-fade-in">
+        {/* Breadcrumbs */}
+        <div className="flex items-center space-x-2 text-[11px] font-black uppercase tracking-wider text-teal-500 dark:text-teal-400">
+          <span>MARKET ARCHITECTURE</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <button 
+            type="button"
+            onClick={() => setSubModule('panel')}
+            className="hover:text-amber-500 transition cursor-pointer font-black"
+          >
+            VENDORS
+          </button>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-slate-400 dark:text-slate-500">{language === 'bn' ? moduleInfo.title : moduleInfo.titleEn}</span>
+        </div>
+
+        {/* Title Header Block */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <div className={`p-3.5 rounded-2xl border ${moduleInfo.badgeColor}`}>
+              {moduleInfo.icon}
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                {language === 'bn' ? `${moduleInfo.num}. ${moduleInfo.title}` : `${moduleInfo.numEn}. ${moduleInfo.titleEn}`}
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-sans">
+                {language === 'bn' ? moduleInfo.desc : moduleInfo.descEn}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSubModule('panel')}
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs px-4 py-2.5 rounded-xl transition duration-200 flex items-center space-x-2 cursor-pointer self-start sm:self-auto"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            <span>{language === 'bn' ? 'ফিরে যান' : 'Back to Control Panel'}</span>
+          </button>
+        </div>
+
+        {/* Placeholder Workspace Area */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+            <Sparkles className="w-8 h-8 text-amber-500 animate-pulse" />
+          </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {language === 'bn' ? 'মডিউলটি প্রস্তুত রয়েছে' : 'Module is Ready for Setup'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-sans leading-relaxed">
+              {language === 'bn' 
+                ? 'আপনি কী কী অপশন, ইনপুট ফিল্ড বা ডেটা কন্ট্রোল যুক্ত করতে চান তা জানালে তাৎক্ষণিকভাবে তা কনফিগার করে দেওয়া হবে।'
+                : 'Whenever you provide the exact requirements or inputs, this module will be populated with all requested features and controls.'}
+            </p>
+          </div>
         </div>
       </div>
     );

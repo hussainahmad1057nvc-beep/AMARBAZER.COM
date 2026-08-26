@@ -11,6 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import { BiometricAuthModal } from './BiometricAuthModal';
 import { getSavedBiometricUser, isBiometricEnabled } from '../../services/biometricAuth';
+import { backNavigationManager } from '../../services/backNavigationManager';
 
 export const AuthModal: React.FC = () => {
   const { isAuthOpen, setIsAuthOpen, setCurrentUser, language, setActivePanel, setActiveRole, activePanel, activeRole, setIsCustomerOnlyMode } = useApp();
@@ -52,6 +53,44 @@ export const AuthModal: React.FC = () => {
   
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
+
+  // Single-step Back Button handling inside AuthModal
+  React.useEffect(() => {
+    if (isAuthOpen) {
+      const unregister = backNavigationManager.registerHandler('auth_modal_inner', () => {
+        if (isBiometricModalOpen) {
+          setIsBiometricModalOpen(false);
+          return true;
+        }
+        if (sellerStep === 'payment') {
+          setSellerStep('plans');
+          return true;
+        }
+        if (sellerStep === 'plans') {
+          setSellerStep('credentials');
+          return true;
+        }
+        if (sellerStep === 'credentials') {
+          setSellerStep('face_verification');
+          return true;
+        }
+        if (sellerStep === 'face_verification') {
+          setSellerStep('details');
+          return true;
+        }
+        if (otpMode) {
+          setOtpMode(false);
+          return true;
+        }
+        setIsAuthOpen(false);
+        return true;
+      }, 150);
+
+      return () => {
+        unregister();
+      };
+    }
+  }, [isAuthOpen, isBiometricModalOpen, sellerStep, otpMode, setIsAuthOpen]);
 
   React.useEffect(() => {
     // Stop any camera stream when modal is closed

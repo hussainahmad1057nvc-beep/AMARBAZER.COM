@@ -3,11 +3,13 @@ import {
   X, FolderOpen, Upload, Trash2, Eye, Download, Copy, Check, 
   FileText, Image as ImageIcon, Music, Database, HardDrive, 
   Search, Filter, ShieldCheck, AlertCircle, RefreshCw, Sparkles, 
-  Flame, Zap, ArrowUpRight, Layers
+  Flame, Zap, ArrowUpRight, Layers, Activity, Server
 } from 'lucide-react';
 import { StorageFile } from '../../types';
 import { storageManager, formatBytes } from '../../lib/storageManager';
+import { api } from '../../services/api';
 import { FirebaseStorageUpgradeModal } from './FirebaseStorageUpgradeModal';
+import { backNavigationManager } from '../../services/backNavigationManager';
 
 interface CloudFileManagerModalProps {
   isOpen: boolean;
@@ -16,6 +18,7 @@ interface CloudFileManagerModalProps {
   sellerId?: string;
   storeName?: string;
   planName?: string;
+  storageType?: string;
   totalCapacityGb?: number;
   onStorageUpdated?: () => void;
 }
@@ -27,6 +30,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
   sellerId = 'sel-1',
   storeName = 'আমার বাজার শপ',
   planName = 'ফায়ারবেস লাইভ স্টোরেজ',
+  storageType = 'firebase',
   totalCapacityGb: propTotalCapacityGb,
   onStorageUpdated
 }) => {
@@ -36,12 +40,58 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<StorageFile | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isRefreshingTelemetry, setIsRefreshingTelemetry] = useState<boolean>(false);
+  const [telemetryInfo, setTelemetryInfo] = useState<any>(null);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string>('');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState<boolean>(false);
   const [currentLimitGb, setCurrentLimitGb] = useState<number>(() => 
-    storageManager.getEffectiveStorageLimit(sellerId, undefined, propTotalCapacityGb)
+    storageManager.getEffectiveStorageLimit(sellerId, undefined, propTotalCapacityGb, storageType)
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch real-time database telemetry from backend API
+  const fetchLiveTelemetry = async () => {
+    setIsRefreshingTelemetry(true);
+    try {
+      const liveData = await api.getStorageTelemetry(sellerId);
+      if (liveData && liveData.connected) {
+        setTelemetryInfo(liveData);
+        if (liveData.quotaGb && liveData.quotaGb > 0 && (!propTotalCapacityGb || propTotalCapacityGb <= 1)) {
+          setCurrentLimitGb(liveData.quotaGb);
+        }
+      }
+    } catch (err) {
+      console.warn('Telemetry fetch fallback to local storageManager', err);
+    } finally {
+      const refreshedFiles = storageManager.getFiles(sellerId);
+      setFiles(refreshedFiles);
+      setIsRefreshingTelemetry(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchLiveTelemetry();
+      backNavigationManager.pushStep('cloud_file_manager');
+
+      const unregister = backNavigationManager.registerHandler('cloud_file_manager_modal', () => {
+        if (previewFile) {
+          setPreviewFile(null);
+          return true;
+        }
+        if (isUpgradeModalOpen) {
+          setIsUpgradeModalOpen(false);
+          return true;
+        }
+        onClose();
+        return true;
+      }, 200);
+
+      return () => {
+        unregister();
+      };
+    }
+  }, [isOpen, sellerId, previewFile, isUpgradeModalOpen, onClose]);
 
   // Sync capacity when updated
   useEffect(() => {
@@ -61,10 +111,21 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
     }
   }, [propTotalCapacityGb]);
 
-  // Recalculate stats live (including Firestore database memory)
+  // Recalculate stats live (including real database footprint)
   const stats = useMemo(() => {
-    return storageManager.calculateStats(files, currentLimitGb, sellerId);
-  }, [files, currentLimitGb, sellerId]);
+    return storageManager.calculateStats(files, currentLimitGb, sellerId, storageType);
+  }, [files, currentLimitGb, sellerId, storageType]);
+
+  // Connected Database Title
+  const connectedDatabaseLabel = useMemo(() => {
+    if (telemetryInfo?.databaseName) return telemetryInfo.databaseName;
+    if (storageType === 'supabase') return 'Supabase PostgreSQL';
+    if (storageType === 'mongodb') return 'MongoDB Atlas';
+    if (storageType === 'neon') return 'Neon Serverless Postgres';
+    if (storageType === 'mysql') return 'MySQL Database';
+    if (storageType === 'google_cloud') return 'Google Cloud Firestore';
+    return 'Firebase Firestore';
+  }, [telemetryInfo, storageType]);
 
   // Filter files
   const filteredFiles = useMemo(() => {
@@ -111,7 +172,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
       const updated = storageManager.getFiles(sellerId);
       setFiles(updated);
       setIsUploading(false);
-      setUploadSuccessMsg(language === 'bn' ? `"${file.name}" সফলভাবে ফায়ারবেসে আপলোড হয়েছে!` : `"${file.name}" uploaded to Firebase successfully!`);
+      setUploadSuccessMsg(language === 'bn' ? `"${file.name}" সফলভাবে ডাটাবেজ স্টোরেজে আপলোড হয়েছে!` : `"${file.name}" uploaded to storage successfully!`);
       if (onStorageUpdated) onStorageUpdated();
 
       setTimeout(() => setUploadSuccessMsg(''), 4000);
@@ -123,7 +184,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
 
   const handleDeleteFile = (id: string, fileName: string) => {
     const confirmMsg = language === 'bn' 
-      ? `আপনি কি নিশ্চিত যে "${fileName}" ফাইলটি ফায়ারবেস ক্লাউড থেকে স্থায়ীভাবে ডিলিট করতে চান? এতে স্টোরেজ স্পেস খালি হবে।`
+      ? `আপনি কি নিশ্চিত যে "${fileName}" ফাইলটি ক্লাউড থেকে স্থায়ীভাবে ডিলিট করতে চান? এতে স্টোরেজ স্পেস খালি হবে।`
       : `Are you sure you want to delete "${fileName}"? This will free up storage space.`;
     
     if (window.confirm(confirmMsg)) {
@@ -170,25 +231,35 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-950/80 shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/20 shadow-xs">
-              <Flame className="w-5 h-5" />
+              <Database className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
-                  {language === 'bn' ? 'ফায়ারবেস স্টোরেজ ও ফাইল ম্যানেজার' : 'Firebase Storage & Database Manager'}
+                  {language === 'bn' ? 'রিয়েল-টাইম ডাটাবেজ ও স্টোরেজ ম্যানেজার' : 'Live Database & Storage Manager'}
                 </h3>
                 <span className="inline-flex items-center space-x-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[9.5px] font-black border border-amber-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                  <span>Firebase Live Cloud</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>{connectedDatabaseLabel}</span>
                 </span>
               </div>
               <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-                {storeName} • <span className="font-semibold text-amber-600 dark:text-amber-400">{currentLimitGb} GB Allocated</span>
+                {storeName} • <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stats.formattedTotal} {language === 'bn' ? 'বরাদ্দকৃত কোটা' : 'Allocated Quota'}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={fetchLiveTelemetry}
+              disabled={isRefreshingTelemetry}
+              title={language === 'bn' ? 'লাইভ ডাটাবেজ অডিট ও সিঙ্ক করুন' : 'Refresh live telemetry'}
+              className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer border border-slate-200 dark:border-slate-700"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingTelemetry ? 'animate-spin text-amber-500' : ''}`} />
+            </button>
+
             <button
               type="button"
               onClick={() => setIsUpgradeModalOpen(true)}
@@ -230,9 +301,9 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center space-x-2">
-                  <Flame className="w-4 h-4 text-amber-400" />
-                  <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider">
-                    {language === 'bn' ? 'ফায়ারবেস লাইভ স্টোরেজ মিটার' : 'Live Firebase Storage Meter'}
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-wider">
+                    {language === 'bn' ? `রিয়েল-টাইম ${connectedDatabaseLabel} মেমোরি মিটার` : `Live ${connectedDatabaseLabel} Memory Meter`}
                   </span>
                 </div>
                 <div className="flex items-baseline space-x-2 mt-1">
@@ -288,7 +359,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   className={`h-full rounded-full transition-all duration-700 ${
                     stats.percentage >= 85 
                       ? 'bg-gradient-to-r from-rose-500 to-amber-500' 
-                      : 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-400'
                   }`}
                   style={{ width: `${Math.min(100, Math.max(2, stats.percentage))}%` }}
                 />
@@ -306,10 +377,10 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
               </div>
             </div>
 
-            {/* MINI STATS TILES (INCLUDING FIRESTORE DB) */}
+            {/* MINI STATS TILES (GENUINE LIVE DATABASE METRICS) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-800/80 text-[10.5px]">
               <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'ফায়ারস্টোর ডাটাবেজ:' : 'Firestore DB:'}</span>
+                <span className="text-slate-400 block">{language === 'bn' ? 'ডাটাবেজ রেকর্ডস:' : 'DB Records:'}</span>
                 <span className="font-extrabold text-emerald-400 font-mono">
                   {stats.breakdown.firestore.formattedSize}
                 </span>
@@ -327,9 +398,9 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                 </span>
               </div>
               <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/40">
-                <span className="text-slate-400 block">{language === 'bn' ? 'ভয়েস ও অডিও নোট:' : 'Chat Audio:'}</span>
-                <span className="font-extrabold text-amber-400 font-mono">
-                  {stats.breakdown.audio.formattedSize} ({stats.breakdown.audio.count})
+                <span className="text-slate-400 block">{language === 'bn' ? 'কানেক্টেড ডাটাবেজ:' : 'Connected DB:'}</span>
+                <span className="font-extrabold text-amber-400 font-mono truncate block" title={connectedDatabaseLabel}>
+                  {connectedDatabaseLabel}
                 </span>
               </div>
             </div>
@@ -341,10 +412,9 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
               {[
                 { id: 'all', label: language === 'bn' ? 'সব ফাইল' : 'All Files', count: files.length },
-                { id: 'firestore_db', label: language === 'bn' ? '🔥 ফায়ারস্টোর ডাটা' : '🔥 Firestore DB', count: stats.firestoreDb.collections.length },
-                { id: 'image', label: language === 'bn' ? 'ছবি ও ব্যানার' : 'Images', count: stats.breakdown.image.count },
+                { id: 'firestore_db', label: language === 'bn' ? `🔥 ${connectedDatabaseLabel} ডাটা` : `🔥 ${connectedDatabaseLabel} Data`, count: stats.firestoreDb.collections.length },
+                { id: 'image', label: language === 'bn' ? 'পণ্য ও ছবি' : 'Images', count: stats.breakdown.image.count },
                 { id: 'pdf', label: language === 'bn' ? 'পিডিএফ ও ইনভয়েস' : 'PDF & Docs', count: stats.breakdown.pdf.count },
-                { id: 'audio', label: language === 'bn' ? 'অডিও ও ভয়েস' : 'Voice/Audio', count: stats.breakdown.audio.count },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -387,7 +457,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             </div>
           </div>
 
-          {/* FIRESTORE LIVE DB SECTION VIEW */}
+          {/* FIRESTORE / CONNECTED DB REAL-TIME COLLECTIONS BREAKDOWN */}
           {selectedCategory === 'firestore_db' ? (
             <div className="space-y-2.5 animate-in fade-in duration-150">
               <div className="p-3 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 rounded-2xl flex items-center justify-between text-[11px]">
@@ -395,13 +465,14 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   <Flame className="w-4 h-4 text-amber-500 shrink-0" />
                   <span className="font-bold text-amber-700 dark:text-amber-300">
                     {language === 'bn' 
-                      ? `ফায়ারস্টোর ডাটাবেজ মোট সাইজ: ${stats.firestoreDb.formattedSize}`
-                      : `Firestore Database Total Size: ${stats.firestoreDb.formattedSize}`
+                      ? `${connectedDatabaseLabel} মোট সাইজ: ${stats.firestoreDb.formattedSize}`
+                      : `${connectedDatabaseLabel} Total Size: ${stats.firestoreDb.formattedSize}`
                     }
                   </span>
                 </div>
-                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
-                  Real-time NoSQL Sync
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[10px] flex items-center space-x-1 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+                  <span>Live Real-Time Engine</span>
                 </span>
               </div>
 
@@ -438,7 +509,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
               </div>
             </div>
           ) : (
-            /* FILES LIST / GRID */
+            /* REAL FILES LIST / GRID */
             filteredFiles.length === 0 ? (
               <div className="text-center py-12 px-4 bg-slate-50/50 dark:bg-slate-850/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
@@ -451,7 +522,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   <p className="text-slate-400 text-[11px] mt-0.5">
                     {searchQuery 
                       ? (language === 'bn' ? 'আপনার সার্চ অনুযায়ী কোনো ফাইল নেই।' : 'No files match your query.')
-                      : (language === 'bn' ? 'ফায়ারবেস স্টোরেজ খালি রয়েছে। নতুন ছবি বা ফাইল আপলোড করতে উপরের বাটনে ক্লিক করুন।' : 'Storage is empty. Upload images or PDFs to see them here.')
+                      : (language === 'bn' ? 'আপনার স্টোরের রিয়েল পণ্য ছবি যুক্ত করুন বা উপরে থেকে ফাইল আপলোড করুন।' : 'Upload product images or files to see them here.')
                     }
                   </p>
                 </div>
@@ -556,8 +627,8 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>
               {language === 'bn' 
-                ? 'গুগল ফায়ারবেস ক্লাউড স্টোরেজ ও নো-এসকিউএল ডাটাবেজ সম্পূর্ণ এনক্রিপ্টেড এবং নিরাপদ'
-                : 'Google Firebase Cloud Storage & Firestore NoSQL DB is fully encrypted & secure'
+                ? `${connectedDatabaseLabel} ডাটাবেজ লাইভ সিঙ্ক অবস্থায় সুরক্ষিত রয়েছে`
+                : `${connectedDatabaseLabel} is securely connected and actively synchronized`
               }
             </span>
           </div>
@@ -622,7 +693,7 @@ export const CloudFileManagerModal: React.FC<CloudFileManagerModalProps> = ({
                   <FileText className="w-14 h-14 text-rose-500 mx-auto" />
                   <p className="font-bold">{previewFile.name}</p>
                   <p className="text-xs text-slate-400">
-                    {language === 'bn' ? 'ডকুমেন্ট / ফায়ারবেস প্রিভিউ' : 'Document / Firebase File Preview'}
+                    {language === 'bn' ? 'ডকুমেন্ট প্রিভিউ' : 'Document Preview'}
                   </p>
                 </div>
               )}
