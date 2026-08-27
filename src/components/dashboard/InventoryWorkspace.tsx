@@ -1124,13 +1124,14 @@ export const InventoryWorkspace: React.FC = () => {
       
       playSystemSound('add');
       
-      // Refresh product list and go to catalog tab
+      // Refresh product list and stay in catalog tab
       setProducts(prev => [newProduct, ...prev.filter(p => p.id !== newProduct.id)]);
       await refreshProducts();
 
-      // Automatically go to public customer view and select the product
-      setSelectedProduct(newProduct);
-      setActivePanel('customer');
+      setActiveTab('catalog');
+      alert(language === 'bn' 
+        ? `"${newProduct.titleBn || newProduct.title}" পণ্যটি সফলভাবে ইনভেন্টরিতে যোগ এবং পাবলিশ করা হয়েছে!` 
+        : `"${newProduct.title}" product was successfully published and added to inventory!`);
     } catch (err: any) {
       console.error('Error publishing product:', err);
       alert(language === 'bn' 

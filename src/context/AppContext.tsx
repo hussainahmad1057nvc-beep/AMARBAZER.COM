@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice } from '../types';
+import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice, Address } from '../types';
 import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 import { api, getDeletedProductIds } from '../services/api';
 import { firebaseDb } from '../lib/firebase';
 import { safeStorage } from '../lib/safeStorage';
 import { applyLiveLanguage } from '../services/languageService';
 import { applyLiveCurrency, formatCurrencyAmount } from '../services/currencyService';
+import { addressService } from '../services/addressService';
 
 interface AppContextType {
   currentUser: User | null;
@@ -23,6 +24,19 @@ interface AppContextType {
   setColorPalette: (palette: ColorPalette) => void;
   customColorHex: string;
   setCustomColorHex: (hex: string) => void;
+
+  // Delivery Location & Address (Amazon-style)
+  deliveryLocation: string;
+  setDeliveryLocation: (loc: string) => void;
+  selectedDeliveryAddress: Address | null;
+  setSelectedDeliveryAddress: (addr: Address | null) => void;
+  isLocationModalOpen: boolean;
+  setIsLocationModalOpen: (open: boolean) => void;
+  savedAddresses: Address[];
+  addSavedAddress: (addr: Omit<Address, 'id'>) => Address;
+  updateSavedAddress: (addr: Address) => void;
+  deleteSavedAddress: (id: string) => void;
+  setDefaultDeliveryAddress: (id: string) => void;
   
   // Data State
   products: Product[];
@@ -85,6 +99,12 @@ interface AppContextType {
   // Track if mobile active chat is open
   isMobileChatActive: boolean;
   setIsMobileChatActive: (val: boolean) => void;
+
+  // Direct Chat Actions (Seller & Admin Helpline)
+  targetChatRecipientId: string | null;
+  setTargetChatRecipientId: (id: string | null) => void;
+  startChatWithSeller: (sellerId: string, sellerName?: string, subject?: string, initialMessage?: string) => void;
+  startChatWithAdmin: (subject?: string, initialMessage?: string) => void;
 }
 
 export function generateShadesFromHex(hex: string): Record<string, string> {
@@ -588,6 +608,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [isMobileChatActive, setIsMobileChatActive] = useState<boolean>(false);
 
+  // Delivery Location & Address (Amazon-style)
+  const [deliveryLocation, setDeliveryLocationState] = useState<string>(() => {
+    const active = addressService.getActiveDeliveryLocation();
+    return active.label || 'Dhaka';
+  });
+
+  const [selectedDeliveryAddress, setSelectedDeliveryAddress] = useState<Address | null>(() => {
+    const active = addressService.getActiveDeliveryLocation();
+    return active.address || addressService.getDefaultAddress(currentUser);
+  });
+
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>(() => {
+    return addressService.getSavedAddresses(currentUser);
+  });
+
+  // Sync addresses when currentUser changes
+  useEffect(() => {
+    const list = addressService.getSavedAddresses(currentUser);
+    setSavedAddresses(list);
+    if (!selectedDeliveryAddress && list.length > 0) {
+      const def = list.find(a => a.isDefault) || list[0];
+      setSelectedDeliveryAddress(def);
+      const locLabel = `${def.thana || def.district}, ${def.division}`;
+      setDeliveryLocationState(locLabel);
+    }
+  }, [currentUser]);
+
+  const setDeliveryLocation = (loc: string) => {
+    setDeliveryLocationState(loc);
+    addressService.setActiveDeliveryLocation(loc, selectedDeliveryAddress);
+  };
+
+  const addSavedAddress = (addr: Omit<Address, 'id'>): Address => {
+    const created = addressService.addAddress(addr, currentUser?.id);
+    const updatedList = addressService.getSavedAddresses(currentUser);
+    setSavedAddresses(updatedList);
+    if (created.isDefault || !selectedDeliveryAddress) {
+      setSelectedDeliveryAddress(created);
+      const locLabel = `${created.thana || created.district}, ${created.division}`;
+      setDeliveryLocationState(locLabel);
+      addressService.setActiveDeliveryLocation(locLabel, created);
+    }
+    if (currentUser) {
+      setCurrentUser({
+        ...currentUser,
+        addresses: updatedList
+      });
+      api.updateUserProfile(currentUser.id, { addresses: updatedList }).catch(() => {});
+    }
+    return created;
+  };
+
+  const updateSavedAddress = (addr: Address) => {
+    const updatedList = addressService.updateAddress(addr, currentUser?.id);
+    setSavedAddresses(updatedList);
+    if (selectedDeliveryAddress?.id === addr.id) {
+      setSelectedDeliveryAddress(addr);
+      const locLabel = `${addr.thana || addr.district}, ${addr.division}`;
+      setDeliveryLocationState(locLabel);
+      addressService.setActiveDeliveryLocation(locLabel, addr);
+    }
+    if (currentUser) {
+      setCurrentUser({
+        ...currentUser,
+        addresses: updatedList
+      });
+      api.updateUserProfile(currentUser.id, { addresses: updatedList }).catch(() => {});
+    }
+  };
+
+  const deleteSavedAddress = (id: string) => {
+    const updatedList = addressService.deleteAddress(id, currentUser?.id);
+    setSavedAddresses(updatedList);
+    if (selectedDeliveryAddress?.id === id) {
+      const fallback = updatedList.find(a => a.isDefault) || updatedList[0] || null;
+      setSelectedDeliveryAddress(fallback);
+      if (fallback) {
+        const locLabel = `${fallback.thana || fallback.district}, ${fallback.division}`;
+        setDeliveryLocationState(locLabel);
+        addressService.setActiveDeliveryLocation(locLabel, fallback);
+      } else {
+        setDeliveryLocationState('Dhaka');
+        addressService.setActiveDeliveryLocation('Dhaka', null);
+      }
+    }
+    if (currentUser) {
+      setCurrentUser({
+        ...currentUser,
+        addresses: updatedList
+      });
+      api.updateUserProfile(currentUser.id, { addresses: updatedList }).catch(() => {});
+    }
+  };
+
+  const setDefaultDeliveryAddress = (id: string) => {
+    const updatedList = addressService.setDefaultAddress(id, currentUser?.id);
+    setSavedAddresses(updatedList);
+    const target = updatedList.find(a => a.id === id);
+    if (target) {
+      setSelectedDeliveryAddress(target);
+      const locLabel = `${target.thana || target.district}, ${target.division}`;
+      setDeliveryLocationState(locLabel);
+      addressService.setActiveDeliveryLocation(locLabel, target);
+    }
+    if (currentUser) {
+      setCurrentUser({
+        ...currentUser,
+        addresses: updatedList
+      });
+      api.updateUserProfile(currentUser.id, { addresses: updatedList }).catch(() => {});
+    }
+  };
+
   // Quick Share helper
   const shareProduct = (product: Product) => {
     setSharingProduct(product);
@@ -617,6 +752,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
   const [activeCampaignTab, setActiveCampaignTab] = useState<string>('all');
+
+  // Direct Chat Navigation State & Helper Methods
+  const [targetChatRecipientId, setTargetChatRecipientId] = useState<string | null>(null);
+
+  const startChatWithSeller = (sellerId: string, sellerName?: string, subject?: string, initialMessage?: string) => {
+    setTargetChatRecipientId(sellerId);
+    setActivePanel('customer_messages');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('amarbazar_start_chat', {
+        detail: { recipientId: sellerId, recipientName: sellerName, subject, initialMessage }
+      }));
+    }
+  };
+
+  const startChatWithAdmin = (subject?: string, initialMessage?: string) => {
+    setTargetChatRecipientId('usr-admin-1');
+    setActivePanel('customer_messages');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('amarbazar_start_chat', {
+        detail: { recipientId: 'usr-admin-1', recipientName: 'Super Admin BD', subject: subject || 'Helpline Support', initialMessage }
+      }));
+    }
+  };
 
   // Initial Data Fetching from API
   const refreshProducts = async () => {
@@ -1067,7 +1225,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isCustomerOnlyMode,
       setIsCustomerOnlyMode,
       isMobileChatActive,
-      setIsMobileChatActive
+      setIsMobileChatActive,
+      deliveryLocation,
+      setDeliveryLocation,
+      selectedDeliveryAddress,
+      setSelectedDeliveryAddress,
+      isLocationModalOpen,
+      setIsLocationModalOpen,
+      savedAddresses,
+      addSavedAddress,
+      updateSavedAddress,
+      deleteSavedAddress,
+      setDefaultDeliveryAddress,
+      targetChatRecipientId,
+      setTargetChatRecipientId,
+      startChatWithSeller,
+      startChatWithAdmin
     }}>
       {children}
     </AppContext.Provider>

@@ -17,7 +17,8 @@ export const Header: React.FC = () => {
     setIsCartOpen, setIsAuthOpen, setIsAiOpen, setTrackingOrderId,
     searchQuery, setSearchQuery, selectedCategory, setSelectedCategory,
     categories, isCustomerOnlyMode, setIsCustomerOnlyMode,
-    activeCampaignTab, setActiveCampaignTab, products, setSharingProduct
+    activeCampaignTab, setActiveCampaignTab, products, setSharingProduct,
+    deliveryLocation, selectedDeliveryAddress, setIsLocationModalOpen
   } = useApp();
 
   const [campaignList, setCampaignList] = useState<any[]>(() => {
@@ -67,8 +68,6 @@ export const Header: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [deliveryLocation, setDeliveryLocation] = useState('Dhaka');
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [hoveredMainId, setHoveredMainId] = useState<string | null>(null);
   const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
@@ -127,44 +126,26 @@ export const Header: React.FC = () => {
               </div>
             </div>
 
-            {/* Delivery Location Selector with Truck Icon */}
+            {/* Amazon-style Delivery Location Selector with MapPin & Fast Delivery Info */}
             <div className="relative hidden md:block select-none shrink-0">
               <button 
-                onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                className="flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-[11px] font-extrabold transition border border-white/10"
+                onClick={() => setIsLocationModalOpen(true)}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 active:scale-98 px-3 py-1.5 rounded-xl text-left transition border border-white/15 cursor-pointer shadow-xs group"
+                title={language === 'bn' ? 'ডেলিভারি লোকেশন পরিবর্তন বা নতুন ঠিকানা যোগ করুন' : 'Change delivery location or add new address'}
               >
-                <Truck className="w-4 h-4 text-yellow-300" />
-                <span className="max-w-[120px] truncate">
-                  {language === 'bn' ? `ডেলিভারি এলাকা: ${deliveryLocation}` : `Select your delivery location`}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-white/85" />
-              </button>
-
-              {showLocationDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowLocationDropdown(false)} />
-                  <div className="absolute left-0 mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl p-2.5 z-50 max-h-64 overflow-y-auto">
-                    <div className="text-[9px] uppercase font-black text-slate-400 px-2.5 py-1.5 tracking-wider">Select Area</div>
-                    {BANGLADESH_DISTRICTS.map((loc) => (
-                      <button
-                        key={loc}
-                        onClick={() => {
-                          setDeliveryLocation(loc);
-                          setShowLocationDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-extrabold transition flex items-center justify-between ${
-                          deliveryLocation === loc 
-                            ? 'bg-red-50 dark:bg-red-950/40 text-[#da1c24] dark:text-red-400 font-black' 
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                        }`}
-                      >
-                        <span>{loc}</span>
-                        {deliveryLocation === loc && <CheckCircle className="w-3.5 h-3.5 text-[#da1c24] fill-[#da1c24]/10" />}
-                      </button>
-                    ))}
+                <MapPin className="w-4 h-4 text-yellow-300 group-hover:animate-bounce shrink-0" />
+                <div className="leading-tight">
+                  <div className="text-[9px] text-white/80 font-bold tracking-wide">
+                    {language === 'bn' ? 'ডেলিভারি:' : 'Deliver to:'} <span className="font-extrabold text-white">{currentUser?.name ? currentUser.name.split(' ')[0] : (language === 'bn' ? 'গ্রাহক' : 'Location')}</span>
                   </div>
-                </>
-              )}
+                  <div className="flex items-center space-x-1">
+                    <span className="text-[12px] font-black text-white max-w-[130px] truncate">
+                      {selectedDeliveryAddress?.thana || selectedDeliveryAddress?.district || deliveryLocation || 'Dhaka'}
+                    </span>
+                    <ChevronDown className="w-3 h-3 text-white/80 group-hover:translate-y-0.5 transition-transform" />
+                  </div>
+                </div>
+              </button>
             </div>
 
             {/* Central Search Box - Guaranteed visible & perfectly fit on all screen sizes */}
@@ -293,6 +274,28 @@ export const Header: React.FC = () => {
             </div>
 
           </div>
+        </div>
+
+        {/* Mobile Delivery Location Bar (Amazon-Style Location Strip) */}
+        <div className="md:hidden bg-[#b8141b] text-white px-3 py-1.5 flex items-center justify-between text-[11px] font-bold border-t border-red-700/60 shadow-inner select-none">
+          <button 
+            onClick={() => setIsLocationModalOpen(true)}
+            className="flex items-center space-x-1.5 min-w-0 flex-1 text-left cursor-pointer active:opacity-80"
+          >
+            <MapPin className="w-3.5 h-3.5 text-yellow-300 shrink-0" />
+            <span className="truncate">
+              {language === 'bn' ? 'ডেলিভারি এলাকা: ' : 'Deliver to: '}
+              <span className="font-extrabold underline decoration-yellow-300/60 ml-0.5">
+                {selectedDeliveryAddress?.thana || selectedDeliveryAddress?.district || deliveryLocation || 'Dhaka'}
+              </span>
+            </span>
+          </button>
+          <button 
+            onClick={() => setIsLocationModalOpen(true)}
+            className="text-[10px] bg-white/20 hover:bg-white/30 active:scale-95 text-white px-2 py-0.5 rounded-lg font-black shrink-0 ml-2 border border-white/20"
+          >
+            {language === 'bn' ? 'পরিবর্তন / যোগ' : 'Change / Add'}
+          </button>
         </div>
 
         {/* Shwapno Secondary Navigation Bar (White Background, slate text) */}

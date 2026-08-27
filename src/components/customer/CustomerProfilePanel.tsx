@@ -5,7 +5,8 @@ import {
   Trash2, Edit, Save, Plus, X, Check, Eye, HelpCircle, Award, 
   Phone, Mail, FileText, Download, ShieldAlert, ArrowUpRight, 
   ArrowDownLeft, Bell, AlertTriangle, RefreshCw, Send, Loader2, Printer,
-  Fingerprint, Sparkles, Smartphone, Globe, Coins, Cloud, Database, Lock, Wifi, HardDrive, Server
+  Fingerprint, Sparkles, Smartphone, Globe, Coins, Cloud, Database, Lock, Wifi, HardDrive, Server,
+  Bot
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -22,6 +23,7 @@ import { RolesPermissionsHub } from '../common/RolesPermissionsHub';
 import { LanguageSettingsTab } from './LanguageSettingsTab';
 import { CurrencySettingsTab } from './CurrencySettingsTab';
 import { OrderSlipsHub } from './OrderSlipsHub';
+import { ChatAutomationSettingsTab } from '../common/ChatAutomationSettingsTab';
 import { getLanguageMeta, getTranslation } from '../../services/languageService';
 import { getCurrencyMeta } from '../../services/currencyService';
 import { backNavigationManager } from '../../services/backNavigationManager';
@@ -45,7 +47,7 @@ export const CustomerProfilePanel: React.FC = () => {
     products, wishlist, toggleWishlist, addToCart
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile' | 'cloud_storage' | 'addresses' | 'orders' | 'wishlist' | 'wallet' | 'coupons' | 'slips' | 'tickets' | 'language_settings' | 'currency_settings' | 'roles_permissions' | 'security'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile' | 'cloud_storage' | 'chat_automation' | 'addresses' | 'orders' | 'wishlist' | 'wallet' | 'coupons' | 'slips' | 'tickets' | 'language_settings' | 'currency_settings' | 'roles_permissions' | 'security'>('dashboard');
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -696,6 +698,22 @@ export const CustomerProfilePanel: React.FC = () => {
           >
             <Cloud className="w-4 h-4 shrink-0 text-sky-500" />
             <span>{language === 'bn' ? 'ব্যক্তিগত ক্লাউড স্টোরেজ ও মিডিয়া রাউটিং' : 'Cloud Storage & Media Routing'}</span>
+          </button>
+
+          {/* DEDICATED CHAT & BOT AUTOMATION HUB */}
+          <button
+            onClick={() => { setActiveTab('chat_automation'); setSelectedOrder(null); }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-extrabold transition duration-150 relative ${
+              activeTab === 'chat_automation' ? 'bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-black' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <Bot className="w-4 h-4 shrink-0 text-amber-500" />
+            <div className="flex items-center justify-between w-full">
+              <span>{language === 'bn' ? 'মেসেঞ্জার ও চ্যাট অটোমেশন' : 'Chat & Bot Automation'}</span>
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                Auto
+              </span>
+            </div>
           </button>
 
           <button
@@ -2492,6 +2510,11 @@ export const CustomerProfilePanel: React.FC = () => {
           {/* MULTI-CURRENCY & GLOBAL EXCHANGE HUB */}
           {activeTab === 'currency_settings' && (
             <CurrencySettingsTab />
+          )}
+
+          {/* CHAT & BOT AUTOMATION BACKEND SETTINGS HUB */}
+          {activeTab === 'chat_automation' && (
+            <ChatAutomationSettingsTab />
           )}
 
           {/* ROLES & PERMISSIONS HUB */}

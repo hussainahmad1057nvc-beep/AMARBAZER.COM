@@ -29,7 +29,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     systemSettings, 
     products, 
     setSelectedProduct,
-    shareProduct 
+    shareProduct,
+    startChatWithSeller,
+    startChatWithAdmin
   } = useApp();
 
   const [selectedImage, setSelectedImage] = useState<number>(0);
@@ -506,6 +508,47 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <PhoneCall className="w-3.5 h-3.5" />
                   <span>{language === 'bn' ? 'হোয়াটসঅ্যাপে অর্ডার' : 'Order via WhatsApp'}</span>
                 </button>
+
+                {/* Direct Chat with Seller & 24/7 Admin Helpline Buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      startChatWithSeller(
+                        product.sellerId || 'usr-seller-1',
+                        product.sellerName || 'Verified Seller',
+                        product.title,
+                        language === 'bn' 
+                          ? `আসসালামু আলাইকুম, আমি "${productTitle}" পণ্যটি সম্পর্কে জানতে আগ্রহী।`
+                          : `Hello, I have an inquiry regarding "${productTitle}".`
+                      );
+                    }}
+                    className="w-full py-2 bg-blue-500/10 hover:bg-[#0084FF] text-[#0084FF] hover:text-white border border-blue-500/20 font-bold text-[11px] rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    title={language === 'bn' ? 'সিলারের সাথে সরাসরি মেসেঞ্জার চ্যাট' : 'Live Chat with Seller'}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>{language === 'bn' ? 'সেলার চ্যাট' : 'Seller Chat'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      startChatWithAdmin(
+                        `Support: ${product.title}`,
+                        language === 'bn'
+                          ? `হেল্পডেস্ক সাপোর্ট: "${productTitle}" সম্পর্কিত তথ্য বা সহায়তা প্রয়োজন।`
+                          : `Helpline: I need assistance regarding "${productTitle}".`
+                      );
+                    }}
+                    className="w-full py-2 bg-purple-500/10 hover:bg-purple-600 text-purple-600 dark:text-purple-400 hover:text-white border border-purple-500/20 font-bold text-[11px] rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    title={language === 'bn' ? 'এডমিন ২৪/৭ অফিশিয়াল হেল্পলাইন' : 'Admin 24/7 Helpline'}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>{language === 'bn' ? 'এডমিন হেল্প' : 'Admin Help'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Trust Badges */}

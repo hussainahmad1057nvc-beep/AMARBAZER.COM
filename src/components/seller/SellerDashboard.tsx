@@ -574,18 +574,20 @@ export const SellerDashboard: React.FC = () => {
 
   // Real-time synchronization for seller products when global products change across any device
   useEffect(() => {
-    if (storeInfo && products && products.length > 0) {
-      const currentStoreId = storeInfo.id;
-      const currentSellerUserId = storeInfo.sellerId;
+    if (products && products.length > 0) {
+      const currentStoreId = storeInfo?.id || `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`;
+      const currentSellerUserId = storeInfo?.sellerId || currentUser?.id || 'usr-seller-1';
+      const strippedId = (currentStoreId || '').replace(/^(usr-|sel-)/, '');
       const filtered = products.filter(p => 
         p.sellerId === currentStoreId || 
         (currentSellerUserId && p.sellerId === currentSellerUserId) ||
-        (currentStoreId === 'sel-1' && p.sellerId === 'usr-seller-1') || 
-        (currentStoreId === 'usr-seller-1' && p.sellerId === 'sel-1')
+        (currentStoreId === 'sel-1' && (p.sellerId === 'usr-seller-1' || p.sellerId === 'sel-1')) || 
+        (currentStoreId === 'usr-seller-1' && (p.sellerId === 'sel-1' || p.sellerId === 'usr-seller-1')) ||
+        (p.sellerId && p.sellerId.replace(/^(usr-|sel-)/, '') === strippedId)
       );
       setSellerProducts(filtered);
     }
-  }, [products, storeInfo]);
+  }, [products, storeInfo, currentUser]);
 
   const isSubscriptionActive = !!(
     !storeInfo ||
@@ -693,6 +695,9 @@ export const SellerDashboard: React.FC = () => {
       storeName: currentUser?.name ? `${currentUser.name}'s Store` : 'Dhaka Tech Store',
     };
 
+    const targetCatId = newCategory || categories[0]?.id || 'cat-1';
+    const targetCat = categories.find(c => c.id === targetCatId);
+
     try {
       const created = await appCreateProduct({
         title: newTitle.trim(),
@@ -700,8 +705,8 @@ export const SellerDashboard: React.FC = () => {
         price: Number(newPrice),
         discountPrice: newDiscount ? Number(newDiscount) : undefined,
         stock: Number(newStock) || 20,
-        categoryId: newCategory || categories[0]?.id || 'cat-1',
-        categoryName: categories.find(c => c.id === newCategory)?.name || 'General',
+        categoryId: targetCatId,
+        categoryName: targetCat?.name || 'General',
         brand: newBrand || 'Official BD',
         description: newDesc || 'High quality product from verified seller.',
         sellerId: currentStore.id,
@@ -740,8 +745,7 @@ export const SellerDashboard: React.FC = () => {
       setIsNewCombo(false);
       setNewComboItems([]);
 
-      alert(language === 'bn' ? 'পণ্যটি সফলভাবে যোগ করা হয়েছে!' : 'Product added successfully!');
-      fetchData();
+      alert(language === 'bn' ? 'পণ্যটি সফলভাবে যোগ এবং পাবলিশ করা হয়েছে!' : 'Product added & published successfully!');
       refreshProducts();
     } catch (err: any) {
       console.error('Failed to create product:', err);

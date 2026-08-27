@@ -372,7 +372,7 @@ export const api = {
 
     let filtered = resultList;
     if (params?.sellerId) {
-      const sId = params.sellerId;
+      const sId = String(params.sellerId);
       const localSellers = getLocalSellers();
       const matchSeller = localSellers.find(s => s.id === sId || s.sellerId === sId);
       const validSellerIds = new Set<string>([sId]);
@@ -380,11 +380,15 @@ export const api = {
         if (matchSeller.id) validSellerIds.add(matchSeller.id);
         if (matchSeller.sellerId) validSellerIds.add(matchSeller.sellerId);
       }
-      if (sId === 'sel-1' || sId === 'usr-seller-1') {
+      if (sId === 'sel-1' || sId === 'usr-seller-1' || sId.includes('seller-1')) {
         validSellerIds.add('sel-1');
         validSellerIds.add('usr-seller-1');
       }
-      filtered = filtered.filter(p => validSellerIds.has(p.sellerId));
+      const strippedId = sId.replace(/^(usr-|sel-)/, '');
+      validSellerIds.add(strippedId);
+      validSellerIds.add(`sel-${strippedId}`);
+      validSellerIds.add(`usr-${strippedId}`);
+      filtered = filtered.filter(p => validSellerIds.has(p.sellerId) || (p.sellerId && p.sellerId.replace(/^(usr-|sel-)/, '') === strippedId));
     }
     if (params?.category) {
       filtered = filtered.filter(p => p.categoryId === params.category || p.categoryName?.toLowerCase() === params.category.toLowerCase());

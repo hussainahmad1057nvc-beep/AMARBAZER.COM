@@ -28,6 +28,7 @@ import { FacebookMessengerWidget } from './components/common/FacebookMessengerWi
 import { CustomerTrackingSupport } from './components/customer/CustomerTrackingSupport';
 import { BottomNavigation } from './components/common/BottomNavigation';
 import { OutletsView } from './components/customer/OutletsView';
+import { LocationPickerModal } from './components/common/LocationPickerModal';
 import { Product, Address, getProductUnitPrice } from './types';
 import { addressService } from './services/addressService';
 import { ShieldAlert, KeyRound, LogOut, ArrowLeft } from 'lucide-react';
@@ -43,7 +44,8 @@ function MainLayout() {
     isCartOpen, setIsCartOpen, language,
     isMobileChatActive, setIsMobileChatActive,
     searchQuery, setSearchQuery, selectedCategory, setSelectedCategory,
-    selectedSellerId, setSelectedSellerId
+    selectedSellerId, setSelectedSellerId,
+    isLocationModalOpen, setIsLocationModalOpen
   } = useApp();
 
   // Payment Modal Trigger State
@@ -75,7 +77,8 @@ function MainLayout() {
     isMobileChatActive,
     searchQuery,
     selectedCategory,
-    selectedSellerId
+    selectedSellerId,
+    isLocationModalOpen
   });
 
   useEffect(() => {
@@ -91,12 +94,14 @@ function MainLayout() {
       isMobileChatActive,
       searchQuery,
       selectedCategory,
-      selectedSellerId
+      selectedSellerId,
+      isLocationModalOpen
     };
   }, [
     selectedProduct, sharingProduct, isPaymentModalOpen, isCartOpen, 
     isAuthOpen, isAiOpen, trackingOrderId, activePanel, 
-    isMobileChatActive, searchQuery, selectedCategory, selectedSellerId
+    isMobileChatActive, searchQuery, selectedCategory, selectedSellerId,
+    isLocationModalOpen
   ]);
 
   // Track panel transitions in history stack
@@ -499,6 +504,10 @@ function MainLayout() {
         <AuthModal />
         <AiAssistantModal />
         <OrderTrackingModal />
+        <LocationPickerModal 
+          isOpen={isLocationModalOpen} 
+          onClose={() => setIsLocationModalOpen(false)} 
+        />
 
         {/* Exit Toast Notification on Double Back Press */}
         {exitToastMessage && (

@@ -155,5 +155,22 @@ export const addressService = {
   getDefaultAddress(currentUser?: User | null): Address | null {
     const list = this.getSavedAddresses(currentUser);
     return list.find(a => a.isDefault) || list[0] || null;
+  },
+
+  getActiveDeliveryLocation(): { label: string; address: Address | null } {
+    try {
+      const stored = localStorage.getItem('amarbazar_active_delivery_location');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {}
+    return { label: 'Dhaka', address: null };
+  },
+
+  setActiveDeliveryLocation(label: string, address: Address | null = null): void {
+    try {
+      localStorage.setItem('amarbazar_active_delivery_location', JSON.stringify({ label, address }));
+      window.dispatchEvent(new CustomEvent('amarbazar_location_changed', { detail: { label, address } }));
+    } catch (e) {}
   }
 };

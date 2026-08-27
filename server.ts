@@ -906,11 +906,15 @@ async function startServer() {
         if (matchSeller.id) validSellerIds.add(matchSeller.id);
         if (matchSeller.sellerId) validSellerIds.add(matchSeller.sellerId);
       }
-      if (sId === 'sel-1' || sId === 'usr-seller-1') {
+      if (sId === 'sel-1' || sId === 'usr-seller-1' || sId.includes('seller-1')) {
         validSellerIds.add('sel-1');
         validSellerIds.add('usr-seller-1');
       }
-      list = list.filter(p => validSellerIds.has(p.sellerId));
+      const strippedId = sId.replace(/^(usr-|sel-)/, '');
+      validSellerIds.add(strippedId);
+      validSellerIds.add(`sel-${strippedId}`);
+      validSellerIds.add(`usr-${strippedId}`);
+      list = list.filter(p => validSellerIds.has(p.sellerId) || (p.sellerId && p.sellerId.replace(/^(usr-|sel-)/, '') === strippedId));
     }
     if (flashDeal === 'true') {
       list = list.filter(p => p.isFlashDeal || p.discountPrice);

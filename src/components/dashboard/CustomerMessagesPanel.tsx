@@ -5,11 +5,14 @@ import {
   MapPin, Shield, MessageCircle, AlertCircle, Video, PhoneCall,
   MoreVertical, Image, ThumbsUp, Search, Smile, Mic, Paperclip,
   Check, Trash2, UserPlus, PlusCircle, X, Info, Bell, Store, ChevronRight,
-  Sparkles, CheckSquare, Heart, ArrowLeft, Plus, Camera, FileText, Download
+  Sparkles, CheckSquare, Heart, ArrowLeft, Plus, Camera, FileText, Download,
+  Bot, Settings, Zap, Headphones, HelpCircle
 } from 'lucide-react';
 import { User as AppUser, Role } from '../../types';
 import { FacebookMessengerWidget } from '../common/FacebookMessengerWidget';
 import { backNavigationManager } from '../../services/backNavigationManager';
+import { chatAutomationService, QuickReplyOption } from '../../services/chatAutomationService';
+import { ChatAutomationSettingsTab } from '../common/ChatAutomationSettingsTab';
 
 // Helper to generate a 100% valid, playable synthesizer sound WAV Data URL
 const generateMockAudioUrl = () => {
@@ -309,6 +312,7 @@ export const CustomerMessagesPanel: React.FC = () => {
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(true);
   const [roleFilter, setRoleFilter] = useState<'all' | 'customer' | 'seller' | 'admin'>('all');
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [isAutomationSettingsOpen, setIsAutomationSettingsOpen] = useState<boolean>(false);
 
   // Audio/Video Calling Mock State
   const [activeCall, setActiveCall] = useState<{
@@ -318,6 +322,78 @@ export const CustomerMessagesPanel: React.FC = () => {
     type: 'audio' | 'video';
     status: 'ringing' | 'connected' | 'ended';
   } | null>(null);
+
+  // Listen for direct chat initialization event (from Product Details, Stores, Helpline)
+  useEffect(() => {
+    const handleStartChat = (e: any) => {
+      const detail = e.detail;
+      if (!detail || !detail.recipientId) return;
+      const targetId = detail.recipientId;
+      const subject = detail.subject || (detail.recipientId === 'usr-admin-1' ? 'Helpline Support' : 'Product Inquiry');
+      const initialMessage = detail.initialMessage;
+
+      const existing = globalMessages.find(t => 
+        (t.participant1Id === activeUser.id && t.participant2Id === targetId) ||
+        (t.participant2Id === activeUser.id && t.participant1Id === targetId)
+      );
+
+      if (existing) {
+        setActiveThreadId(existing.threadId);
+        setMobileView('chat');
+        if (initialMessage) {
+          setTimeout(() => {
+            handleSendMessage(initialMessage);
+          }, 350);
+        }
+      } else {
+        const newThreadId = `chat-${activeUser.id}-${targetId}-${Date.now()}`;
+        const targetUser = ALL_SYSTEM_USERS.find(u => u.id === targetId) || {
+          id: targetId,
+          name: detail.recipientName || 'AmarBazar Seller',
+          role: targetId === 'usr-admin-1' ? 'admin' : 'seller'
+        };
+
+        const welcomeConfig = chatAutomationService.getConfig(targetId, (targetUser.role === 'admin' || targetUser.role === 'system_admin') ? 'admin' : 'seller');
+        const welcomeText = language === 'bn' ? welcomeConfig.welcomeMessageBn : welcomeConfig.welcomeMessage;
+
+        const newThread: Thread = {
+          threadId: newThreadId,
+          participant1Id: activeUser.id,
+          participant2Id: targetId,
+          subject: subject,
+          status: 'active',
+          messages: [
+            {
+              id: `msg-welcome-${Date.now()}`,
+              senderId: targetId,
+              senderName: targetUser.name,
+              senderRole: targetUser.role as any,
+              text: welcomeText,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'read'
+            }
+          ]
+        };
+
+        const updated = [newThread, ...globalMessages];
+        setGlobalMessages(updated);
+        localStorage.setItem('amarbazar_messenger_threads', JSON.stringify(updated));
+        setActiveThreadId(newThreadId);
+        setMobileView('chat');
+
+        if (initialMessage) {
+          setTimeout(() => {
+            handleSendMessage(initialMessage);
+          }, 450);
+        }
+      }
+    };
+
+    window.addEventListener('amarbazar_start_chat', handleStartChat);
+    return () => {
+      window.removeEventListener('amarbazar_start_chat', handleStartChat);
+    };
+  }, [globalMessages, activeUser.id, language]);
 
   useEffect(() => {
     setIsMobileChatActive(mobileView === 'chat');
@@ -329,6 +405,10 @@ export const CustomerMessagesPanel: React.FC = () => {
   // Single-step Back Button handling in CustomerMessagesPanel
   useEffect(() => {
     const unregister = backNavigationManager.registerHandler('customer_messages_inner', () => {
+      if (isAutomationSettingsOpen) {
+        setIsAutomationSettingsOpen(false);
+        return true;
+      }
       if (activeCall && activeCall.isOpen) {
         setActiveCall(null);
         return true;
@@ -347,7 +427,7 @@ export const CustomerMessagesPanel: React.FC = () => {
     return () => {
       unregister();
     };
-  }, [activeCall, mobileView, searchQuery]);
+  }, [activeCall, mobileView, searchQuery, isAutomationSettingsOpen]);
 
   // --- REAL-TIME INTERACTIVE CHAT UTILITIES & MEDIA STAGES ---
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -893,9 +973,15 @@ export const CustomerMessagesPanel: React.FC = () => {
       } else if (isImg) {
         replyText = language === 'bn' ? 'ফাইলটি পেয়েছি, ধন্যবাদ!' : 'Received the attachment, thanks!';
       } else {
-        // Contextual smart responses depending on who is replying
         const targetRole = activeContact.role;
-        if (targetRole === 'admin' || targetRole === 'system_admin') {
+        const normalizedRole = (targetRole === 'admin' || targetRole === 'system_admin') ? 'admin' : (targetRole === 'seller' ? 'seller' : 'customer');
+        
+        // 1. First check dynamic automated bot response from chatAutomationService
+        const automatedReply = chatAutomationService.findAutomatedAnswer(finalMsg, activeContact.id, normalizedRole, language as 'en' | 'bn');
+
+        if (automatedReply) {
+          replyText = automatedReply;
+        } else if (targetRole === 'admin' || targetRole === 'system_admin') {
           const replies = [
             language === 'bn' 
               ? 'ধন্যবাদ আপনার মেসেজের জন্য। আমি আপনার হেল্পডেস্ক টিকিটটি রিভিউ করছি।' 
@@ -1232,7 +1318,7 @@ export const CustomerMessagesPanel: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick External Channel Switch Shortcuts */}
+            {/* Quick External Channel Switch Shortcuts & Support Hub */}
             <div className="pt-1 grid grid-cols-2 gap-1.5">
               <button
                 type="button"
@@ -1249,6 +1335,32 @@ export const CustomerMessagesPanel: React.FC = () => {
               >
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
                 <span className="truncate">{language === 'bn' ? '🔵 Messenger' : '🔵 Messenger'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const adminThread = globalMessages.find(t => t.participant1Id === 'usr-admin-1' || t.participant2Id === 'usr-admin-1');
+                  if (adminThread) {
+                    setActiveThreadId(adminThread.threadId);
+                    setMobileView('chat');
+                  } else {
+                    window.dispatchEvent(new CustomEvent('amarbazar_start_chat', {
+                      detail: { recipientId: 'usr-admin-1', recipientName: 'Super Admin BD', subject: '24/7 Helpline Support' }
+                    }));
+                  }
+                }}
+                className="flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold transition cursor-pointer"
+              >
+                <Headphones className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
+                <span className="truncate">{language === 'bn' ? '🛡️ ২৪/৭ হেল্পলাইন' : '🛡️ Admin Support'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAutomationSettingsOpen(true)}
+                className="flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold transition cursor-pointer"
+              >
+                <Bot className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="truncate">{language === 'bn' ? '🤖 বট সেটিংস' : '🤖 Bot Settings'}</span>
               </button>
             </div>
           </div>
@@ -1670,6 +1782,37 @@ export const CustomerMessagesPanel: React.FC = () => {
 
                 <div ref={messagesEndRef} />
               </div>
+
+              {/* Quick FAQ / Messenger Automation Interactive Action Chips */}
+              {(() => {
+                const targetRole = activeContact.role;
+                const normalizedRole = (targetRole === 'admin' || targetRole === 'system_admin') ? 'admin' : (targetRole === 'seller' ? 'seller' : 'customer');
+                const botConfig = chatAutomationService.getConfig(activeContact.id, normalizedRole);
+                if (!botConfig || !botConfig.isAutoReplyEnabled || !botConfig.quickOptions || botConfig.quickOptions.length === 0) return null;
+
+                return (
+                  <div className="px-3 py-2 bg-white/95 dark:bg-slate-950/95 border-t border-slate-200/50 dark:border-slate-850 backdrop-blur-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+                    <div className="flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 shrink-0 mr-1 select-none">
+                      <Bot className="w-3.5 h-3.5 animate-pulse" />
+                      <span>{language === 'bn' ? 'অটো-হেল্প:' : 'Quick FAQ:'}</span>
+                    </div>
+                    {botConfig.quickOptions.map((opt: QuickReplyOption) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          const questionText = language === 'bn' ? opt.questionBn : opt.question;
+                          handleSendMessage(questionText);
+                        }}
+                        className="px-3 py-1 bg-slate-100 hover:bg-amber-500 hover:text-slate-950 dark:bg-slate-900 dark:hover:bg-amber-500 dark:hover:text-slate-950 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5 active:scale-95"
+                      >
+                        <span>{opt.category === 'order' ? '📦' : opt.category === 'delivery' ? '🚚' : opt.category === 'payment' ? '💳' : opt.category === 'return' ? '🔄' : '💬'}</span>
+                        <span>{language === 'bn' ? opt.questionBn : opt.question}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Bottom message composition tool */}
               <div className="p-2.5 sm:p-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center space-x-1 sm:space-x-2 bg-white dark:bg-slate-950 shrink-0 w-full relative z-30">
@@ -2252,6 +2395,42 @@ export const CustomerMessagesPanel: React.FC = () => {
               >
                 {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🤖 Chat Automation & Bot Rule Settings Modal */}
+      {isAutomationSettingsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/60">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    {language === 'bn' ? 'মেসেঞ্জার ও হোয়াটসঅ্যাপ অটোমেশন কন্ট্রোল' : 'Messenger & WhatsApp Automation Hub'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {language === 'bn' ? 'স্বয়ংক্রিয় রিপ্লাই, কুইক অ্যাকশন বাটন এবং কিওয়ার্ড ট্রিগার সেটআপ' : 'Configure automated replies, quick buttons, and keyword triggers'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAutomationSettingsOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <ChatAutomationSettingsTab onBack={() => setIsAutomationSettingsOpen(false)} />
             </div>
           </div>
         </div>
