@@ -1323,6 +1323,16 @@ export const InventoryWorkspace: React.FC = () => {
   };
 
   const filtered = products.filter(p => {
+    if (effectiveUser?.role === 'seller') {
+      const sId = effectiveUser.id;
+      const strippedId = (sId || '').replace(/^(usr-|sel-)/, '');
+      const matchSeller = 
+        p.sellerId === sId || 
+        (sId === 'usr-seller-1' && (p.sellerId === 'sel-1' || p.sellerId === 'usr-seller-1')) ||
+        (sId === 'sel-1' && (p.sellerId === 'sel-1' || p.sellerId === 'usr-seller-1')) ||
+        (p.sellerId && p.sellerId.replace(/^(usr-|sel-)/, '') === strippedId);
+      if (!matchSeller) return false;
+    }
     const q = search.toLowerCase();
     return p.title.toLowerCase().includes(q) || 
            (p.titleBn && p.titleBn.toLowerCase().includes(q)) ||

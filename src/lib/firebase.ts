@@ -614,11 +614,26 @@ export const firebaseDb = {
         }
       }
 
-      // 5. Seed Products if empty
-      const existingProducts = await this.getProducts();
-      if (existingProducts.length === 0 && initialData.products && initialData.products.length > 0) {
-        for (const prod of initialData.products) {
-          await this.insertProduct(prod);
+      // 5. Seed Products ONLY if:
+      // - Neither products nor deleted_products exist, AND
+      // - settings hasSeededProducts is NOT true
+      const hasSeededProducts = (currentSettings as any)?.hasSeededProducts === true;
+      if (!hasSeededProducts) {
+        const [existingProducts, deletedIds] = await Promise.all([
+          this.getProducts(),
+          this.getDeletedProductIds()
+        ]);
+        const deletedSet = new Set(deletedIds || []);
+        if (existingProducts.length === 0 && deletedSet.size === 0 && initialData.products && initialData.products.length > 0) {
+          for (const prod of initialData.products) {
+            if (!deletedSet.has(prod.id)) {
+              await this.insertProduct(prod);
+            }
+          }
+          await this.saveSettings({ ...(currentSettings || {}), hasSeededProducts: true } as any);
+        } else if (deletedSet.size > 0 || existingProducts.length > 0) {
+          // If deleted products exist or products already exist, mark hasSeededProducts as true to prevent future re-seeding
+          await this.saveSettings({ ...(currentSettings || {}), hasSeededProducts: true } as any);
         }
       }
     } catch (e) {

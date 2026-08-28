@@ -4,7 +4,8 @@ import {
   CheckCircle, Clock, Truck, TrendingUp, AlertCircle, ArrowUpRight, 
   FileText, CreditCard, Building, Upload, X, Sliders, Settings,
   Lock, RefreshCw, ArrowLeft, ArrowRight, ClipboardList, Cloud, Database, Wifi,
-  ExternalLink, ShieldCheck, Zap, Check, HardDrive, FolderOpen, Flame
+  ExternalLink, ShieldCheck, Zap, Check, HardDrive, FolderOpen, Flame,
+  Printer, Star, CheckCircle2, Download
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -85,6 +86,8 @@ export const SellerDashboard: React.FC = () => {
   const [sellerOrders, setSellerOrders] = useState<Order[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [storeInfo, setStoreInfo] = useState<SellerStore | null>(null);
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
+  const [slipFormat, setSlipFormat] = useState<'a4' | 'pos80'>('a4');
 
   // New product form modal state
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
@@ -572,9 +575,9 @@ export const SellerDashboard: React.FC = () => {
     fetchData();
   }, [sellerId]);
 
-  // Real-time synchronization for seller products when global products change across any device
+      // Real-time synchronization for seller products when global products change across any device
   useEffect(() => {
-    if (products && products.length > 0) {
+    if (products) {
       const currentStoreId = storeInfo?.id || `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`;
       const currentSellerUserId = storeInfo?.sellerId || currentUser?.id || 'usr-seller-1';
       const strippedId = (currentStoreId || '').replace(/^(usr-|sel-)/, '');
@@ -913,7 +916,15 @@ export const SellerDashboard: React.FC = () => {
         : 'Access Denied: You only have view permission for orders, not processing!');
       return;
     }
-    await api.updateOrderStatus(orderId, status);
+    const updated = await api.updateOrderStatus(orderId, status);
+    if (status === 'confirmed') {
+      const targetOrder = sellerOrders.find(o => o.id === orderId);
+      if (targetOrder) {
+        setSelectedInvoiceOrder({ ...targetOrder, status: 'confirmed' });
+      } else if (updated) {
+        setSelectedInvoiceOrder(updated);
+      }
+    }
     fetchData();
   };
 
@@ -941,7 +952,43 @@ export const SellerDashboard: React.FC = () => {
     }
   };
 
-  const totalSalesRevenue = sellerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+  // Dynamic Real-time Calculations for Sales, Balance, Orders and Rating
+  const sellerStoreId = storeInfo?.id || `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`;
+  const sellerUserId = storeInfo?.sellerId || currentUser?.id || 'usr-seller-1';
+  const strippedStoreId = sellerStoreId.replace(/^(usr-|sel-)/, '');
+
+  const relevantOrders = sellerOrders.filter(o => {
+    if (!o.items || o.items.length === 0) return true;
+    return o.items.some(item => 
+      item.sellerId === sellerStoreId ||
+      item.sellerId === sellerUserId ||
+      (sellerStoreId === 'sel-1' && (item.sellerId === 'sel-1' || item.sellerId === 'usr-seller-1')) ||
+      (item.sellerId && item.sellerId.replace(/^(usr-|sel-)/, '') === strippedStoreId)
+    );
+  });
+
+  const confirmedOrDeliveredOrders = relevantOrders.filter(o => 
+    o.status === 'confirmed' || o.status === 'processing' || o.status === 'shipped' || o.status === 'delivered'
+  );
+
+  const calculatedRevenue = confirmedOrDeliveredOrders.reduce((sum, o) => {
+    const sellerItems = (o.items || []).filter(item => 
+      item.sellerId === sellerStoreId ||
+      item.sellerId === sellerUserId ||
+      (sellerStoreId === 'sel-1' && (item.sellerId === 'sel-1' || item.sellerId === 'usr-seller-1')) ||
+      (item.sellerId && item.sellerId.replace(/^(usr-|sel-)/, '') === strippedStoreId)
+    );
+    const itemTotal = sellerItems.reduce((iSum, item) => iSum + (item.price * item.quantity), 0);
+    return sum + (itemTotal > 0 ? itemTotal : (o.items?.length ? o.totalAmount : 0));
+  }, 0);
+
+  const approvedWithdrawalsTotal = withdrawals
+    .filter(w => w.status === 'approved')
+    .reduce((sum, w) => sum + (w.amount || 0), 0);
+
+  const calculatedBalance = Math.max(0, calculatedRevenue - approvedWithdrawalsTotal);
+  const pendingOrdersCount = relevantOrders.filter(o => o.status === 'pending').length;
+  const totalSalesRevenue = calculatedRevenue;
 
   if (storeInfo && storeInfo.isApproved === false && storeInfo.status === 'pending') {
     return (
@@ -2110,43 +2157,79 @@ export const SellerDashboard: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Revenue */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Total Revenue:</span>
+              <div className="flex justify-between items-start">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                  {language === 'bn' ? 'মোট বিক্রয় (রেভিনিউ):' : 'Total Revenue:'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  {language === 'bn' ? 'লাইভ' : 'Live'}
+                </span>
+              </div>
               <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                ৳{(storeInfo?.totalSales || totalSalesRevenue).toLocaleString()}
+                ৳{calculatedRevenue.toLocaleString()}
               </h3>
-              <p className="text-[11px] text-emerald-500 font-medium mt-1 flex items-center">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> +14.2% this month
+              <p className="text-[11px] text-slate-400 font-medium mt-1 flex items-center">
+                {calculatedRevenue > 0 ? (
+                  <span className="text-emerald-500 flex items-center font-bold">
+                    <ArrowUpRight className="w-3 h-3 mr-0.5" /> {language === 'bn' ? 'অর্ডার থেকে উপার্জিত' : 'Earned from orders'}
+                  </span>
+                ) : (
+                  <span>{language === 'bn' ? 'নতুন একাউন্ট (০ টাকা)' : 'Fresh Store (৳0)'}</span>
+                )}
               </p>
             </div>
 
+            {/* Available Balance */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Available Balance:</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                {language === 'bn' ? 'উত্তোলনযোগ্য ব্যালেন্স:' : 'Available Balance:'}
+              </span>
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                ৳{(storeInfo?.balance || 62400).toLocaleString()}
+                ৳{calculatedBalance.toLocaleString()}
               </h3>
-              <button
-                onClick={() => setIsWithdrawModalOpen(true)}
-                className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline mt-1 block"
-              >
-                Request bKash / Bank Payout →
-              </button>
+              {calculatedBalance > 0 ? (
+                <button
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline mt-1 block cursor-pointer"
+                >
+                  {language === 'bn' ? 'বিকাশ / ব্যাংক উত্তোলন করুন →' : 'Request Payout →'}
+                </button>
+              ) : (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {language === 'bn' ? 'কোনো পূর্বের বকেয়া নেই' : '0 pending balance'}
+                </p>
+              )}
             </div>
 
+            {/* Total Orders */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Total Orders:</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                {language === 'bn' ? 'মোট অর্ডার সংখ্যা:' : 'Total Orders:'}
+              </span>
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                {sellerOrders.length}
+                {relevantOrders.length}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Dispatched via Pathao / RedX</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {pendingOrdersCount > 0 
+                  ? (language === 'bn' ? `🔔 ${pendingOrdersCount}টি নতুন পেন্ডিং অর্ডার` : `🔔 ${pendingOrdersCount} Pending orders`)
+                  : (language === 'bn' ? 'সব অর্ডার প্রক্রিয়াকৃত' : 'All orders processed')}
+              </p>
             </div>
 
+            {/* Store Rating */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Store Rating:</span>
-              <h3 className="text-2xl font-black text-amber-500 mt-1">
-                {storeInfo?.rating || 4.8} / 5.0
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                {language === 'bn' ? 'দোকানের রেটিং:' : 'Store Rating:'}
+              </span>
+              <h3 className="text-2xl font-black text-amber-500 mt-1 flex items-center">
+                <Star className="w-5 h-5 fill-amber-400 text-amber-400 mr-1" />
+                5.0 <span className="text-xs font-normal text-slate-400 ml-1">/ 5.0</span>
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Based on 98 customer reviews</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {language === 'bn' ? 'ভেরিফাইড মার্চেন্ট প্রোফাইল' : 'Verified Merchant Profile'}
+              </p>
             </div>
           </div>
         </div>
@@ -2325,6 +2408,14 @@ export const SellerDashboard: React.FC = () => {
 
                     {/* Actions */}
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex justify-end items-center space-x-3">
+                      <button
+                        onClick={() => setSelectedInvoiceOrder(ord)}
+                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer text-xs"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>{language === 'bn' ? 'চালান স্লিপ' : 'Print Slip'}</span>
+                      </button>
+
                       {canProcessOrdersStaff ? (
                         <>
                           <button
@@ -2365,7 +2456,7 @@ export const SellerDashboard: React.FC = () => {
               <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Available Balance (বর্তমান ব্যালেন্স)</span>
                 <div className="flex items-baseline space-x-1.5 mt-2">
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">৳{(storeInfo?.balance || 0).toLocaleString()}</span>
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">৳{calculatedBalance.toLocaleString()}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">Ready for withdrawal at any time.</p>
               </div>
@@ -2373,7 +2464,7 @@ export const SellerDashboard: React.FC = () => {
               <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Sales (মোট বিক্রয়)</span>
                 <div className="flex items-baseline space-x-1.5 mt-2">
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">৳{(storeInfo?.totalSales || 0).toLocaleString()}</span>
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">৳{calculatedRevenue.toLocaleString()}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">Lifetime revenue earned from completed orders.</p>
               </div>
@@ -2421,9 +2512,19 @@ export const SellerDashboard: React.FC = () => {
                       <span className="font-extrabold text-slate-800 dark:text-slate-200">{ord.orderNumber}</span>
                       <p className="text-slate-400 text-[10px] mt-0.5">Customer: {ord.customerName} • {new Date(ord.createdAt).toLocaleDateString()}</p>
                     </div>
-                    <div className="text-right">
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">৳{ord.totalAmount.toLocaleString()}</span>
-                      <span className="block text-[10px] uppercase font-bold text-slate-500 mt-0.5">{ord.status}</span>
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">৳{ord.totalAmount.toLocaleString()}</span>
+                        <span className="block text-[10px] uppercase font-bold text-slate-500 mt-0.5">{ord.status}</span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedInvoiceOrder(ord)}
+                        className="p-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1 cursor-pointer"
+                        title={language === 'bn' ? 'চালান ও মেমো স্লিপ দেখুন' : 'Print Invoice Slip'}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold">{language === 'bn' ? 'স্লিপ' : 'Slip'}</span>
+                      </button>
                     </div>
                   </div>
                 ))
@@ -5311,6 +5412,209 @@ export const SellerDashboard: React.FC = () => {
         totalCapacityGb={displayStorageTotal}
         onStorageUpdated={refreshStorageFiles}
       />
+
+      {/* Printable Official Delivery Memo & Slip Modal */}
+      {selectedInvoiceOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 my-8">
+            {/* Modal Header (Hidden on Print) */}
+            <div className="bg-slate-900 text-white p-4.5 flex justify-between items-center print:hidden border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm">
+                    {language === 'bn' ? 'অর্ডার চালান ও ডেলিভারি মেমো স্লিপ' : 'Order Invoice & Delivery Memo Slip'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-mono">#{selectedInvoiceOrder.orderNumber}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="bg-slate-800 p-1 rounded-xl flex space-x-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSlipFormat('a4')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${slipFormat === 'a4' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    A4 Memo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlipFormat('pos80')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${slipFormat === 'pos80' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    POS Thermal
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{language === 'bn' ? 'প্রিন্ট করুন' : 'Print Slip'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceOrder(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Area */}
+            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 flex justify-center">
+              <div
+                id={slipFormat === 'pos80' ? 'printable-slip-pos80' : 'printable-slip-a4'}
+                className="bg-white text-slate-950 p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 w-full max-w-xl space-y-6"
+              >
+                {/* Header */}
+                <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="bg-emerald-600 text-white font-black text-[11px] px-2.5 py-0.5 rounded tracking-wider uppercase">AmarBazar</span>
+                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Verified Merchant Slip</span>
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900 mt-2">
+                      {storeInfo?.storeNameBn || storeInfo?.storeName || 'আমার বাজার শপ'}
+                    </h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {language === 'bn' ? 'হটলাইন:' : 'Helpline:'} {storeInfo?.bkashNumber || currentUser?.phone || '01700000000'}
+                    </p>
+                    {storeInfo?.tradeLicenseNumber && (
+                      <p className="text-[10px] text-slate-500 font-mono">TL: {storeInfo.tradeLicenseNumber}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">ORDER MEMO</span>
+                    <span className="text-base font-black text-slate-900 font-mono">#{selectedInvoiceOrder.orderNumber}</span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {new Date(selectedInvoiceOrder.createdAt).toLocaleDateString('bn-BD', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </p>
+                    <div className="mt-1">
+                      <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded uppercase ${
+                        selectedInvoiceOrder.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {selectedInvoiceOrder.paymentMethod.toUpperCase()} ({selectedInvoiceOrder.paymentStatus === 'paid' ? (language === 'bn' ? 'পরিশোধিত' : 'PAID') : (language === 'bn' ? 'ক্যাশ অন ডেলিভারি (বকেয়া)' : 'COD UNPAID')})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">
+                      {language === 'bn' ? 'গ্রাহকের তথ্য:' : 'Customer Details:'}
+                    </span>
+                    <p className="font-extrabold text-slate-900">{selectedInvoiceOrder.customerName}</p>
+                    <p className="font-mono font-bold text-slate-700 mt-0.5">{selectedInvoiceOrder.customerPhone}</p>
+                    {selectedInvoiceOrder.customerEmail && (
+                      <p className="text-[10px] text-slate-500">{selectedInvoiceOrder.customerEmail}</p>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">
+                      {language === 'bn' ? 'ডেলিভারি ঠিকানা:' : 'Delivery Address:'}
+                    </span>
+                    <p className="font-medium text-slate-800 leading-snug">
+                      {selectedInvoiceOrder.shippingAddress?.fullAddress || 'N/A'}
+                    </p>
+                    <p className="font-bold text-slate-700 mt-0.5">
+                      {selectedInvoiceOrder.shippingAddress?.thana ? `${selectedInvoiceOrder.shippingAddress.thana}, ` : ''}
+                      {selectedInvoiceOrder.shippingAddress?.district || 'Dhaka'}, {selectedInvoiceOrder.shippingAddress?.division || 'Bangladesh'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-slate-300 text-[10px] font-black uppercase text-slate-600">
+                        <th className="py-2 pr-2">SL</th>
+                        <th className="py-2 px-2">Item Description</th>
+                        <th className="py-2 px-2 text-center">Qty</th>
+                        <th className="py-2 px-2 text-right">Price</th>
+                        <th className="py-2 pl-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-800">
+                      {(selectedInvoiceOrder.items || []).map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2 pr-2 font-bold text-slate-400">{idx + 1}</td>
+                          <td className="py-2 px-2">
+                            <p className="font-bold text-slate-900">{item.productTitle}</p>
+                            {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
+                              <p className="text-[10px] text-slate-500">
+                                {Object.entries(item.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-center font-bold">{item.quantity}</td>
+                          <td className="py-2 px-2 text-right font-mono">৳{item.price.toLocaleString()}</td>
+                          <td className="py-2 pl-2 text-right font-black font-mono">৳{(item.price * item.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Summary */}
+                <div className="flex justify-end pt-2 border-t-2 border-slate-900">
+                  <div className="w-56 space-y-1 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal:</span>
+                      <span className="font-mono font-bold">৳{(selectedInvoiceOrder.subtotal || selectedInvoiceOrder.totalAmount).toLocaleString()}</span>
+                    </div>
+                    {selectedInvoiceOrder.shippingFee ? (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Delivery Fee:</span>
+                        <span className="font-mono font-bold">৳{selectedInvoiceOrder.shippingFee}</span>
+                      </div>
+                    ) : null}
+                    {selectedInvoiceOrder.discountAmount ? (
+                      <div className="flex justify-between text-emerald-600 font-bold">
+                        <span>Discount:</span>
+                        <span className="font-mono">-৳{selectedInvoiceOrder.discountAmount}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-300">
+                      <span>Total Amount:</span>
+                      <span className="font-mono text-base text-emerald-600">৳{selectedInvoiceOrder.totalAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Barcode & Signature */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed border-slate-300 items-end">
+                  <div>
+                    <div className="bg-slate-100 p-2 rounded border border-slate-300 text-center font-mono text-[10px] tracking-widest font-black">
+                      ||| | ||||| || |||| ||| ||||||| | {selectedInvoiceOrder.id}
+                    </div>
+                    <p className="text-[8px] text-slate-400 text-center mt-1">Pathao / RedX Courier Tracking Code</p>
+                  </div>
+                  <div className="text-right space-y-3">
+                    <div className="inline-block border-b border-slate-900 pb-0.5 px-6 text-center">
+                      <span className="text-[9px] font-black text-slate-900 font-mono">AUTHORIZED SEAL</span>
+                    </div>
+                    <p className="text-[9px] text-slate-400">Seller Signature & Seal</p>
+                  </div>
+                </div>
+
+                {/* Footer Note */}
+                <div className="text-[9px] text-slate-400 text-center border-t border-slate-100 pt-2">
+                  ধন্যবাদ অমরবাজারের সাথে থাকার জন্য! পণ্য বুঝে পেয়ে মূল্য পরিশোধ করুন।
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

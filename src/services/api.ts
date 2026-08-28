@@ -342,10 +342,10 @@ export const api = {
     }
 
     // 2. If backend failed, try Firebase Firestore directly
-    if (!authoritativeProducts) {
+    if (authoritativeProducts === null) {
       try {
         const fbProducts = await firebaseDb.getProducts();
-        if (fbProducts && Array.isArray(fbProducts) && fbProducts.length > 0) {
+        if (fbProducts && Array.isArray(fbProducts)) {
           authoritativeProducts = fbProducts;
         }
       } catch (e) {
@@ -354,7 +354,7 @@ export const api = {
     }
 
     let resultList: Product[];
-    if (authoritativeProducts) {
+    if (authoritativeProducts !== null) {
       // Filter out any known deleted products
       resultList = authoritativeProducts.filter(p => !deletedSet.has(p.id));
       if (!params || Object.keys(params).length === 0) {
@@ -362,8 +362,9 @@ export const api = {
       }
     } else {
       // Offline fallback: Use local storage cache excluding deleted items
+      const hasStoredKey = safeStorage.getItem(STORAGE_KEY_PRODUCTS) !== null;
       let localList = getLocalProducts().filter(p => !deletedSet.has(p.id));
-      if (localList.length === 0 && deletedSet.size === 0) {
+      if (localList.length === 0 && deletedSet.size === 0 && !hasStoredKey) {
         localList = INITIAL_PRODUCTS;
         saveLocalProducts(INITIAL_PRODUCTS, false);
       }

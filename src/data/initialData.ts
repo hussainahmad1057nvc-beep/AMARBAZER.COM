@@ -99,9 +99,9 @@ export const INITIAL_SELLERS: SellerStore[] = [
     paymentInstructions: 'বিকাশ মার্চেন্ট অথবা নগদ সেন্ড মানি করুন।',
     bankAccountDetails: 'Dutch Bangla Bank Ltd, Gulshan Branch, A/C: 1101569800',
     isApproved: true,
-    totalSales: 485000,
-    balance: 62400,
-    rating: 4.8,
+    totalSales: 0,
+    balance: 0,
+    rating: 5.0,
     joinDate: '2025-01-15',
     subscriptionPlan: 'starter',
     subscriptionStatus: 'active',
@@ -121,9 +121,9 @@ export const INITIAL_SELLERS: SellerStore[] = [
     tradeLicenseNumber: 'TRAD/DSCC/088321/2025',
     bkashNumber: '01899887766',
     isApproved: true,
-    totalSales: 240000,
-    balance: 38000,
-    rating: 4.9,
+    totalSales: 0,
+    balance: 0,
+    rating: 5.0,
     joinDate: '2025-03-20',
     subscriptionPlan: 'business',
     subscriptionStatus: 'active',
@@ -143,9 +143,9 @@ export const INITIAL_SELLERS: SellerStore[] = [
     tradeLicenseNumber: 'TRAD/KCC/044112/2025',
     bkashNumber: '01911002233',
     isApproved: true,
-    totalSales: 175000,
-    balance: 19500,
-    rating: 4.95,
+    totalSales: 0,
+    balance: 0,
+    rating: 5.0,
     joinDate: '2025-04-10',
     subscriptionPlan: 'enterprise',
     subscriptionStatus: 'active',
@@ -165,9 +165,9 @@ export const INITIAL_SELLERS: SellerStore[] = [
     tradeLicenseNumber: 'TRAD/CCC/099123/2025',
     bkashNumber: '01655443322',
     isApproved: true,
-    totalSales: 132000,
-    balance: 14200,
-    rating: 4.6,
+    totalSales: 0,
+    balance: 0,
+    rating: 5.0,
     joinDate: '2025-05-01',
     subscriptionPlan: 'none',
     subscriptionStatus: 'expired'
@@ -182,9 +182,9 @@ export const INITIAL_SELLERS: SellerStore[] = [
     tradeLicenseNumber: 'TRAD/DNCC/112233/2024',
     bkashNumber: '01700112233',
     isApproved: true,
-    totalSales: 950000,
-    balance: 120000,
-    rating: 4.85,
+    totalSales: 0,
+    balance: 0,
+    rating: 5.0,
     joinDate: '2024-11-12',
     subscriptionPlan: 'enterprise',
     subscriptionStatus: 'active',
@@ -276,69 +276,4 @@ export const INITIAL_USERS: User[] = [
   }
 ];
 
-export const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ord-58912',
-    orderNumber: 'ORD-58912',
-    order5DigitId: '58912',
-    userId: 'usr-demo-cust',
-    customerName: 'Rahim Chowdhury',
-    customerPhone: '01712345678',
-    customerEmail: 'rahim@example.com',
-    shippingAddress: {
-      id: 'addr-1',
-      title: 'Home',
-      recipientName: 'Rahim Chowdhury',
-      phone: '01712345678',
-      division: 'Dhaka',
-      district: 'Dhaka',
-      thana: 'Dhanmondi',
-      fullAddress: 'House 42, Road 10/A, Dhanmondi R/A, Dhaka-1209',
-      isDefault: true
-    },
-    items: [
-      {
-        productId: 'prod-102',
-        productTitle: 'Authentic Handloom Dhakai Jamdani Saree',
-        productImage: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
-        sellerId: 'sel-2',
-        sellerName: 'Silk & Handloom Heritage',
-        quantity: 1,
-        price: 6990,
-        selectedVariants: { Color: 'Crimson Red' }
-      },
-      {
-        productId: 'prod-104',
-        productTitle: 'Sundarbans Natural Organic Honey 1kg',
-        productImage: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80',
-        sellerId: 'sel-3',
-        sellerName: 'Bengal Organic Foods',
-        quantity: 2,
-        price: 1150
-      }
-    ],
-    subtotal: 9290,
-    discountAmount: 50,
-    couponCode: 'BKASH50',
-    shippingFee: 60,
-    totalAmount: 9300,
-    paymentMethod: 'bkash',
-    paymentStatus: 'paid',
-    transactionId: 'TRX981247BK',
-    status: 'shipped',
-    courier: {
-      provider: 'Pathao',
-      trackingNumber: 'PTH-8912401',
-      estimatedDays: '1-2 Days',
-      shippingFee: 60,
-      statusLogs: [
-        { time: '2026-07-28 10:15 AM', status: 'Order Placed & Paid via bKash', location: 'Dhaka' },
-        { time: '2026-07-28 02:30 PM', status: 'Package Packed by Seller', location: 'Dhanmondi Hub' },
-        { time: '2026-07-29 09:00 AM', status: 'Handed over to Pathao Courier', location: 'Tejgaon Sorting Facility' },
-        { time: '2026-07-29 04:20 PM', status: 'In Transit to Destination Hub', location: 'Dhanmondi Delivery Branch' }
-      ]
-    },
-    createdAt: '2026-07-28T10:15:00Z',
-    updatedAt: '2026-07-29T16:20:00Z'
-  }
-];
+export const INITIAL_ORDERS: Order[] = [];

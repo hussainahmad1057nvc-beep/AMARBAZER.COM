@@ -88,10 +88,13 @@ function loadDb() {
     if (fs.existsSync(DATA_FILE)) {
       const data = fs.readFileSync(DATA_FILE, 'utf-8');
       db = JSON.parse(data);
-      // Deduplicate products, sellers, categories, users by ID
+      if (!db.deletedProductIds) db.deletedProductIds = [];
+      const deletedSet = new Set(db.deletedProductIds);
+
+      // Deduplicate products and filter out any deleted products
       const seenProdIds = new Set<string>();
       db.products = (db.products || []).filter(p => {
-        if (!p.id || seenProdIds.has(p.id)) return false;
+        if (!p.id || seenProdIds.has(p.id) || deletedSet.has(p.id)) return false;
         seenProdIds.add(p.id);
         return true;
       });
@@ -121,7 +124,6 @@ function loadDb() {
 
       // Merge newly added INITIAL_PRODUCTS if not already present or deleted
       const existingProductIds = new Set(db.products.map(p => p.id));
-      const deletedSet = new Set(db.deletedProductIds || []);
       INITIAL_PRODUCTS.forEach(p => {
         if (!existingProductIds.has(p.id) && !deletedSet.has(p.id)) {
           db.products.push(p);
@@ -890,10 +892,16 @@ async function startServer() {
     res.json({ success: true, user: newUser, token: `jwt-token-${newUser.id}` });
   });
 
+  // Get deleted product IDs for multi-device sync
+  app.get('/api/products/deleted-ids', (req, res) => {
+    res.json(db.deletedProductIds || []);
+  });
+
   // Products API (CRUD)
   app.get('/api/products', (req, res) => {
     const { category, search, minPrice, maxPrice, sellerId, sort, flashDeal } = req.query;
-    let list = [...db.products];
+    const deletedSet = new Set(db.deletedProductIds || []);
+    let list = db.products.filter(p => !deletedSet.has(p.id));
 
     if (category) {
       list = list.filter(p => p.categoryId === category || p.categoryName.toLowerCase().includes(String(category).toLowerCase()));

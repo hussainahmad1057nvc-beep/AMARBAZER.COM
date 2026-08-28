@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice, Address } from '../types';
 import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
-import { api, getDeletedProductIds } from '../services/api';
+import { api, getDeletedProductIds, syncDeletedProductIdsFromCloud } from '../services/api';
 import { firebaseDb } from '../lib/firebase';
 import { safeStorage } from '../lib/safeStorage';
 import { applyLiveLanguage } from '../services/languageService';
@@ -855,7 +855,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    // Seed Firestore with rich default data if empty so all connected devices see identical data immediately
+    // 0. Immediately synchronize deleted products from cloud so deleted items stay deleted across all devices
+    syncDeletedProductIdsFromCloud().then(() => {
+      refreshProducts();
+    }).catch(() => {
+      refreshProducts();
+    });
+
+    // Seed Firestore with rich default data ONLY on brand-new empty setup
     firebaseDb.seedInitialDataIfEmpty({
       products: INITIAL_PRODUCTS,
       categories: INITIAL_CATEGORIES,
@@ -864,7 +871,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       settings: INITIAL_SYSTEM_SETTINGS
     }).catch(() => {});
 
-    refreshProducts();
     refreshCategories();
     refreshSystemSettings();
 
@@ -943,7 +949,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubscribeProducts: (() => void) | null = null;
     try {
       unsubscribeProducts = firebaseDb.subscribeToProducts((fbProds) => {
-        if (fbProds && Array.isArray(fbProds) && fbProds.length > 0) {
+        if (fbProds && Array.isArray(fbProds)) {
           const deletedSet = getDeletedProductIds();
           const liveList = fbProds.filter(p => !deletedSet.has(p.id));
           setProducts(liveList);
