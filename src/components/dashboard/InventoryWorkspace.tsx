@@ -8,7 +8,8 @@ import {
   Trash2, Edit, Save, Check, RefreshCw, AlertCircle, 
   Search, Play, DollarSign, Package, Star, Sparkles, Volume2,
   Shirt, Smartphone, Apple, Home, Plus, ChevronRight, Image as ImageIcon, Heart, Info, Tag, X,
-  Zap, Footprints, Gamepad2, Activity, BookOpen, Truck, ShieldCheck, Clock, RotateCcw, CheckCircle2, BadgeCheck, CreditCard
+  Zap, Footprints, Gamepad2, Activity, BookOpen, Truck, ShieldCheck, Clock, RotateCcw, CheckCircle2, BadgeCheck, CreditCard,
+  Upload, Camera, ExternalLink, Video, Layers, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const PRESETS_BY_CAT: Record<string, { title: string; url: string }[]> = {
@@ -124,13 +125,29 @@ export const InventoryWorkspace: React.FC = () => {
   const [editTitleBn, setEditTitleBn] = useState('');
   const [editBrand, setEditBrand] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
+  const [editSku, setEditSku] = useState('');
   const [editWarranty, setEditWarranty] = useState('');
+  const [editWarrantyPolicy, setEditWarrantyPolicy] = useState('');
+  const [editReturnPolicy, setEditReturnPolicy] = useState('');
+  const [editDeliveryTime, setEditDeliveryTime] = useState('২৪-৪৮ ঘণ্টার মধ্যে');
+  const [editIsFreeDelivery, setEditIsFreeDelivery] = useState(false);
+  const [editDeliveryChargeInside, setEditDeliveryChargeInside] = useState<number>(60);
+  const [editDeliveryChargeOutside, setEditDeliveryChargeOutside] = useState<number>(120);
+  const [editIsCodAvailable, setEditIsCodAvailable] = useState(true);
+  const [editIsExpressDelivery, setEditIsExpressDelivery] = useState(true);
+  const [editIsFeatured, setEditIsFeatured] = useState(false);
+  const [editIsFlashDeal, setEditIsFlashDeal] = useState(false);
+  const [editTags, setEditTags] = useState('');
+  const [editVideoUrl, setEditVideoUrl] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editDescriptionBn, setEditDescriptionBn] = useState('');
   const [editPrice, setEditPrice] = useState<number>(0);
   const [editDiscount, setEditDiscount] = useState<number | undefined>(undefined);
   const [editStock, setEditStock] = useState<number>(10);
-  const [editImageUrls, setEditImageUrls] = useState<string[]>(['', '', '', '']);
+  const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
+  const [editAddImageUrlInput, setEditAddImageUrlInput] = useState('');
+  const [isUploadingEditImage, setIsUploadingEditImage] = useState(false);
+  const [showEditPresetImages, setShowEditPresetImages] = useState(false);
   const [editCustomSpecs, setEditCustomSpecs] = useState<{ label: string; labelBn?: string; value: string; valueBn?: string }[]>([]);
 
   // PRODUCT BUILDER STATE
@@ -812,31 +829,48 @@ export const InventoryWorkspace: React.FC = () => {
 
   const handleStartEdit = (p: Product) => {
     setEditingProduct(p);
-    setEditTitle(p.title);
-    setEditTitleBn(p.titleBn || p.title);
+    setEditTitle(p.title || '');
+    setEditTitleBn(p.titleBn || p.title || '');
     setEditBrand(p.brand || '');
-    setEditCategoryId(p.categoryId);
-    setEditWarranty(p.warranty || 'Purity & Quality Guaranteed');
+    setEditCategoryId(p.categoryId || categories[0]?.id || 'cat-2');
+    setEditSku(p.sku || `SKU-${Date.now().toString().slice(-6)}`);
+    setEditWarranty(p.warranty || '১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা');
+    setEditWarrantyPolicy(p.warrantyPolicy || p.warranty || '১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা');
+    setEditReturnPolicy(p.returnPolicy || '৭ দিনের ইজি রিটার্ন ও রিফান্ড সুবিধা');
+    setEditDeliveryTime(p.deliveryTime || '২৪-৪৮ ঘণ্টার মধ্যে');
+    setEditIsFreeDelivery(!!p.isFreeDelivery);
+    setEditDeliveryChargeInside(p.deliveryChargeInside !== undefined ? p.deliveryChargeInside : 60);
+    setEditDeliveryChargeOutside(p.deliveryChargeOutside !== undefined ? p.deliveryChargeOutside : 120);
+    setEditIsCodAvailable(p.isCodAvailable !== false);
+    setEditIsExpressDelivery(p.isExpressDelivery !== false);
+    setEditIsFeatured(!!p.isFeatured);
+    setEditIsFlashDeal(!!p.isFlashDeal);
     setEditDescription(p.description || '');
-    setEditDescriptionBn(p.descriptionBn || '');
-    setEditPrice(p.price);
+    setEditDescriptionBn(p.descriptionBn || p.description || '');
+    setEditPrice(p.price || 100);
     setEditDiscount(p.discountPrice);
-    setEditStock(p.stock);
+    setEditStock(p.stock !== undefined ? p.stock : 10);
+    setEditTags(Array.isArray(p.tags) ? p.tags.join(', ') : '');
+    setEditVideoUrl(p.videoUrl || '');
     
-    const imgs = [...(p.images || [])];
-    while (imgs.length < 4) {
-      imgs.push('');
-    }
-    setEditImageUrls(imgs.slice(0, 4));
+    // Clean array of photos
+    const rawImgs = Array.isArray(p.images) ? p.images.filter(img => typeof img === 'string' && img.trim() !== '') : [];
+    setEditImageUrls(rawImgs.length > 0 ? rawImgs : ['https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80']);
+    setEditAddImageUrlInput('');
+    setShowEditPresetImages(false);
     setEditCustomSpecs(p.customSpecs || []);
     setIsEditModalOpen(true);
   };
 
-  const handleSaveFullEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveFullEdit = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!editingProduct) return;
-    if (!editTitle.trim()) {
-      alert(language === 'bn' ? 'দয়া করে প্রোডাক্টের নাম লিখুন!' : 'Please specify product name!');
+    
+    const finalTitle = editTitle.trim() || editTitleBn.trim();
+    const finalTitleBn = editTitleBn.trim() || editTitle.trim();
+
+    if (!finalTitle) {
+      alert(language === 'bn' ? 'দয়া করে প্রোডাক্টের একটি নাম লিখুন!' : 'Please specify product name!');
       return;
     }
     if (!editPrice || editPrice <= 0) {
@@ -845,31 +879,48 @@ export const InventoryWorkspace: React.FC = () => {
     }
 
     try {
-      const categoryObj = categories.find(c => c.id === editCategoryId) || categories[0];
-      const finalImages = editImageUrls.filter(url => url.trim() !== '');
-      if (finalImages.length === 0) {
-        finalImages.push('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80');
+      const categoryObj = categories.find(c => c.id === editCategoryId) || ALL_FRONTEND_CATEGORIES.find(c => c.id === editCategoryId) || categories[0];
+      const validImages = editImageUrls.filter(url => typeof url === 'string' && url.trim() !== '');
+      if (validImages.length === 0) {
+        validImages.push('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80');
       }
 
-      const updatedPayload = {
-        title: editTitle,
-        titleBn: editTitleBn || editTitle,
+      const tagsArray = editTags
+        ? editTags.split(',').map(t => t.trim()).filter(Boolean)
+        : (editingProduct.tags || ['amar-bazar', 'product']);
+
+      const updatedPayload: Partial<Product> = {
+        title: finalTitle,
+        titleBn: finalTitleBn,
         price: Number(editPrice),
         discountPrice: editDiscount ? Number(editDiscount) : undefined,
-        stock: Number(editStock) || 0,
+        stock: Number(editStock) >= 0 ? Number(editStock) : 0,
         categoryId: editCategoryId,
-        categoryName: categoryObj?.name || 'BD Foods & Organic',
-        brand: editBrand || 'Local BD',
+        categoryName: categoryObj?.name || editingProduct.categoryName || 'General',
+        brand: editBrand || 'AmarBazar Local',
+        sku: editSku || editingProduct.sku,
         description: editDescription,
         descriptionBn: editDescriptionBn || editDescription,
-        images: finalImages,
-        warranty: editWarranty || 'Purity & Quality Guaranteed',
+        images: validImages,
+        warranty: editWarrantyPolicy || editWarranty,
+        warrantyPolicy: editWarrantyPolicy || editWarranty,
+        returnPolicy: editReturnPolicy,
+        deliveryTime: editDeliveryTime,
+        isFreeDelivery: editIsFreeDelivery,
+        deliveryChargeInside: Number(editDeliveryChargeInside),
+        deliveryChargeOutside: Number(editDeliveryChargeOutside),
+        isCodAvailable: editIsCodAvailable,
+        isExpressDelivery: editIsExpressDelivery,
+        isFeatured: editIsFeatured,
+        isFlashDeal: editIsFlashDeal,
+        tags: tagsArray,
+        videoUrl: editVideoUrl.trim() || undefined,
         customSpecs: editCustomSpecs.filter(s => s.label.trim() !== '' && s.value.trim() !== '')
       };
 
       const updated = await appUpdateProduct(editingProduct.id, updatedPayload);
       
-      setProducts(prev => prev.map(item => item.id === editingProduct.id ? { ...item, ...updated } : item));
+      setProducts(prev => prev.map(item => item.id === editingProduct.id ? { ...item, ...updatedPayload, ...(updated || {}) } : item));
       setIsEditModalOpen(false);
       setEditingProduct(null);
       playSystemSound('success');
@@ -880,6 +931,97 @@ export const InventoryWorkspace: React.FC = () => {
       console.error('Failed to update product details:', err);
       alert(language === 'bn' ? 'দুঃখিত, পণ্যটি এডিট করতে সমস্যা হয়েছে।' : 'Error saving product edits.');
     }
+  };
+
+  const handleEditImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingEditImage(true);
+    try {
+      const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const compressed = await compressAndReadImage(file);
+        if (compressed) {
+          newUrls.push(compressed);
+        }
+      }
+      if (newUrls.length > 0) {
+        setEditImageUrls(prev => {
+          const cleanPrev = prev.filter(u => typeof u === 'string' && u.trim() !== '');
+          return [...cleanPrev, ...newUrls].slice(0, 10);
+        });
+        playSystemSound('add');
+      }
+    } catch (err) {
+      console.error('Failed to process image file:', err);
+      alert(language === 'bn' ? 'ছবি আপলোড করতে সমস্যা হয়েছে।' : 'Failed to upload photo.');
+    } finally {
+      setIsUploadingEditImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleEditReplaceImageFile = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingEditImage(true);
+    try {
+      const compressed = await compressAndReadImage(file);
+      if (compressed) {
+        setEditImageUrls(prev => {
+          const updated = [...prev];
+          updated[index] = compressed;
+          return updated;
+        });
+        playSystemSound('success');
+      }
+    } catch (err) {
+      console.error('Failed to replace image:', err);
+    } finally {
+      setIsUploadingEditImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSetPrimaryImage = (index: number) => {
+    if (index === 0) return;
+    setEditImageUrls(prev => {
+      const updated = [...prev];
+      const [selected] = updated.splice(index, 1);
+      return [selected, ...updated];
+    });
+    playSystemSound('success');
+  };
+
+  const handleMoveImage = (fromIndex: number, toIndex: number) => {
+    setEditImageUrls(prev => {
+      if (toIndex < 0 || toIndex >= prev.length) return prev;
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+    playSystemSound('success');
+  };
+
+  const handleRemoveEditImage = (index: number) => {
+    setEditImageUrls(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      return updated.length > 0 ? updated : ['https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'];
+    });
+    playSystemSound('delete');
+  };
+
+  const handleAddEditImageUrl = () => {
+    const val = editAddImageUrlInput.trim();
+    if (!val) return;
+    setEditImageUrls(prev => {
+      const cleanPrev = prev.filter(u => typeof u === 'string' && u.trim() !== '');
+      return [...cleanPrev, val].slice(0, 10);
+    });
+    setEditAddImageUrlInput('');
+    playSystemSound('add');
   };
 
   const handleDelete = async (id: string) => {
@@ -1010,10 +1152,14 @@ export const InventoryWorkspace: React.FC = () => {
   };
 
   // BUILD AND SAVE DYNAMICALLY CONFIGURED PRODUCT
-  const handlePublishProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!builderTitle.trim()) {
-      alert('Please enter a product title.');
+  const handlePublishProduct = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const rawTitle = builderTitle.trim() || builderTitleBn.trim();
+    const rawTitleBn = builderTitleBn.trim() || builderTitle.trim();
+
+    if (!rawTitle) {
+      alert(language === 'bn' ? 'অনুগ্রহ করে পণ্যের একটি নাম লিখুন।' : 'Please enter a product title.');
       return;
     }
 
@@ -1089,21 +1235,44 @@ export const InventoryWorkspace: React.FC = () => {
         finalDesc = `${finalDesc ? finalDesc + '\n\n' : ''}Package Items Included:\n${packageItems.map(i => `• ${i.name} (${i.qty}) - ৳${i.price}`).join('\n')}`;
       }
 
+      // Auto-merge active variant pricing if not saved explicitly
+      const finalVariantPrices = { ...builderVariantPrices };
+      const activeKey = activeEditingVariant || (
+        isClothingCategory ? (selectedSizes[0] || 'Standard') :
+        isElectronicsCategory ? (selectedStorage[0] || 'Standard') :
+        (selectedWeights[0] || 'Standard')
+      );
+      const currentPriceNum = Number(builderPrice) || 100;
+      const currentDiscNum = builderDiscount ? Number(builderDiscount) : currentPriceNum;
+      const currentStockNum = Number(builderStock) || 20;
+
+      if (activeKey && !finalVariantPrices[activeKey]) {
+        finalVariantPrices[activeKey] = {
+          price: currentDiscNum,
+          regularPrice: currentPriceNum,
+          discountPrice: currentDiscNum,
+          stock: currentStockNum
+        };
+      }
+
+      const sellerId = (currentUser as any)?.sellerId || (currentUser as any)?.storeId || currentUser?.id || 'sel-1';
+      const sellerName = (currentUser as any)?.storeName || currentUser?.name || 'AmarBazar Official Mall';
+
       const payload = {
-        title: builderTitle.trim(),
-        titleBn: (builderTitleBn || builderTitle).trim(),
-        price: Number(builderPrice) || 100,
+        title: rawTitle,
+        titleBn: rawTitleBn,
+        price: currentPriceNum,
         discountPrice: builderDiscount ? Number(builderDiscount) : undefined,
-        stock: Number(builderStock) || 0,
+        stock: currentStockNum,
         categoryId: selectedCatId,
         categoryName: selectedCategoryName,
-        brand: builderBrand || 'Local Store',
+        brand: builderBrand || 'AmarBazar Local',
         description: finalDesc,
         descriptionBn: finalDescBn,
-        sellerId: currentUser?.id || 'sel-1',
-        sellerName: (currentUser as any)?.storeName || currentUser?.name || 'AmarBazar Official Mall',
+        sellerId,
+        sellerName,
         images: customImageUrls.length > 0 ? customImageUrls : [activeImageUrl],
-        sku: builderSku,
+        sku: builderSku || `SKU-${Date.now().toString().slice(-6)}`,
         warranty: warrantyPolicy || builderWarranty,
         warrantyPolicy,
         returnPolicy,
@@ -1114,7 +1283,7 @@ export const InventoryWorkspace: React.FC = () => {
         isCodAvailable,
         isExpressDelivery,
         variants: variantsList,
-        variantPrices: builderVariantPrices,
+        variantPrices: finalVariantPrices,
         tags: [selectedCategoryName.toLowerCase(), 'new', 'published'],
         isFeatured: true,
         isApproved: true
@@ -1124,18 +1293,31 @@ export const InventoryWorkspace: React.FC = () => {
       
       playSystemSound('add');
       
-      // Refresh product list and stay in catalog tab
+      // Refresh product list and update memory state immediately
       setProducts(prev => [newProduct, ...prev.filter(p => p.id !== newProduct.id)]);
       await refreshProducts();
 
+      // Reset builder inputs
+      setBuilderTitle('');
+      setBuilderTitleBn('');
+      setBuilderBrand('');
+      setBuilderPrice('100');
+      setBuilderDiscount('');
+      setBuilderStock('25');
+      setBuilderDesc('');
+      setBuilderDescBn('');
+      setCustomImageUrl('');
+      setCustomImageUrls([]);
+      setBuilderVariantPrices({});
+
       setActiveTab('catalog');
       alert(language === 'bn' 
-        ? `"${newProduct.titleBn || newProduct.title}" পণ্যটি সফলভাবে ইনভেন্টরিতে যোগ এবং পাবলিশ করা হয়েছে!` 
-        : `"${newProduct.title}" product was successfully published and added to inventory!`);
+        ? `"${newProduct.titleBn || newProduct.title}" পণ্যটি সফলভাবে ইনভেন্টরিতে যোগ ও পাবলিশ হয়েছে!` 
+        : `"${newProduct.title}" was successfully added to inventory and published!`);
     } catch (err: any) {
       console.error('Error publishing product:', err);
       alert(language === 'bn' 
-        ? 'পণ্য তালিকাভুক্ত করার সময় সমস্যা হয়েছে। অনুগ্রহ করে ইনপুট চেক করুন।' 
+        ? 'পণ্য তালিকাভুক্ত করার সময় সমস্যা হয়েছে। অনুগ্রহ করে তথ্য চেক করুন।' 
         : 'Error publishing product. Please check the inputs.');
     }
   };
@@ -1212,18 +1394,29 @@ export const InventoryWorkspace: React.FC = () => {
       {/* 1. CATALOG TAB */}
       {activeTab === 'catalog' && (
         <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
-              <Search className="w-4 h-4" />
-            </span>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={language === 'bn' ? "পণ্য খুঁজুন (নাম, ব্র্যান্ড বা ক্যাটাগরি)..." : "Filter products by title, category, or brand..."}
-              className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
-            />
+          {/* Action Row: Search Bar & Add New Product Button */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={language === 'bn' ? "পণ্য খুঁজুন (নাম, ব্র্যান্ড বা ক্যাটাগরি)..." : "Filter products by title, category, or brand..."}
+                className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 shadow-2xs"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('builder')}
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center space-x-2 shrink-0 cursor-pointer active:scale-95 transition"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>{language === 'bn' ? '+ নতুন পণ্য যোগ করুন' : '+ Add New Product'}</span>
+            </button>
           </div>
 
           {/* Catalog list table */}
@@ -1348,6 +1541,14 @@ export const InventoryWorkspace: React.FC = () => {
                   <span className="bg-amber-500 text-slate-950 w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black mr-2">1</span>
                   {language === 'bn' ? '১. পণ্যের ক্যাটাগরি নির্বাচন করুন' : '1. SELECT PRODUCT CATEGORY'}
                 </h3>
+
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md flex items-center space-x-1.5 shrink-0 transition cursor-pointer active:scale-95"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>{language === 'bn' ? 'সরাসরি পাবলিশ করুন' : 'Publish Product'}</span>
+                </button>
               </div>
 
               {/* Quick Category Bar (With Package Builder at Front) */}
@@ -1855,13 +2056,15 @@ export const InventoryWorkspace: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                    {language === 'bn' ? 'পণ্যের নাম (ইংরেজিতে)*:' : 'Product Title (English)*:'}
+                    {language === 'bn' ? 'পণ্যের নাম (ইংরেজিতে):' : 'Product Title (English):'}
                   </label>
                   <input
                     type="text"
                     value={builderTitle}
-                    onChange={(e) => setBuilderTitle(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setBuilderTitle(e.target.value);
+                      if (!builderTitleBn) setBuilderTitleBn(e.target.value);
+                    }}
                     placeholder="e.g. Walton Primo G23 Premium"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none font-semibold text-slate-800 dark:text-slate-100"
                   />
@@ -1869,13 +2072,15 @@ export const InventoryWorkspace: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                    {language === 'bn' ? 'পণ্যের নাম (বাংলায়)*:' : 'Product Title (Bangla)*:'}
+                    {language === 'bn' ? 'পণ্যের নাম (বাংলায়):' : 'Product Title (Bangla):'}
                   </label>
                   <input
                     type="text"
                     value={builderTitleBn}
-                    onChange={(e) => setBuilderTitleBn(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setBuilderTitleBn(e.target.value);
+                      if (!builderTitle) setBuilderTitle(e.target.value);
+                    }}
                     placeholder="যেমনঃ ওয়ালটন প্রিমো জি২৩ প্রিমিয়াম"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none font-semibold text-slate-800 dark:text-slate-100"
                   />
@@ -3350,17 +3555,24 @@ export const InventoryWorkspace: React.FC = () => {
 
       {/* COMPREHENSIVE PRODUCT EDIT MODAL */}
       {isEditModalOpen && editingProduct && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
+          <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
-              <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                  {language === 'bn' ? 'পণ্য এডিট করুন' : 'Edit Product Listing'}
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  SKU: <span className="font-mono font-bold text-amber-500">{editingProduct.sku}</span>
-                </p>
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 sticky top-0 z-10 backdrop-blur-sm">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <Edit className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    {language === 'bn' ? 'পণ্যের সমস্ত তথ্য ও ছবি এডিট করুন' : 'Edit Full Product Listing'}
+                  </h3>
+                  <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
+                    <span>SKU: <strong className="font-mono text-amber-500">{editingProduct.sku}</strong></span>
+                    <span>•</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{editingProduct.categoryName}</span>
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
@@ -3368,219 +3580,598 @@ export const InventoryWorkspace: React.FC = () => {
                   setIsEditModalOpen(false);
                   setEditingProduct(null);
                 }}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition"
+                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Form Content (Scrollable) */}
-            <form onSubmit={handleSaveFullEdit} className="flex-1 overflow-y-auto p-6 space-y-5">
+            <form onSubmit={handleSaveFullEdit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               
-              {/* Row 1: Titles (EN & BN) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'পণ্যের নাম (English) *' : 'Product Title (English) *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'পণ্যের নাম (বাংলা) *' : 'Product Title (Bangla) *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editTitleBn}
-                    onChange={(e) => setEditTitleBn(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Brand, Category, Warranty */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'ব্র্যান্ড' : 'Brand Name'}
-                  </label>
-                  <input
-                    type="text"
-                    value={editBrand}
-                    onChange={(e) => setEditBrand(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'ক্যাটাগরি' : 'Category'}
-                  </label>
-                  <select
-                    value={editCategoryId}
-                    onChange={(e) => setEditCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-semibold"
+              {/* SECTION 1: PHOTO GALLERY & UPLOAD MANAGER */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <ImageIcon className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                      {language === 'bn' ? '১. পণ্যের ছবি গ্যালারি ও ফটো চেঞ্জ' : '1. PRODUCT PHOTOS & GALLERY'}
+                    </span>
+                    <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold">
+                      {editImageUrls.filter(u => typeof u === 'string' && u.trim() !== '').length} {language === 'bn' ? 'টি ছবি যুক্ত' : 'Photos'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPresetImages(!showEditPresetImages)}
+                    className="text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 flex items-center space-x-1 cursor-pointer"
                   >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {language === 'bn' ? c.nameBn : c.name}
-                      </option>
-                    ))}
-                  </select>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{showEditPresetImages ? (language === 'bn' ? 'প্রিসেট বন্ধ করুন' : 'Hide Presets') : (language === 'bn' ? 'রেডিমেড প্রিসেট ছবি দেখুন' : 'Browse Presets')}</span>
+                  </button>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'ওয়ারেন্টি / গ্যারান্টি' : 'Warranty Details'}
+
+                {/* Upload Action Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Device File Upload Button */}
+                  <div>
+                    <label className="flex items-center justify-center space-x-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-xs cursor-pointer transition">
+                      {isUploadingEditImage ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isUploadingEditImage 
+                          ? (language === 'bn' ? 'ছবি প্রসেস হচ্ছে...' : 'Processing Photo...') 
+                          : (language === 'bn' ? 'মোবাইল / গ্যালারি থেকে নতুন ছবি যুক্ত করুন' : 'Upload Photos from Device / Gallery')}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        disabled={isUploadingEditImage}
+                        onChange={handleEditImageFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[10px] text-slate-400 mt-1 text-center sm:text-left">
+                      {language === 'bn' ? '✓ যেকোনো সাইজের ছবি অটো অপ্টিমাইজ হয়ে যাবে' : '✓ Auto-compressed & optimized for high-speed loading'}
+                    </p>
+                  </div>
+
+                  {/* Add URL Input */}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="url"
+                      placeholder={language === 'bn' ? 'ইমেজ লিঙ্ক/URL পেস্ট করুন...' : 'Paste image URL here...'}
+                      value={editAddImageUrlInput}
+                      onChange={(e) => setEditAddImageUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddEditImageUrl();
+                        }
+                      }}
+                      className="flex-1 px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddEditImageUrl}
+                      disabled={!editAddImageUrlInput.trim()}
+                      className="px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional Preset Image Picker */}
+                {showEditPresetImages && (
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                      {language === 'bn' ? '১-ক্লিক করে ক্যাটাগরি ছবি যুক্ত করুন:' : 'Click to add preset catalog image:'}
+                    </p>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {(PRESETS_BY_CAT[editCategoryId] || PRESETS_BY_CAT['cat-2'] || []).map((preset, pIdx) => (
+                        <div
+                          key={pIdx}
+                          onClick={() => {
+                            setEditImageUrls(prev => [...prev.filter(Boolean), preset.url].slice(0, 10));
+                            playSystemSound('add');
+                          }}
+                          className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-amber-500 transition"
+                        >
+                          <img src={preset.url} alt={preset.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-200" referrerPolicy="no-referrer" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                            <Plus className="w-5 h-5 text-white font-bold" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Visual Image Grid with Management Controls */}
+                <div className="space-y-2">
+                  <div className="text-[11px] text-slate-400 font-semibold flex items-center justify-between">
+                    <span>{language === 'bn' ? 'বর্তমান ছবিসমূহ (ছবিতে ক্লিক করে প্রধান ছবি নির্ধারণ করুন):' : 'Current Photos (First photo is Primary/Main image):'}</span>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400">★ = {language === 'bn' ? 'প্রধান ছবি' : 'Primary Image'}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {editImageUrls.map((url, index) => (
+                      <div
+                        key={index}
+                        className={`relative rounded-xl overflow-hidden border-2 transition ${
+                          index === 0 
+                            ? 'border-amber-500 bg-amber-500/5 shadow-sm' 
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                        }`}
+                      >
+                        {/* Image Preview */}
+                        <div className="aspect-square w-full relative bg-slate-100 dark:bg-slate-800">
+                          {url ? (
+                            <img src={url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ImageIcon className="w-8 h-8 opacity-40" />
+                            </div>
+                          )}
+
+                          {/* Primary Badge */}
+                          {index === 0 && (
+                            <div className="absolute top-2 left-2 bg-amber-500 text-slate-950 px-2 py-0.5 rounded-md text-[10px] font-black shadow-xs flex items-center space-x-1">
+                              <Star className="w-3 h-3 fill-slate-950 text-slate-950" />
+                              <span>{language === 'bn' ? 'প্রধান ছবি' : 'Main'}</span>
+                            </div>
+                          )}
+
+                          {/* Delete Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditImage(index)}
+                            className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-lg transition cursor-pointer"
+                            title={language === 'bn' ? 'ছবি মুছুন' : 'Remove photo'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Card Controls */}
+                        <div className="p-2 space-y-1.5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                          {index !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimaryImage(index)}
+                              className="w-full py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-700 hover:text-slate-950 dark:text-amber-400 dark:hover:text-slate-950 font-bold text-[10px] rounded-lg transition flex items-center justify-center space-x-1 cursor-pointer"
+                            >
+                              <Star className="w-3 h-3" />
+                              <span>{language === 'bn' ? 'প্রধান ছবি করুন' : 'Make Main'}</span>
+                            </button>
+                          )}
+
+                          <div className="flex items-center space-x-1">
+                            {/* Replace Specific Photo Input */}
+                            <label className="flex-1 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] rounded-lg transition text-center cursor-pointer flex items-center justify-center space-x-1">
+                              <Camera className="w-3 h-3" />
+                              <span>{language === 'bn' ? 'পরিবর্তন' : 'Replace'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleEditReplaceImageFile(index, e)}
+                                className="hidden"
+                              />
+                            </label>
+
+                            {/* Move Left */}
+                            {index > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleMoveImage(index, index - 1)}
+                                className="p-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition cursor-pointer"
+                                title="Move Left"
+                              >
+                                <ArrowUp className="w-3 h-3 -rotate-90" />
+                              </button>
+                            )}
+
+                            {/* Move Right */}
+                            {index < editImageUrls.length - 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleMoveImage(index, index + 1)}
+                                className="p-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition cursor-pointer"
+                                title="Move Right"
+                              >
+                                <ArrowDown className="w-3 h-3 -rotate-90" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: BASIC PRODUCT INFO */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Tag className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                    {language === 'bn' ? '২. পণ্যের মৌলিক তথ্য' : '2. BASIC PRODUCT DETAILS'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'পণ্যের নাম (English) *' : 'Product Title (English) *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="e.g. Premium Cotton Shirt"
+                      className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'পণ্যের নাম (বাংলা) *' : 'Product Title (Bangla) *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editTitleBn}
+                      onChange={(e) => setEditTitleBn(e.target.value)}
+                      placeholder="যেমন: প্রিমিয়াম কটন শার্ট"
+                      className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ব্র্যান্ড / প্রস্তুতকারক' : 'Brand Name'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editBrand}
+                      onChange={(e) => setEditBrand(e.target.value)}
+                      placeholder="e.g. Apex, Samsung, Local BD"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ক্যাটাগরি নির্বাচন' : 'Category'}
+                    </label>
+                    <select
+                      value={editCategoryId}
+                      onChange={(e) => setEditCategoryId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-semibold"
+                    >
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {language === 'bn' ? c.nameBn : c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'এসকেইউ কোড (SKU)' : 'SKU Identifier'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editSku}
+                      onChange={(e) => setEditSku(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: PRICING, DISCOUNTS & INVENTORY */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                    {language === 'bn' ? '৩. মূল্য, ডিসকাউন্ট ও স্টক' : '3. PRICING, DISCOUNT & STOCK'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 flex items-center">
+                      <DollarSign className="w-3.5 h-3.5 text-amber-500 mr-0.5" />
+                      {language === 'bn' ? 'নিয়মিত মূল্য (৳) *' : 'Regular Price (৳) *'}
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 flex items-center">
+                      <Tag className="w-3.5 h-3.5 text-emerald-500 mr-0.5" />
+                      {language === 'bn' ? 'অফার / ছাড় মূল্য (৳)' : 'Discount Price (৳)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={editDiscount || ''}
+                      onChange={(e) => setEditDiscount(e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder={language === 'bn' ? 'কোন ছাড় না থাকলে খালি রাখুন' : 'Leave blank if no discount'}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 flex items-center">
+                      <Package className="w-3.5 h-3.5 text-blue-500 mr-0.5" />
+                      {language === 'bn' ? 'মজুদ স্টক সংখ্যা *' : 'Available Stock Units *'}
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editStock}
+                      onChange={(e) => setEditStock(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Featured & Flash deal toggles */}
+                <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsFeatured}
+                      onChange={(e) => setEditIsFeatured(e.target.checked)}
+                      className="w-4 h-4 text-amber-500 rounded-sm focus:ring-amber-400"
+                    />
+                    <span>⭐ {language === 'bn' ? 'হোমপেজে ফিচার্ড পণ্য হিসেবে দেখান' : 'Highlight as Featured Product'}</span>
                   </label>
+
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsFlashDeal}
+                      onChange={(e) => setEditIsFlashDeal(e.target.checked)}
+                      className="w-4 h-4 text-rose-500 rounded-sm focus:ring-rose-400"
+                    />
+                    <span>🔥 {language === 'bn' ? 'ফ্ল্যাশ সেল অফারে অন্তর্ভুক্ত করুন' : 'Include in Flash Deals'}</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* SECTION 4: DELIVERY & POLICIES */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Truck className="w-4 h-4 text-purple-500" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                    {language === 'bn' ? '৪. ডেলিভারি ও পলিসি কনফিগারেশন' : '4. DELIVERY, SHIPPING & GUARANTEE'}
+                  </span>
+                </div>
+
+                {/* Delivery Times & Quick Pills */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                    {language === 'bn' ? 'প্রত্যাশিত ডেলিভারি সময়' : 'Estimated Delivery Time'}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deliveryTimePresets.map((preset, prIdx) => (
+                      <button
+                        key={prIdx}
+                        type="button"
+                        onClick={() => setEditDeliveryTime(preset)}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                          editDeliveryTime === preset
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="text"
-                    value={editWarranty}
-                    onChange={(e) => setEditWarranty(e.target.value)}
+                    value={editDeliveryTime}
+                    onChange={(e) => setEditDeliveryTime(e.target.value)}
+                    placeholder="যেমন: ২৪-৪৮ ঘণ্টার মধ্যে"
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
                   />
                 </div>
+
+                {/* Charges & Toggles */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ঢাকা সিটির ভেতরে ডেলিভারি চার্জ (৳)' : 'Inside Dhaka Delivery Fee (৳)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={editDeliveryChargeInside}
+                      onChange={(e) => setEditDeliveryChargeInside(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ঢাকার বাইরে ডেলিভারি চার্জ (৳)' : 'Outside Dhaka Delivery Fee (৳)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={editDeliveryChargeOutside}
+                      onChange={(e) => setEditDeliveryChargeOutside(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsFreeDelivery}
+                      onChange={(e) => setEditIsFreeDelivery(e.target.checked)}
+                      className="w-4 h-4 text-emerald-500 rounded-sm focus:ring-emerald-400"
+                    />
+                    <span>🎁 {language === 'bn' ? 'সম্পূর্ণ ফ্রি ডেলিভারি অফার' : 'Free Delivery Offer'}</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsCodAvailable}
+                      onChange={(e) => setEditIsCodAvailable(e.target.checked)}
+                      className="w-4 h-4 text-blue-500 rounded-sm focus:ring-blue-400"
+                    />
+                    <span>💵 {language === 'bn' ? 'ক্যাশ অন ডেলিভারি (COD)' : 'Cash on Delivery (COD)'}</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsExpressDelivery}
+                      onChange={(e) => setEditIsExpressDelivery(e.target.checked)}
+                      className="w-4 h-4 text-amber-500 rounded-sm focus:ring-amber-400"
+                    />
+                    <span>⚡ {language === 'bn' ? 'সুপার ফাস্ট এক্সপ্রেস ডেলিভারি' : 'Express Delivery'}</span>
+                  </label>
+                </div>
+
+                {/* Policies */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ওয়ারেন্টি ও গুণগত মান' : 'Warranty & Authenticity Guarantee'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editWarrantyPolicy}
+                      onChange={(e) => setEditWarrantyPolicy(e.target.value)}
+                      placeholder="১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'রিটার্ন ও রিপ্লেসমেন্ট পলিসি' : 'Return & Refund Policy'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editReturnPolicy}
+                      onChange={(e) => setEditReturnPolicy(e.target.value)}
+                      placeholder="৭ দিনের ইজি রিটার্ন ও রিফান্ড সুবিধা"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Row 3: Regular Price, Discount Price, Stock Count */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-150 dark:border-slate-750">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400 flex items-center">
-                    <DollarSign className="w-3.5 h-3.5 text-amber-500 mr-0.5" />
-                    {language === 'bn' ? 'নিয়মিত মূল্য (৳) *' : 'Regular Price (৳) *'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400 flex items-center">
-                    <Tag className="w-3.5 h-3.5 text-emerald-500 mr-0.5" />
-                    {language === 'bn' ? 'অফার মূল্য (৳ - ঐচ্ছিক)' : 'Discount Price (৳ - Optional)'}
-                  </label>
-                  <input
-                    type="number"
-                    value={editDiscount || ''}
-                    onChange={(e) => setEditDiscount(e.target.value ? Number(e.target.value) : undefined)}
-                    placeholder="No discount"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400 flex items-center">
-                    <Package className="w-3.5 h-3.5 text-blue-500 mr-0.5" />
-                    {language === 'bn' ? 'স্টক পরিমাণ *' : 'Stock Quantity *'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={editStock}
-                    onChange={(e) => setEditStock(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: Descriptions (EN & BN) */}
-              <div className="space-y-4">
+              {/* SECTION 5: AI COPYWRITING & DETAILED DESCRIPTIONS */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'পণ্যের বিবরণসমূহ' : 'Product Descriptions'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                      {language === 'bn' ? '৫. পণ্যের বিবরণ ও এআই কপিরাইটার' : '5. DESCRIPTIONS & AI COPYWRITER'}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     disabled={isGeneratingEditAiDesc}
                     onClick={() => handleAiCopywrite(true)}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[10px] rounded-lg shadow-xs flex items-center space-x-1 transition cursor-pointer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold text-[11px] rounded-xl shadow-xs flex items-center space-x-1.5 transition cursor-pointer"
                   >
-                    <Sparkles className={`w-3 h-3 text-amber-300 ${isGeneratingEditAiDesc ? 'animate-spin' : ''}`} />
+                    <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isGeneratingEditAiDesc ? 'animate-spin' : ''}`} />
                     <span>
                       {isGeneratingEditAiDesc 
-                        ? (language === 'bn' ? 'এআই জেনারেট হচ্ছে...' : 'AI Generating...') 
+                        ? (language === 'bn' ? 'এআই লিখছে...' : 'AI Generating...') 
                         : (language === 'bn' ? 'এআই অটো-রাইট' : 'AI Auto-Write')}
                     </span>
                   </button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'পণ্যের বিবরণ (English)' : 'Product Description (English)'}
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 leading-relaxed"
-                  />
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'পণ্যের বিবরণ (বাংলা)' : 'Product Description (Bangla)'}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={editDescriptionBn}
+                      onChange={(e) => setEditDescriptionBn(e.target.value)}
+                      placeholder="পণ্যের গুণাগুণ ও বিশেষ বৈশিষ্ট্যসমূহ লিখুন..."
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 leading-relaxed"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'পণ্যের বিবরণ (English)' : 'Product Description (English)'}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Write detailed product features and specifications..."
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 leading-relaxed"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400">
-                    {language === 'bn' ? 'পণ্যের বিবরণ (বাংলা)' : 'Product Description (Bangla)'}
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={editDescriptionBn}
-                    onChange={(e) => setEditDescriptionBn(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 leading-relaxed"
-                  />
+
+                {/* Tags & Video URL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'সার্চ ট্যাগ / কীওয়ার্ড (কমা দিয়ে লিখুন)' : 'Search Tags & Keywords'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editTags}
+                      onChange={(e) => setEditTags(e.target.value)}
+                      placeholder="e.g. shirt, organic, honey, discount"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'ইউটিউব / ভিডিও লিঙ্ক (ঐচ্ছিক)' : 'Product Video Link (Optional)'}
+                    </label>
+                    <input
+                      type="url"
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      placeholder="https://youtube.com/watch?v=..."
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Row 5: Image URLs & Previews */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-extrabold uppercase text-slate-400 flex items-center">
-                  <ImageIcon className="w-3.5 h-3.5 text-purple-500 mr-1" />
-                  {language === 'bn' ? 'পণ্যের ছবিসমূহ (৪টি ইউআরএল পর্যন্ত)' : 'Product Image Gallery (Up to 4 URLs)'}
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {editImageUrls.map((url, index) => (
-                    <div key={index} className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700">
-                        {url.trim() ? (
-                          <img src={url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <ImageIcon className="w-4 h-4" />
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        placeholder={`Image URL #${index + 1}`}
-                        value={url}
-                        onChange={(e) => {
-                          const updated = [...editImageUrls];
-                          updated[index] = e.target.value;
-                          setEditImageUrls(updated);
-                        }}
-                        className="w-full bg-transparent border-none text-[10px] focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Row 6: Custom Specifications Section */}
-              <div className="space-y-2 border-t border-slate-150 dark:border-slate-750 pt-4">
+              {/* SECTION 6: CUSTOM SPECIFICATIONS MATRIX */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">
-                    {language === 'bn' ? 'কাস্টম স্পেসিফিকেশন (বৈশিষ্ট্যসমূহ)' : 'Custom Specifications Matrix'}
-                  </h4>
+                  <div className="flex items-center space-x-2">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                      {language === 'bn' ? '৬. কাস্টম বৈশিষ্ট্য ও স্পেসিফিকেশন' : '6. CUSTOM SPECIFICATIONS MATRIX'}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setEditCustomSpecs([...editCustomSpecs, { label: '', labelBn: '', value: '', valueBn: '' }])}
-                    className="text-xs text-amber-500 hover:text-amber-600 font-bold flex items-center space-x-1"
+                    className="text-xs text-amber-500 hover:text-amber-600 font-bold flex items-center space-x-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>{language === 'bn' ? 'নতুন বৈশিষ্ট্য যোগ করুন' : 'Add Metric'}</span>
@@ -3588,66 +4179,66 @@ export const InventoryWorkspace: React.FC = () => {
                 </div>
                 
                 {editCustomSpecs.length === 0 ? (
-                  <p className="text-[10px] text-slate-400 italic">
-                    {language === 'bn' ? 'কোন স্পেসিফিকেশন যোগ করা হয়নি।' : 'No custom specifications added yet.'}
+                  <p className="text-[11px] text-slate-400 italic">
+                    {language === 'bn' ? 'কোন অতিরিক্ত স্পেসিফিকেশন যোগ করা হয়নি।' : 'No custom specifications added yet.'}
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {editCustomSpecs.map((spec, sIdx) => (
-                      <div key={sIdx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-150 dark:border-slate-750">
+                      <div key={sIdx} className="grid grid-cols-12 gap-2 items-center bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
                         <div className="col-span-5 space-y-1">
                           <input
                             type="text"
-                            placeholder={language === 'bn' ? 'বৈশিষ্ট্য (English)' : 'Metric (EN)'}
+                            placeholder={language === 'bn' ? 'বৈশিষ্ট্যের নাম (English)' : 'Metric (EN)'}
                             value={spec.label}
                             onChange={(e) => {
                               const updated = [...editCustomSpecs];
                               updated[sIdx].label = e.target.value;
                               setEditCustomSpecs(updated);
                             }}
-                            className="w-full px-2 py-1 text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            className="w-full px-2 py-1 text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
                           />
                           <input
                             type="text"
-                            placeholder={language === 'bn' ? 'বৈশিষ্ট্য (বাংলা)' : 'Metric (BN)'}
+                            placeholder={language === 'bn' ? 'বৈশিষ্ট্যের নাম (বাংলা)' : 'Metric (BN)'}
                             value={spec.labelBn || ''}
                             onChange={(e) => {
                               const updated = [...editCustomSpecs];
                               updated[sIdx].labelBn = e.target.value;
                               setEditCustomSpecs(updated);
                             }}
-                            className="w-full px-2 py-1 text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            className="w-full px-2 py-1 text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
                           />
                         </div>
                         <div className="col-span-5 space-y-1">
                           <input
                             type="text"
-                            placeholder={language === 'bn' ? 'মান (English)' : 'Value (EN)'}
+                            placeholder={language === 'bn' ? 'মান / তথ্য (English)' : 'Value (EN)'}
                             value={spec.value}
                             onChange={(e) => {
                               const updated = [...editCustomSpecs];
                               updated[sIdx].value = e.target.value;
                               setEditCustomSpecs(updated);
                             }}
-                            className="w-full px-2 py-1 text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            className="w-full px-2 py-1 text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
                           />
                           <input
                             type="text"
-                            placeholder={language === 'bn' ? 'মান (বাংলা)' : 'Value (BN)'}
+                            placeholder={language === 'bn' ? 'মান / তথ্য (বাংলা)' : 'Value (BN)'}
                             value={spec.valueBn || ''}
                             onChange={(e) => {
                               const updated = [...editCustomSpecs];
                               updated[sIdx].valueBn = e.target.value;
                               setEditCustomSpecs(updated);
                             }}
-                            className="w-full px-2 py-1 text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            className="w-full px-2 py-1 text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
                           />
                         </div>
                         <div className="col-span-2 text-center">
                           <button
                             type="button"
                             onClick={() => setEditCustomSpecs(editCustomSpecs.filter((_, i) => i !== sIdx))}
-                            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition inline-block border border-transparent hover:border-red-200"
+                            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition inline-block border border-transparent hover:border-red-200 cursor-pointer"
                             title="Remove specification"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3661,26 +4252,26 @@ export const InventoryWorkspace: React.FC = () => {
 
             </form>
 
-            {/* Modal Footer Controls */}
-            <div className="p-5 border-t border-slate-100 dark:border-slate-750 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-end space-x-3">
+            {/* Modal Sticky Footer Controls */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 flex items-center justify-end space-x-3 sticky bottom-0 z-10 backdrop-blur-sm">
               <button
                 type="button"
                 onClick={() => {
                   setIsEditModalOpen(false);
                   setEditingProduct(null);
                 }}
-                className="px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                className="px-4 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               >
                 {language === 'bn' ? 'বাতিল করুন' : 'Cancel'}
               </button>
               <button
                 type="button"
-                onClick={handleSaveFullEdit}
-                className="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl shadow-md transition cursor-pointer flex items-center space-x-1.5"
+                onClick={() => handleSaveFullEdit()}
+                className="px-6 py-2.5 text-xs font-black bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 rounded-xl shadow-md transition cursor-pointer flex items-center space-x-2"
               >
                 <Save className="w-4 h-4" />
                 <span>
-                  {language === 'bn' ? 'আপডেট সংরক্ষণ করুন' : 'Save Changes'}
+                  {language === 'bn' ? 'সব তথ্য ও ছবি সংরক্ষণ করুন' : 'Save All Changes'}
                 </span>
               </button>
             </div>

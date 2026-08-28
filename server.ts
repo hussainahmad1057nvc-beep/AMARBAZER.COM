@@ -2062,6 +2062,60 @@ Do not wrap your response in markdown formatting or write "json" or backticks, j
     }
   });
 
+  // XML Sitemap for Instant Search Engine (Google, Bing) Indexing
+  app.get('/sitemap.xml', (req, res) => {
+    res.setHeader('Content-Type', 'application/xml');
+    const baseUrl = req.protocol + '://' + (req.get('host') || 'amarbazar.com.bd');
+    const now = new Date().toISOString().split('T')[0];
+
+    const categoryUrls = (db.categories || []).map(cat => `
+  <url>
+    <loc>${baseUrl}/?category=${cat.id}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`).join('');
+
+    const productUrls = (db.products || []).filter(p => !db.deletedProductIds?.includes(p.id)).slice(0, 500).map(prod => `
+  <url>
+    <loc>${baseUrl}/?product=${prod.id}</loc>
+    <lastmod>${prod.createdAt ? prod.createdAt.split('T')[0] : now}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`).join('');
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>always</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/?panel=store_directory</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/?panel=seller_register</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>${categoryUrls}${productUrls}
+</urlset>`;
+
+    res.send(sitemap);
+  });
+
+  // Robots.txt Route
+  app.get('/robots.txt', (req, res) => {
+    res.setHeader('Content-Type', 'text/plain');
+    const baseUrl = req.protocol + '://' + (req.get('host') || 'amarbazar.com.bd');
+    res.send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`);
+  });
+
   // VITE MIDDLEWARE SETUP FOR DEV & PRODUCTION
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -1,6 +1,6 @@
 {
-  "name": "Remix AmarBazar BD - Digital Marketplace",
-  "description": "Comprehensive Bangladeshi Digital Marketplace featuring Customer, Seller, and Admin panels, bKash/Nagad/Rocket payment simulation, courier tracking, Bangla/English bilingual support, and real-time inventory management.",
+  "name": "AmarBazar BD | বাংলাদেশের সেরা অনলাইন শপিং মার্কেটপ্লেস ও ই-কমার্স প্ল্যাটফর্ম",
+  "description": "AmarBazar BD - বাংলাদেশের দ্রুততম অনলাইন শপিং মার্কেটপ্লেস। ফ্যাশন, ইলেকট্রনিক্স, অর্গানিক ফুড, গ্যাজেটস কিনুন পাইকারি ও খুচরা মূল্যে। বিকাশ/নগদে ক্যাশ অন ডেলিভারি এবং দ্রুত হোম ডেলিভারি।",
   "requestFramePermissions": [
     "camera",
     "microphone"

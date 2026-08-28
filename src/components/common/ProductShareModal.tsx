@@ -588,6 +588,28 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
                     </span>
                   </button>
 
+                  {/* TikTok / Video Bio */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (navigator.clipboard) {
+                          await navigator.clipboard.writeText(shareText);
+                          showToast(language === 'bn' ? 'পণ্যের লিংক ও ক্যাপশন কপি হয়েছে! টিকটক বায়ো/ভিডিওতে দিন।' : 'Product link & bio copied! Paste in TikTok.');
+                        }
+                      } catch (e) {}
+                      window.open('https://www.tiktok.com', '_blank', 'noopener,noreferrer');
+                    }}
+                    className="p-3 bg-black/10 hover:bg-black text-black hover:text-white dark:bg-slate-800 dark:text-white border border-black/20 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer group shadow-xs hover:scale-102 active:scale-98"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <span className="font-black text-xs font-sans">🎵</span>
+                    </div>
+                    <span className="text-xs font-black">TikTok</span>
+                    <span className="text-[9px] opacity-75 font-medium group-hover:text-white">
+                      {language === 'bn' ? 'বায়ো ও কমেন্ট' : 'Bio & Comments'}
+                    </span>
+                  </button>
+
                   {/* Telegram */}
                   <button
                     onClick={handleShareTelegram}

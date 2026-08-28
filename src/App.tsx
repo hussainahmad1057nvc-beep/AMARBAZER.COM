@@ -37,6 +37,7 @@ import { backNavigationManager } from './services/backNavigationManager';
 
 function MainLayout() {
   const { 
+    products,
     activePanel, setActivePanel, selectedProduct, setSelectedProduct, 
     sharingProduct, setSharingProduct,
     cart, addToCart, isCustomerOnlyMode, currentUser, isAuthOpen, setIsAuthOpen, 
@@ -126,6 +127,53 @@ function MainLayout() {
     activePanel: 'customer',
     isMobileChatActive: false
   });
+
+  // Direct Social Share / Google Search Landing URL Parser
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // 1. Direct Product ID Deep Link (e.g., /?product=prod-1 or /?p=prod-1)
+      const targetProductId = urlParams.get('product') || urlParams.get('p') || urlParams.get('productId');
+      if (targetProductId && products.length > 0) {
+        const found = products.find(p => p.id === targetProductId || p.slug === targetProductId);
+        if (found) {
+          setSelectedProduct(found);
+          setActivePanel('customer');
+        }
+      }
+
+      // 2. Direct Category Link (e.g., /?category=cat-1)
+      const targetCatId = urlParams.get('category') || urlParams.get('cat');
+      if (targetCatId) {
+        setSelectedCategory(targetCatId);
+        setActivePanel('customer');
+      }
+
+      // 3. Direct Search Keyword Link (e.g., /?search=saree)
+      const targetSearch = urlParams.get('search') || urlParams.get('q');
+      if (targetSearch) {
+        setSearchQuery(targetSearch);
+        setActivePanel('customer');
+      }
+
+      // 4. Direct Specific Panel (e.g., /?panel=store_directory or /?panel=seller)
+      const targetPanel = urlParams.get('panel');
+      if (targetPanel && ['customer', 'seller', 'admin', 'settings', 'dashboard_home', 'store_directory', 'inventory_workspace', 'product_reviews', 'customer_messages', 'register_vendor', 'customer_profile', 'outlets'].includes(targetPanel)) {
+        setActivePanel(targetPanel as any);
+      }
+
+      // 5. Direct Order Tracking Link (e.g., /?track=BD-2026-8912)
+      const targetTrackId = urlParams.get('track') || urlParams.get('order');
+      if (targetTrackId) {
+        setTrackingOrderId(targetTrackId);
+      }
+    } catch (err) {
+      console.log('URL deep-link parsing notice:', err);
+    }
+  }, [products]);
 
   useEffect(() => {
     const prev = prevStatesRef.current;
