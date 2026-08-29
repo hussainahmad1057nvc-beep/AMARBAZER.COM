@@ -583,7 +583,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<string[]>(['prod-102']);
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: 'n1',

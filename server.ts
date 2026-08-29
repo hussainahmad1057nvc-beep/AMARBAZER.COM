@@ -183,81 +183,8 @@ function saveDb() {
 
 loadDb();
 
-// Ensure we have some unapproved products for testing product approvals
-if (!db.products.some(p => p.isApproved === false)) {
-  const mockPendingProducts: Product[] = [
-    {
-      id: 'pending-1',
-      title: 'Organic Kashmiri Saffron (Premium Quality)',
-      titleBn: 'অর্গানিক কাশ্মীরি জাফরান (প্রিমিয়াম কোয়ালিটি)',
-      slug: 'organic-kashmiri-saffron',
-      description: 'Pure organic Kashmiri Saffron hand-picked from the fields of Pampore. Certified 100% pure and organic.',
-      price: 1250,
-      categoryId: 'cat-1',
-      categoryName: 'Groceries',
-      brand: 'Kashmir Organic',
-      sellerId: 'usr-seller-1',
-      sellerName: 'Dhaka Tech Store',
-      stock: 50,
-      sku: 'SAF-KASH-12',
-      images: ['https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80'],
-      rating: 4.8,
-      reviewCount: 5,
-      tags: ['grocery', 'saffron', 'organic', 'spice'],
-      isApproved: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'pending-2',
-      title: 'Military Tactical Spring Folding Knife (Self Defense)',
-      titleBn: 'মিলিটারি ট্যাকটিক্যাল স্প্রিং ফোল্ডিং ছুরি (সেলফ ডিফেন্স)',
-      slug: 'military-tactical-folding-knife',
-      description: 'Sharp tactical spring steel pocket knife with seatbelt cutter and glass breaker. For combat, tactical training and self defense. WARNING: Dangerous weapon.',
-      price: 850,
-      categoryId: 'cat-2',
-      categoryName: 'Gadgets',
-      brand: 'TacticalBD',
-      sellerId: 'usr-seller-2',
-      sellerName: 'Chittagong Mart',
-      stock: 15,
-      sku: 'TACT-KNIFE-99',
-      images: ['https://images.unsplash.com/photo-1594142426830-580004944b20?auto=format&fit=crop&w=600&q=80'],
-      rating: 4.5,
-      reviewCount: 12,
-      tags: ['knife', 'weapon', 'self-defense', 'tactical'],
-      isApproved: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'pending-3',
-      title: 'Wireless Bluetooth Neckband Headset (Deep Bass)',
-      titleBn: 'ওয়ারলেস ব্লুটুথ নেকব্যান্ড হেডসেট (ডিপ বেস)',
-      slug: 'wireless-bluetooth-neckband-headset',
-      description: 'Ergonomic neckband with Bluetooth 5.2, active noise cancellation, and up to 20 hours of continuous music playback with deep bass.',
-      price: 1450,
-      categoryId: 'cat-2',
-      categoryName: 'Gadgets',
-      brand: 'SoundBeat',
-      sellerId: 'usr-seller-1',
-      sellerName: 'Dhaka Tech Store',
-      stock: 120,
-      sku: 'BT-NECK-88',
-      images: ['https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&w=600&q=80'],
-      rating: 4.9,
-      reviewCount: 22,
-      tags: ['gadget', 'audio', 'headphone', 'wireless'],
-      isApproved: false,
-      createdAt: new Date().toISOString()
-    }
-  ];
-  const existingProductIds = new Set(db.products.map(p => p.id));
-  const deletedSet = new Set(db.deletedProductIds || []);
-  const newPending = mockPendingProducts.filter(p => !existingProductIds.has(p.id) && !deletedSet.has(p.id));
-  if (newPending.length > 0) {
-    db.products = [...newPending, ...db.products];
-    saveDb();
-  }
-}
+// Fresh store initialization
+
 
 // Firebase Cloud Configuration
 const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'amarbazer-519c5';

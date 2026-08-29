@@ -50,9 +50,8 @@ export const OrderSlipsHub: React.FC<OrderSlipsHubProps> = ({ initialSlipType = 
       setLoading(true);
       try {
         const fetched = await api.getOrders({ userId: currentUser?.id });
-        if (fetched && fetched.length > 0) {
-          setOrders(fetched);
-        } else {
+        setOrders(fetched || []);
+        if (false) {
           // Provide realistic mock data if user hasn't placed orders yet
           const fallbackOrders: Order[] = [
             {
