@@ -348,14 +348,9 @@ export const StoreDirectory: React.FC = () => {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) {
-      alert(language === 'bn' ? 'দয়া করে প্রোডাক্টের নাম লিখুন!' : 'Please specify product name!');
-      return;
-    }
-    if (!price || Number(price) <= 0) {
-      alert(language === 'bn' ? 'দয়া করে সঠিক মূল্য নির্ধারণ করুন!' : 'Please specify a valid price!');
-      return;
-    }
+    const finalTitle = title.trim() || titleBn.trim() || 'New Store Product';
+    const finalTitleBn = titleBn.trim() || title.trim() || 'নতুন স্টোর পণ্য';
+    const finalPrice = Number(price) > 0 ? Number(price) : 100;
 
     try {
       setSubmitting(true);
@@ -373,9 +368,9 @@ export const StoreDirectory: React.FC = () => {
       }
 
       const payload = {
-        title: title,
-        titleBn: titleBn || title,
-        price: Number(price),
+        title: finalTitle,
+        titleBn: finalTitleBn,
+        price: finalPrice,
         discountPrice: discountPrice ? Number(discountPrice) : undefined,
         stock: Number(stock) || 50,
         categoryId: selectedCatId,

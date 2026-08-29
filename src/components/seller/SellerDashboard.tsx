@@ -687,10 +687,16 @@ export const SellerDashboard: React.FC = () => {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newPrice) {
-      alert(language === 'bn' ? 'অনুগ্রহ করে পণ্যের নাম এবং মূল্য লিখুন!' : 'Please enter product title and price!');
-      return;
-    }
+
+    // Smart defaults for any fields that are skipped or left empty
+    const title = newTitle.trim() || newTitleBn.trim() || 'New Bangladeshi Product';
+    const titleBn = newTitleBn.trim() || newTitle.trim() || 'নতুন পণ্য';
+    const price = Number(newPrice) > 0 ? Number(newPrice) : 100;
+    const discount = newDiscount ? Number(newDiscount) : undefined;
+    const stock = Number(newStock) > 0 ? Number(newStock) : 20;
+    const brand = newBrand.trim() || 'Official BD';
+    const desc = newDesc.trim() || 'High quality product from verified seller. Details can be updated anytime.';
+    const img = newImage.trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
 
     const currentStore = storeInfo || {
       id: `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`,
@@ -703,19 +709,20 @@ export const SellerDashboard: React.FC = () => {
 
     try {
       const created = await appCreateProduct({
-        title: newTitle.trim(),
-        titleBn: newTitleBn.trim() || newTitle.trim(),
-        price: Number(newPrice),
-        discountPrice: newDiscount ? Number(newDiscount) : undefined,
-        stock: Number(newStock) || 20,
+        title,
+        titleBn,
+        price,
+        discountPrice: discount,
+        stock,
         categoryId: targetCatId,
         categoryName: targetCat?.name || 'General',
-        brand: newBrand || 'Official BD',
-        description: newDesc || 'High quality product from verified seller.',
+        brand,
+        description: desc,
+        descriptionBn: desc,
         sellerId: currentStore.id,
         sellerName: currentStore.storeName || 'Dhaka Tech Store',
-        images: [newImage || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'],
-        warranty: newWarranty,
+        images: [img],
+        warranty: newWarranty || 'No Warranty',
         isCombo: isNewCombo,
         comboItems: isNewCombo ? newComboItems : [],
         variants: newVariants.map((v, idx) => ({ id: `v-${Date.now()}-${idx}`, name: v.name, options: v.options })),
@@ -748,7 +755,9 @@ export const SellerDashboard: React.FC = () => {
       setIsNewCombo(false);
       setNewComboItems([]);
 
-      alert(language === 'bn' ? 'পণ্যটি সফলভাবে যোগ এবং পাবলিশ করা হয়েছে!' : 'Product added & published successfully!');
+      alert(language === 'bn' 
+        ? 'পণ্যটি সফলভাবে যোগ ও পাবলিশ করা হয়েছে! আপনি পরবর্তীতে যেকোনো সময় এর তথ্য ও ছবি এডিট করতে পারবেন।' 
+        : 'Product added & published successfully! You can edit details anytime.');
       refreshProducts();
     } catch (err: any) {
       console.error('Failed to create product:', err);
@@ -795,26 +804,33 @@ export const SellerDashboard: React.FC = () => {
       alert(language === 'bn' ? 'দুঃখিত, আপনার পণ্য আপডেট করার পারমিশন নেই!' : 'Access Denied: You do not have permission to update products!');
       return;
     }
-    if (!editingProduct || !editTitle || !editPrice) return;
+    if (!editingProduct) return;
+
+    const title = editTitle.trim() || editTitleBn.trim() || editingProduct.title || 'Product';
+    const titleBn = editTitleBn.trim() || editTitle.trim() || editingProduct.titleBn || 'পণ্য';
+    const price = Number(editPrice) > 0 ? Number(editPrice) : editingProduct.price || 100;
+    const stock = Number(editStock) >= 0 ? Number(editStock) : (editingProduct.stock ?? 20);
+    const img = editImage.trim() || (editingProduct.images && editingProduct.images[0]) || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
 
     try {
       await appUpdateProduct(editingProduct.id, {
-        title: editTitle,
-        titleBn: editTitleBn || editTitle,
-        price: Number(editPrice),
+        title,
+        titleBn,
+        price,
         discountPrice: editDiscount ? Number(editDiscount) : undefined,
-        stock: Number(editStock),
-        categoryId: editCategory || categories[0]?.id,
-        categoryName: categories.find(c => c.id === editCategory)?.name || 'General',
-        brand: editBrand,
-        description: editDesc,
-        images: [editImage],
-        warranty: editWarranty,
+        stock,
+        categoryId: editCategory || editingProduct.categoryId || categories[0]?.id,
+        categoryName: categories.find(c => c.id === editCategory)?.name || editingProduct.categoryName || 'General',
+        brand: editBrand || editingProduct.brand || 'Official BD',
+        description: editDesc || editingProduct.description || 'Quality product',
+        images: [img],
+        warranty: editWarranty || editingProduct.warranty || 'No Warranty',
         isCombo: isEditCombo,
         comboItems: isEditCombo ? editComboItems : [],
         variants: editVariants,
         variantPrices: editVariantPrices,
         bulkOffers: editBulkOffers,
+        isApproved: true,
         customSpecs: [
           { label: 'Quality', labelBn: 'কোয়ালিটি', value: editQuality, valueBn: editQuality === 'Premium' ? 'প্রিমিয়াম' : editQuality === 'Standard' ? 'স্ট্যান্ডার্ড' : 'বাজেট' },
           { label: 'Unit', labelBn: 'একক', value: editUnit, valueBn: editUnit === 'Piece' ? 'টি' : editUnit === 'Kg' ? 'কেজি' : 'বক্স' }
@@ -3919,9 +3935,8 @@ export const SellerDashboard: React.FC = () => {
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Walton Smart Watch W1"
+                  placeholder="e.g. Walton Smart Watch W1 (Optional, can be added later)"
                   className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  required
                 />
               </div>
 
@@ -3931,7 +3946,7 @@ export const SellerDashboard: React.FC = () => {
                   type="text"
                   value={newTitleBn}
                   onChange={(e) => setNewTitleBn(e.target.value)}
-                  placeholder="e.g. ওয়ালটন স্মার্ট ওয়াচ ডব্লিউ ১"
+                  placeholder="e.g. ওয়ালটন স্মার্ট ওয়াচ ডব্লিউ ১ (ঐচ্ছিক)"
                   className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
                 />
               </div>
@@ -3943,9 +3958,8 @@ export const SellerDashboard: React.FC = () => {
                     type="number"
                     value={newPrice}
                     onChange={(e) => setNewPrice(e.target.value)}
-                    placeholder="2500"
+                    placeholder="2500 (ডিফল্ট ১০০৳)"
                     className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                    required
                   />
                 </div>
                 <div>
@@ -4239,7 +4253,6 @@ export const SellerDashboard: React.FC = () => {
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  required
                 />
               </div>
 
@@ -4261,7 +4274,6 @@ export const SellerDashboard: React.FC = () => {
                     value={editPrice}
                     onChange={(e) => setEditPrice(e.target.value)}
                     className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900 font-bold text-emerald-600"
-                    required
                   />
                 </div>
                 <div>

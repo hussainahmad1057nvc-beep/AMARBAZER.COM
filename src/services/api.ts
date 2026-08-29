@@ -447,27 +447,41 @@ export const api = {
     const newId = product.id || `prod-${Date.now()}`;
     unmarkProductDeleted(newId);
 
+    const titleText = (product.title && product.title.trim()) || (product.titleBn && product.titleBn.trim()) || 'New Product';
+    const titleBnText = (product.titleBn && product.titleBn.trim()) || (product.title && product.title.trim()) || 'নতুন পণ্য';
+    const priceNum = Number(product.price) > 0 ? Number(product.price) : 100;
+    const catId = product.categoryId || 'cat-1';
+    const defaultImg = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
+    
+    let validImages: string[] = [defaultImg];
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      const filtered = product.images.filter(img => Boolean(img && typeof img === 'string' && img.trim().length > 0));
+      if (filtered.length > 0) {
+        validImages = filtered;
+      }
+    }
+
     const newProd: Product = {
       id: newId,
-      title: product.title || 'New Product',
-      titleBn: product.titleBn || product.title || 'নতুন পণ্য',
-      slug: product.slug || ((product.title || 'prod').toLowerCase().replace(/\s+/g, '-')),
-      description: product.description || 'Quality product',
-      descriptionBn: product.descriptionBn || product.description || 'মানসম্মত পণ্য',
-      price: Number(product.price) || 100,
+      title: titleText,
+      titleBn: titleBnText,
+      slug: product.slug || (titleText.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `prod-${Date.now()}`),
+      description: product.description || 'Quality product from verified seller. You can update description anytime.',
+      descriptionBn: product.descriptionBn || product.description || 'মানসম্মত পণ্য। যেকোনো সময় বিবরণ আপডেট করা যাবে।',
+      price: priceNum,
       discountPrice: product.discountPrice ? Number(product.discountPrice) : undefined,
-      categoryId: product.categoryId || 'cat-1',
+      categoryId: catId,
       categoryName: product.categoryName || 'General',
       subCategory: product.subCategory,
-      brand: product.brand || 'AmarBazar',
+      brand: product.brand || 'Official BD',
       sellerId: product.sellerId || 'sel-1',
-      sellerName: product.sellerName || 'Dhaka Tech Store',
-      stock: product.stock !== undefined ? Number(product.stock) : 20,
+      sellerName: product.sellerName || 'Verified BD Store',
+      stock: product.stock !== undefined && !isNaN(Number(product.stock)) ? Number(product.stock) : 20,
       sku: product.sku || `SKU-${Date.now().toString().slice(-6)}`,
-      images: product.images && product.images.length > 0 ? product.images : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'],
+      images: validImages,
       rating: product.rating || 5.0,
       reviewCount: product.reviewCount || 0,
-      tags: product.tags || ['bangladesh', 'new'],
+      tags: Array.isArray(product.tags) && product.tags.length > 0 ? product.tags : ['bangladesh', 'new', 'store-listing'],
       isFeatured: product.isFeatured ?? true,
       isFlashDeal: Boolean(product.isFlashDeal),
       isCombo: Boolean(product.isCombo),
@@ -476,9 +490,9 @@ export const api = {
       variantPrices: product.variantPrices || {},
       bulkOffers: product.bulkOffers || [],
       customSpecs: product.customSpecs || [],
-      warranty: product.warranty,
+      warranty: product.warranty || 'No Warranty',
       warrantyPolicy: product.warrantyPolicy,
-      returnPolicy: product.returnPolicy,
+      returnPolicy: product.returnPolicy || '7 Days Return Policy',
       deliveryTime: product.deliveryTime || '2-3 Days',
       isFreeDelivery: Boolean(product.isFreeDelivery),
       deliveryChargeInside: product.deliveryChargeInside ?? 60,
@@ -487,6 +501,12 @@ export const api = {
       isExpressDelivery: Boolean(product.isExpressDelivery),
       createdAt: new Date().toISOString(),
       ...product,
+      // Ensure required properties aren't overridden by undefined values
+      id: newId,
+      title: titleText,
+      titleBn: titleBnText,
+      price: priceNum,
+      images: validImages,
       isApproved: true
     };
 

@@ -1155,13 +1155,8 @@ export const InventoryWorkspace: React.FC = () => {
   const handlePublishProduct = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
 
-    const rawTitle = builderTitle.trim() || builderTitleBn.trim();
-    const rawTitleBn = builderTitleBn.trim() || builderTitle.trim();
-
-    if (!rawTitle) {
-      alert(language === 'bn' ? 'অনুগ্রহ করে পণ্যের একটি নাম লিখুন।' : 'Please enter a product title.');
-      return;
-    }
+    const rawTitle = builderTitle.trim() || builderTitleBn.trim() || 'New Inventory Product';
+    const rawTitleBn = builderTitleBn.trim() || builderTitle.trim() || 'নতুন ইনভেন্টরি পণ্য';
 
     try {
       const selectedCategoryName = selectedCatId === 'custom'
