@@ -52,6 +52,32 @@ const STORAGE_KEY_ORDERS = 'amarbazar_orders_store';
 const STORAGE_KEY_CATEGORIES = 'amarbazar_categories_store';
 const STORAGE_KEY_SELLERS = 'amarbazar_sellers_store';
 
+// Auto-purge any stale mock products from legacy browser caches
+export function purgeLegacyMockData() {
+  if (typeof window === 'undefined') return;
+  try {
+    const versionKey = 'amarbazar_storage_cleanup_v6_clean';
+    const isCleaned = localStorage.getItem(versionKey);
+    if (!isCleaned) {
+      localStorage.removeItem(STORAGE_KEY_PRODUCTS);
+      localStorage.removeItem('amarbazar_products');
+      localStorage.removeItem('products');
+      localStorage.removeItem('market_campaigns');
+      localStorage.removeItem('cart');
+      localStorage.removeItem('wishlist');
+      localStorage.setItem(versionKey, 'true');
+    }
+  } catch (e) {}
+}
+
+// Run purge immediately
+purgeLegacyMockData();
+
+function isLegacyMockId(id?: string): boolean {
+  if (!id) return false;
+  return id.startsWith('prod-10') || id.startsWith('prod-11') || id.startsWith('prod-12') || id.startsWith('pending-');
+}
+
 export function getDeletedProductIds(): Set<string> {
   try {
     const parsed = safeStorage.getJSON<string[]>(STORAGE_KEY_DELETED_PRODUCTS, []);
@@ -135,15 +161,15 @@ function getLocalProducts(): Product[] {
   try {
     const parsed = safeStorage.getJSON<Product[]>(STORAGE_KEY_PRODUCTS, []);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.filter(p => !deletedSet.has(p.id));
+      return parsed.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
     }
   } catch (e) {}
-  return INITIAL_PRODUCTS.filter(p => !deletedSet.has(p.id));
+  return [];
 }
 
 function saveLocalProducts(products: Product[], notify = true) {
   const deletedSet = getDeletedProductIds();
-  const filtered = products.filter(p => !deletedSet.has(p.id));
+  const filtered = products.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
   try {
     safeStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
     if (notify && typeof window !== 'undefined') {
@@ -355,19 +381,14 @@ export const api = {
 
     let resultList: Product[];
     if (authoritativeProducts !== null) {
-      // Filter out any known deleted products
-      resultList = authoritativeProducts.filter(p => !deletedSet.has(p.id));
+      // Filter out any known deleted products or legacy mock IDs
+      resultList = authoritativeProducts.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
       if (!params || Object.keys(params).length === 0) {
         saveLocalProducts(resultList, false);
       }
     } else {
-      // Offline fallback: Use local storage cache excluding deleted items
-      const hasStoredKey = safeStorage.getItem(STORAGE_KEY_PRODUCTS) !== null;
-      let localList = getLocalProducts().filter(p => !deletedSet.has(p.id));
-      if (localList.length === 0 && deletedSet.size === 0 && !hasStoredKey) {
-        localList = INITIAL_PRODUCTS;
-        saveLocalProducts(INITIAL_PRODUCTS, false);
-      }
+      // Offline fallback: Use local storage cache excluding deleted items and legacy mock IDs
+      let localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
       resultList = localList;
     }
 
