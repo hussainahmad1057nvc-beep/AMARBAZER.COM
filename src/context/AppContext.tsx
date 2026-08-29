@@ -862,9 +862,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshProducts();
     });
 
-    // Seed Firestore with rich default data ONLY on brand-new empty setup
+    // Seed Firestore with necessary collections if empty (users/categories/sellers)
     firebaseDb.seedInitialDataIfEmpty({
-      products: INITIAL_PRODUCTS,
       categories: INITIAL_CATEGORIES,
       sellers: INITIAL_SELLERS,
       users: INITIAL_USERS,
