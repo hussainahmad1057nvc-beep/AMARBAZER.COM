@@ -5,7 +5,8 @@ import {
   FileText, CreditCard, Building, Upload, X, Sliders, Settings,
   Lock, RefreshCw, ArrowLeft, ArrowRight, ClipboardList, Cloud, Database, Wifi,
   ExternalLink, ShieldCheck, Zap, Check, HardDrive, FolderOpen, Flame,
-  Printer, Star, CheckCircle2, Download
+  Printer, Star, CheckCircle2, Download, Image as ImageIcon, Sparkles, Tag, 
+  Info, Layers, Camera, CheckCheck, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
@@ -89,8 +90,55 @@ export const SellerDashboard: React.FC = () => {
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
   const [slipFormat, setSlipFormat] = useState<'a4' | 'pos80'>('a4');
 
+  // Image compression utility
+  const compressAndReadImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        const img = new window.Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1200;
+            const MAX_HEIGHT = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height = Math.round((height * MAX_WIDTH) / width);
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width = Math.round((width * MAX_HEIGHT) / height);
+                height = MAX_HEIGHT;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(dataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            resolve(compressed);
+          } catch {
+            resolve(dataUrl);
+          }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   // New product form modal state
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isAddExpanded, setIsAddExpanded] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newTitleBn, setNewTitleBn] = useState('');
   const [newPrice, setNewPrice] = useState('');
@@ -100,6 +148,8 @@ export const SellerDashboard: React.FC = () => {
   const [newBrand, setNewBrand] = useState('Official BD');
   const [newDesc, setNewDesc] = useState('');
   const [newImage, setNewImage] = useState('https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80');
+  const [newImages, setNewImages] = useState<string[]>([]);
+  const [isUploadingNewImage, setIsUploadingNewImage] = useState(false);
 
   // Withdrawal modal state
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -128,6 +178,7 @@ export const SellerDashboard: React.FC = () => {
 
   // Edit product form modal state
   const [isEditProductOpen, setIsEditProductOpen] = useState(false);
+  const [editActiveTab, setEditActiveTab] = useState<'basic' | 'pricing' | 'images' | 'desc' | 'delivery' | 'variants'>('basic');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editTitleBn, setEditTitleBn] = useState('');
@@ -137,10 +188,28 @@ export const SellerDashboard: React.FC = () => {
   const [editCategory, setEditCategory] = useState('');
   const [editBrand, setEditBrand] = useState('Official BD');
   const [editDesc, setEditDesc] = useState('');
+  const [editDescBn, setEditDescBn] = useState('');
+  const [editSku, setEditSku] = useState('');
   const [editImage, setEditImage] = useState('');
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [editAddImageUrlInput, setEditAddImageUrlInput] = useState('');
+  const [isUploadingEditImage, setIsUploadingEditImage] = useState(false);
+  const [isGeneratingEditAiDesc, setIsGeneratingEditAiDesc] = useState(false);
   const [editQuality, setEditQuality] = useState('Premium'); // Premium, Standard, Normal, A-Grade, B-Grade
   const [editUnit, setEditUnit] = useState('Piece'); // Piece, Kg, Pack, Litre, Dozen
   const [editWarranty, setEditWarranty] = useState('No Warranty');
+
+  // Delivery & Guarantees (Edit Product)
+  const [editDeliveryTime, setEditDeliveryTime] = useState('২৪-৪৮ ঘণ্টার মধ্যে');
+  const [editIsFreeDelivery, setEditIsFreeDelivery] = useState(false);
+  const [editDeliveryChargeInside, setEditDeliveryChargeInside] = useState<number>(60);
+  const [editDeliveryChargeOutside, setEditDeliveryChargeOutside] = useState<number>(120);
+  const [editIsCodAvailable, setEditIsCodAvailable] = useState(true);
+  const [editReturnPolicy, setEditReturnPolicy] = useState('৭ দিনের ইজি রিটার্ন ও রিফান্ড সুবিধা');
+  const [editWarrantyPolicy, setEditWarrantyPolicy] = useState('১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা');
+  const [editCustomSpecs, setEditCustomSpecs] = useState<{ label: string; labelBn?: string; value: string; valueBn?: string }[]>([]);
+  const [newSpecLabel, setNewSpecLabel] = useState('');
+  const [newSpecValue, setNewSpecValue] = useState('');
 
   // Additional fields for Add product
   const [newQuality, setNewQuality] = useState('Premium');
@@ -695,8 +764,16 @@ export const SellerDashboard: React.FC = () => {
     const discount = newDiscount ? Number(newDiscount) : undefined;
     const stock = Number(newStock) > 0 ? Number(newStock) : 20;
     const brand = newBrand.trim() || 'Official BD';
-    const desc = newDesc.trim() || 'High quality product from verified seller. Details can be updated anytime.';
-    const img = newImage.trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
+    const desc = newDesc.trim() || 'উচ্চমানের মানসম্মত পণ্য। অর্ডার করুন দ্রুত ডেলিভারির সাথে।';
+    
+    // Pick first uploaded image or custom input or fallback
+    let allImgs = [...newImages.filter(im => im && im.trim() !== '')];
+    if (newImage.trim() && !allImgs.includes(newImage.trim())) {
+      allImgs.unshift(newImage.trim());
+    }
+    if (allImgs.length === 0) {
+      allImgs = ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'];
+    }
 
     const currentStore = storeInfo || {
       id: `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`,
@@ -721,7 +798,15 @@ export const SellerDashboard: React.FC = () => {
         descriptionBn: desc,
         sellerId: currentStore.id,
         sellerName: currentStore.storeName || 'Dhaka Tech Store',
-        images: [img],
+        images: allImgs,
+        sku: `SKU-${Date.now().toString().slice(-6)}`,
+        deliveryTime: '২৪-৪৮ ঘণ্টার মধ্যে',
+        isFreeDelivery: false,
+        deliveryChargeInside: 60,
+        deliveryChargeOutside: 120,
+        isCodAvailable: true,
+        returnPolicy: '৭ দিনের ইজি রিটার্ন ও রিফান্ড সুবিধা',
+        warrantyPolicy: '১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা',
         warranty: newWarranty || 'No Warranty',
         isCombo: isNewCombo,
         comboItems: isNewCombo ? newComboItems : [],
@@ -739,6 +824,7 @@ export const SellerDashboard: React.FC = () => {
       setSellerProducts(prev => [created, ...prev.filter(p => p.id !== created.id)]);
 
       setIsAddProductOpen(false);
+      setIsAddExpanded(false);
       setNewTitle('');
       setNewTitleBn('');
       setNewPrice('');
@@ -746,6 +832,7 @@ export const SellerDashboard: React.FC = () => {
       setNewStock('20');
       setNewBrand('Official BD');
       setNewDesc('');
+      setNewImages([]);
       setNewQuality('Premium');
       setNewUnit('Piece');
       setNewWarranty('No Warranty');
@@ -756,7 +843,7 @@ export const SellerDashboard: React.FC = () => {
       setNewComboItems([]);
 
       alert(language === 'bn' 
-        ? 'পণ্যটি সফলভাবে যোগ ও পাবলিশ করা হয়েছে! আপনি পরবর্তীতে যেকোনো সময় এর তথ্য ও ছবি এডিট করতে পারবেন।' 
+        ? 'পণ্যটি সফলভাবে যোগ ও পাবলিশ করা হয়েছে! আপনি যেকোনো সময় "Edit" অপশনে গিয়ে আরো ছবি, বিস্তারিত তথ্য ও অফার সুন্দরভাবে পরিবর্তন করতে পারবেন।' 
         : 'Product added & published successfully! You can edit details anytime.');
       refreshProducts();
     } catch (err: any) {
@@ -773,28 +860,56 @@ export const SellerDashboard: React.FC = () => {
       return;
     }
     setEditingProduct(p);
-    setEditTitle(p.title);
-    setEditTitleBn(p.titleBn || p.title);
-    setEditPrice(String(p.price));
+    setEditTitle(p.title || '');
+    setEditTitleBn(p.titleBn || p.title || '');
+    setEditPrice(String(p.price || ''));
     setEditDiscount(p.discountPrice ? String(p.discountPrice) : '');
-    setEditStock(String(p.stock));
-    setEditCategory(p.categoryId);
-    setEditBrand(p.brand || 'Official');
+    setEditStock(String(p.stock ?? '20'));
+    setEditCategory(p.categoryId || categories[0]?.id || 'cat-1');
+    setEditBrand(p.brand || 'Official BD');
     setEditDesc(p.description || '');
-    setEditImage(p.images[0] || '');
+    setEditDescBn(p.descriptionBn || p.description || '');
+    setEditSku(p.sku || `SKU-${Date.now().toString().slice(-6)}`);
+    
+    // Images array initialization
+    const initialImages = Array.isArray(p.images) && p.images.length > 0
+      ? p.images.filter(img => typeof img === 'string' && img.trim() !== '')
+      : [p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'];
+    setEditImages(initialImages);
+    setEditImage(initialImages[0] || '');
+    setEditAddImageUrlInput('');
+    
     setEditWarranty(p.warranty || 'No Warranty');
     setEditVariants(p.variants || []);
     setEditVariantPrices(p.variantPrices || {});
     setEditBulkOffers(p.bulkOffers || []);
+    
+    // Delivery & Guarantees
+    setEditDeliveryTime(p.deliveryTime || '২৪-৪৮ ঘণ্টার মধ্যে');
+    setEditIsFreeDelivery(!!p.isFreeDelivery);
+    setEditDeliveryChargeInside(p.deliveryChargeInside ?? 60);
+    setEditDeliveryChargeOutside(p.deliveryChargeOutside ?? 120);
+    setEditIsCodAvailable(p.isCodAvailable !== false);
+    setEditReturnPolicy(p.returnPolicy || '৭ দিনের ইজি রিটার্ন ও রিফান্ড সুবিধা');
+    setEditWarrantyPolicy(p.warrantyPolicy || p.warranty || '১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা');
     
     const qualSpec = p.customSpecs?.find(s => s.label === 'Quality' || s.label === 'কোয়ালিটি');
     setEditQuality(qualSpec?.value || 'Premium');
     
     const unitSpec = p.customSpecs?.find(s => s.label === 'Unit' || s.label === 'একক');
     setEditUnit(unitSpec?.value || 'Piece');
+
+    const existingSpecs = p.customSpecs && p.customSpecs.length > 0
+      ? p.customSpecs
+      : [
+          { label: 'Quality', labelBn: 'কোয়ালিটি', value: qualSpec?.value || 'Premium', valueBn: qualSpec?.valueBn || 'প্রিমিয়াম' },
+          { label: 'Unit', labelBn: 'একক', value: unitSpec?.value || 'Piece', valueBn: unitSpec?.valueBn || 'টি' }
+        ];
+    setEditCustomSpecs(existingSpecs);
     
     setIsEditCombo(!!p.isCombo);
     setEditComboItems(p.comboItems || []);
+    setEditActiveTab('basic');
     setIsEditProductOpen(true);
   };
 
@@ -810,9 +925,33 @@ export const SellerDashboard: React.FC = () => {
     const titleBn = editTitleBn.trim() || editTitle.trim() || editingProduct.titleBn || 'পণ্য';
     const price = Number(editPrice) > 0 ? Number(editPrice) : editingProduct.price || 100;
     const stock = Number(editStock) >= 0 ? Number(editStock) : (editingProduct.stock ?? 20);
-    const img = editImage.trim() || (editingProduct.images && editingProduct.images[0]) || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
+    
+    let finalImgs = editImages.filter(im => im && im.trim() !== '');
+    if (finalImgs.length === 0) {
+      finalImgs = [(editingProduct.images && editingProduct.images[0]) || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'];
+    }
 
     try {
+      const updatedSpecs = [...editCustomSpecs];
+      // Ensure quality & unit are synced in specs
+      if (!updatedSpecs.some(s => s.label === 'Quality' || s.label === 'কোয়ালিটি')) {
+        updatedSpecs.push({ label: 'Quality', labelBn: 'কোয়ালিটি', value: editQuality, valueBn: editQuality === 'Premium' ? 'প্রিমিয়াম' : editQuality === 'Standard' ? 'স্ট্যান্ডার্ড' : 'বাজেট' });
+      } else {
+        const qIdx = updatedSpecs.findIndex(s => s.label === 'Quality' || s.label === 'কোয়ালিটি');
+        if (qIdx >= 0) {
+          updatedSpecs[qIdx] = { label: 'Quality', labelBn: 'কোয়ালিটি', value: editQuality, valueBn: editQuality === 'Premium' ? 'প্রিমিয়াম' : editQuality === 'Standard' ? 'স্ট্যান্ডার্ড' : 'বাজেট' };
+        }
+      }
+
+      if (!updatedSpecs.some(s => s.label === 'Unit' || s.label === 'একক')) {
+        updatedSpecs.push({ label: 'Unit', labelBn: 'একক', value: editUnit, valueBn: editUnit === 'Piece' ? 'টি' : editUnit === 'Kg' ? 'কেজি' : 'বক্স' });
+      } else {
+        const uIdx = updatedSpecs.findIndex(s => s.label === 'Unit' || s.label === 'একক');
+        if (uIdx >= 0) {
+          updatedSpecs[uIdx] = { label: 'Unit', labelBn: 'একক', value: editUnit, valueBn: editUnit === 'Piece' ? 'টি' : editUnit === 'Kg' ? 'কেজি' : 'বক্স' };
+        }
+      }
+
       await appUpdateProduct(editingProduct.id, {
         title,
         titleBn,
@@ -823,7 +962,16 @@ export const SellerDashboard: React.FC = () => {
         categoryName: categories.find(c => c.id === editCategory)?.name || editingProduct.categoryName || 'General',
         brand: editBrand || editingProduct.brand || 'Official BD',
         description: editDesc || editingProduct.description || 'Quality product',
-        images: [img],
+        descriptionBn: editDescBn || editDesc || editingProduct.descriptionBn || 'উচ্চমানের পণ্য',
+        images: finalImgs,
+        sku: editSku || editingProduct.sku || `SKU-${Date.now().toString().slice(-6)}`,
+        deliveryTime: editDeliveryTime,
+        isFreeDelivery: editIsFreeDelivery,
+        deliveryChargeInside: Number(editDeliveryChargeInside) || 60,
+        deliveryChargeOutside: Number(editDeliveryChargeOutside) || 120,
+        isCodAvailable: editIsCodAvailable,
+        returnPolicy: editReturnPolicy,
+        warrantyPolicy: editWarrantyPolicy,
         warranty: editWarranty || editingProduct.warranty || 'No Warranty',
         isCombo: isEditCombo,
         comboItems: isEditCombo ? editComboItems : [],
@@ -831,10 +979,7 @@ export const SellerDashboard: React.FC = () => {
         variantPrices: editVariantPrices,
         bulkOffers: editBulkOffers,
         isApproved: true,
-        customSpecs: [
-          { label: 'Quality', labelBn: 'কোয়ালিটি', value: editQuality, valueBn: editQuality === 'Premium' ? 'প্রিমিয়াম' : editQuality === 'Standard' ? 'স্ট্যান্ডার্ড' : 'বাজেট' },
-          { label: 'Unit', labelBn: 'একক', value: editUnit, valueBn: editUnit === 'Piece' ? 'টি' : editUnit === 'Kg' ? 'কেজি' : 'বক্স' }
-        ]
+        customSpecs: updatedSpecs.filter(s => s.label.trim() !== '' && s.value.trim() !== '')
       });
 
       setIsEditProductOpen(false);
@@ -844,11 +989,33 @@ export const SellerDashboard: React.FC = () => {
       setEditVariants([]);
       setEditVariantPrices({});
       setEditBulkOffers([]);
-      alert(language === 'bn' ? 'পণ্য সফলভাবে আপডেট করা হয়েছে!' : 'Product updated successfully!');
+      alert(language === 'bn' ? 'পণ্য সফলভাবে আপডেট ও সংরক্ষিত হয়েছে!' : 'Product updated & saved successfully!');
       fetchData();
       refreshProducts();
     } catch (err) {
       alert('Failed to update product');
+    }
+  };
+
+  const handleAiCopywriteEdit = async () => {
+    const title = editTitle || editTitleBn;
+    const catObj = categories.find(c => c.id === editCategory);
+    const categoryName = catObj ? catObj.name : 'General';
+
+    if (!title.trim()) {
+      alert(language === 'bn' ? 'অনুগ্রহ করে প্রথমে পণ্যের নাম লিখুন।' : 'Please enter a product title first.');
+      return;
+    }
+
+    setIsGeneratingEditAiDesc(true);
+    try {
+      const res = await api.generateAiCopywriter({ title, brand: editBrand, categoryName });
+      if (res.descEn) setEditDesc(res.descEn);
+      if (res.descBn) setEditDescBn(res.descBn);
+    } catch (err) {
+      console.error('AI Copywriter error:', err);
+    } finally {
+      setIsGeneratingEditAiDesc(false);
     }
   };
 
@@ -3919,633 +4086,1216 @@ export const SellerDashboard: React.FC = () => {
         </form>
       )}
 
-      {/* ADD PRODUCT MODAL */}
+      {/* ADD PRODUCT MODAL (QUICK & EASY) */}
       {isAddProductOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] sm:max-h-[85vh] text-xs overflow-hidden">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700/60 p-4 sm:p-5 font-bold text-sm shrink-0">
-              <span className="text-slate-900 dark:text-white font-extrabold text-base">Add New Marketplace Listing</span>
-              <button onClick={() => setIsAddProductOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[92vh] sm:max-h-[88vh] text-xs overflow-hidden border border-slate-200 dark:border-slate-700">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700/60 p-4 sm:p-5 bg-slate-50/70 dark:bg-slate-900/40 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-slate-900 dark:text-white font-extrabold text-sm sm:text-base">
+                    {language === 'bn' ? 'খুব সহজে নতুন পণ্য যোগ করুন' : 'Quick Add Marketplace Product'}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {language === 'bn' ? 'নাম ও দাম দিলেই সরাসরি যোগ হয়ে যাবে। বাকি তথ্য পরে এডিট করা যাবে।' : 'Enter basic info now. You can edit any details anytime.'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAddProductOpen(false)} 
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateProduct} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-              <div>
-                <label className="block font-semibold mb-1">Product Title (English):</label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Walton Smart Watch W1 (Optional, can be added later)"
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
+            <form onSubmit={handleCreateProduct} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* Informational Guidance Banner */}
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-start space-x-2.5 text-[11px] text-emerald-800 dark:text-emerald-300">
+                <Info className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                <p>
+                  {language === 'bn' 
+                    ? '💡 টিপস: শুধুমাত্র পণ্যের নাম ও দাম লিখলেই সরাসরি পণ্য লাইভ হয়ে যাবে। কোনো তথ্য বাদ থাকলে পরবর্তীতে যে কোনো সময় "Edit" অপশনে গিয়ে আরো ছবি, বিস্তারিত বিবরণ ও অফার যোগ করতে পারবেন।'
+                    : '💡 Tip: Just entering the product title and price is enough to publish. You can edit full details, photos & specifications anytime later.'}
+                </p>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Product Title (Bangla বাংলা):</label>
-                <input
-                  type="text"
-                  value={newTitleBn}
-                  onChange={(e) => setNewTitleBn(e.target.value)}
-                  placeholder="e.g. ওয়ালটন স্মার্ট ওয়াচ ডব্লিউ ১ (ঐচ্ছিক)"
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
+              {/* Basic Details */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের নাম (বাংলা):' : 'Product Title (Bangla):'} <span className="text-emerald-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newTitleBn}
+                      onChange={(e) => setNewTitleBn(e.target.value)}
+                      placeholder={language === 'bn' ? 'যেমন: ওয়ালটন স্মার্ট ওয়াচ' : 'e.g. Walton Smart Watch'}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের নাম (English - ঐচ্ছিক):' : 'Product Title (English):'}
+                    </label>
+                    <input
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="e.g. Walton Smart Watch W1"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'বিক্রয় মূল্য (৳):' : 'Regular Price (৳):'} <span className="text-emerald-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      placeholder="e.g. 1200"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'ডিসকাউন্ট মূল্য (৳ - ঐচ্ছিক):' : 'Offer Price (৳):'}
+                    </label>
+                    <input
+                      type="number"
+                      value={newDiscount}
+                      onChange={(e) => setNewDiscount(e.target.value)}
+                      placeholder="e.g. 990"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'স্টক সংখ্যা:' : 'Stock Quantity:'}
+                    </label>
+                    <input
+                      type="number"
+                      value={newStock}
+                      onChange={(e) => setNewStock(e.target.value)}
+                      placeholder="20"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'ক্যাটাগরি:' : 'Category:'}
+                    </label>
+                    <select
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                    >
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'ব্র্যান্ড নাম:' : 'Brand Name:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={newBrand}
+                      onChange={(e) => setNewBrand(e.target.value)}
+                      placeholder="e.g. Official BD / Walton / Apex"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Regular Price (৳):</label>
-                  <input
-                    type="number"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(e.target.value)}
-                    placeholder="2500 (ডিফল্ট ১০০৳)"
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Discount Price (৳):</label>
-                  <input
-                    type="number"
-                    value={newDiscount}
-                    onChange={(e) => setNewDiscount(e.target.value)}
-                    placeholder="1990"
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-              </div>
+              {/* Product Photo Upload Section */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                <label className="block font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center justify-between">
+                  <span className="flex items-center space-x-1.5">
+                    <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{language === 'bn' ? 'পণ্যের ছবি (ডিভাইস থেকে আপলোড বা লিংক দিন):' : 'Product Photo (Upload or Paste Link):'}</span>
+                  </span>
+                  {isUploadingNewImage && <span className="text-[10px] text-emerald-600 animate-pulse">আপলোড হচ্ছে...</span>}
+                </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Category:</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Stock Quantity:</label>
-                  <input
-                    type="number"
-                    value={newStock}
-                    onChange={(e) => setNewStock(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Brand Name (ব্র্যান্ড):</label>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <label className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border-2 border-dashed border-emerald-400 dark:border-emerald-700 rounded-xl text-emerald-700 dark:text-emerald-300 cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 transition text-xs font-bold">
+                    <ImageIcon className="w-4 h-4" />
+                    <span>{language === 'bn' ? 'ডিভাইস থেকে ছবি আপলোড করুন' : 'Upload photo from device'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0) return;
+                        setIsUploadingNewImage(true);
+                        try {
+                          const uploadedUrls: string[] = [];
+                          for (let i = 0; i < files.length; i++) {
+                            const dataUrl = await compressAndReadImage(files[i]);
+                            uploadedUrls.push(dataUrl);
+                          }
+                          setNewImages(prev => [...prev, ...uploadedUrls]);
+                          if (uploadedUrls.length > 0 && !newImage) {
+                            setNewImage(uploadedUrls[0]);
+                          }
+                        } catch (err) {
+                          alert('Failed to process image');
+                        } finally {
+                          setIsUploadingNewImage(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-bold">বা</span>
                   <input
                     type="text"
-                    value={newBrand}
-                    onChange={(e) => setNewBrand(e.target.value)}
-                    placeholder="e.g. Walton, Samsung"
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Warranty (ওয়ারেন্টি):</label>
-                  <select
-                    value={newWarranty}
-                    onChange={(e) => setNewWarranty(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="No Warranty">No Warranty (ওয়ারেন্টি নেই)</option>
-                    <option value="6 Months Warranty">6 Months (৬ মাস)</option>
-                    <option value="1 Year Warranty">1 Year (১ বছর)</option>
-                    <option value="2 Years Warranty">2 Years (২ বছর)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Product Quality (পণ্যের কোয়ালিটি):</label>
-                  <select
-                    value={newQuality}
-                    onChange={(e) => setNewQuality(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="Premium">Premium (সেরা কোয়ালিটি)</option>
-                    <option value="Standard">Standard (স্ট্যান্ডার্ড)</option>
-                    <option value="A-Grade">A-Grade (এ-গ্রেড)</option>
-                    <option value="Economy">Economy / Budget (বাজেট ফ্রেন্ডলি)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Measurement Unit (পরিমাপের একক):</label>
-                  <select
-                    value={newUnit}
-                    onChange={(e) => setNewUnit(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="Piece">Piece (টি/পিস)</option>
-                    <option value="Kg">Kg (কেজি)</option>
-                    <option value="Litre">Litre (লিটার)</option>
-                    <option value="Box">Box (বক্স)</option>
-                    <option value="Pack">Pack (প্যাকেট)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Combo Pack Selector (Add Product) */}
-              <div className="border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
-                      {language === 'bn' ? 'কম্বো প্যাকেজ হিসেবে বিক্রি করুন' : 'Sell as a Combo Package'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block">
-                      {language === 'bn' ? 'একাধিক পণ্য একসাথে একটি প্যাকেজে বিশেষ ছাড়ে বিক্রি করুন' : 'Bundle multiple products together for a promotional package.'}
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={isNewCombo}
-                    onChange={(e) => {
-                      setIsNewCombo(e.target.checked);
-                      if (e.target.checked && newComboItems.length === 0 && sellerProducts.length > 0) {
-                        setNewComboItems([{ productId: sellerProducts[0].id, quantity: 1 }]);
-                      }
-                    }}
-                    className="w-4.5 h-4.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    value={newImage}
+                    onChange={(e) => setNewImage(e.target.value)}
+                    placeholder="https://... ছবির লিংক পেস্ট করুন"
+                    className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs outline-none"
                   />
                 </div>
 
-                {isNewCombo && (
-                  <div className="space-y-3 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
-                    <label className="block font-semibold mb-1 text-slate-500">
-                      {language === 'bn' ? 'কম্বো পণ্যসমূহ নির্বাচন করুন:' : 'Select products to bundle:'}
-                    </label>
-
-                    {sellerProducts.length === 0 ? (
-                      <p className="text-[11px] text-amber-500 italic">
-                        {language === 'bn' ? 'কোন পণ্য পাওয়া যায়নি। কম্বো তৈরি করতে প্রথমে সাধারণ পণ্য যোগ করুন।' : 'No other products found. Add standard products first to create a combo.'}
-                      </p>
-                    ) : (
-                      <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
-                        {sellerProducts.map((p) => {
-                          const existingItem = newComboItems.find(item => item.productId === p.id);
-                          const isChecked = !!existingItem;
-
-                          const handleCheckboxChange = (checked: boolean) => {
-                            if (checked) {
-                              setNewComboItems([...newComboItems, { productId: p.id, quantity: 1 }]);
-                            } else {
-                              setNewComboItems(newComboItems.filter(item => item.productId !== p.id));
-                            }
-                          };
-
-                          const handleQtyChange = (val: number) => {
-                            if (val < 1) return;
-                            setNewComboItems(newComboItems.map(item => 
-                              item.productId === p.id ? { ...item, quantity: val } : item
-                            ));
-                          };
-
-                          return (
-                            <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-xs gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => handleCheckboxChange(e.target.checked)}
-                                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                />
-                                <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
-                                <div className="truncate">
-                                  <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
-                                  <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>
-                                </div>
-                              </div>
-
-                              {isChecked && (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQtyChange((existingItem?.quantity || 1) - 1)}
-                                    className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="font-mono w-5 text-center font-bold">{existingItem?.quantity || 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQtyChange((existingItem?.quantity || 1) + 1)}
-                                    className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Pricing Summary calculations */}
-                    {newComboItems.length > 0 && (
-                      <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 p-3 rounded-xl space-y-2 text-[11px]">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">{language === 'bn' ? 'সাধারণ মোট মূল্য:' : 'Regular Item Sum:'}</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            ৳{newComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">{language === 'bn' ? 'প্রস্তাবিত কম্বো অফার (১৫% ছাড়):' : 'Suggested Combo (15% Off):'}</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                            ৳{Math.round(newComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0) * 0.85)}
-                          </span>
-                        </div>
+                {/* Uploaded Photos Preview List */}
+                {(newImages.length > 0 || newImage) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+                    {newImages.map((imgUrl, idx) => (
+                      <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-emerald-400 shadow-xs">
+                        <img src={imgUrl} alt="preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => {
-                            const total = newComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0);
-                            setNewPrice(String(total));
-                            setNewDiscount(String(Math.round(total * 0.85)));
-                          }}
-                          className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
+                          onClick={() => setNewImages(prev => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-0.5 right-0.5 bg-red-600/80 text-white rounded-full p-0.5 hover:bg-red-700 opacity-80 group-hover:opacity-100 transition"
                         >
-                          {language === 'bn' ? 'অফারের মূল্য সেট করুন' : 'Apply Offer Pricing'}
+                          <X className="w-3 h-3" />
                         </button>
+                      </div>
+                    ))}
+                    {newImage && !newImages.includes(newImage) && (
+                      <div className="relative group w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                        <img src={newImage} alt="preview link" className="w-full h-full object-cover" />
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              {renderPricingAndOffersConfig(
-                newVariants,
-                setNewVariants,
-                newVariantPrices,
-                setNewVariantPrices,
-                newBulkOffers,
-                setNewBulkOffers,
-                newVarGroupName,
-                setNewVarGroupName,
-                newVarOptionsInput,
-                setNewVarOptionsInput
-              )}
+              {/* Expandable Advanced Options Section */}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsAddExpanded(!isAddExpanded)}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-900 flex items-center justify-between font-bold text-slate-700 dark:text-slate-300 text-xs transition"
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <Layers className="w-4 h-4 text-pink-500" />
+                    <span>{language === 'bn' ? '➕ আরও বিস্তারিত তথ্য ও অফার যোগ করুন (ঐচ্ছিক)' : '➕ Advanced Details & Promotional Offers (Optional)'}</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                    {isAddExpanded ? 'সংক্ষিপ্ত করুন ▲' : 'খুলুন ▼'}
+                  </span>
+                </button>
 
-              <div>
-                <label className="block font-semibold mb-1">Image URL (ছবির লিংক):</label>
-                <input
-                  type="text"
-                  value={newImage}
-                  onChange={(e) => setNewImage(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
+                {isAddExpanded && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold mb-1">
+                          {language === 'bn' ? 'কোয়ালিটি গ্রেড:' : 'Quality Grade:'}
+                        </label>
+                        <select
+                          value={newQuality}
+                          onChange={(e) => setNewQuality(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                        >
+                          <option value="Premium">Premium (সেরা কোয়ালিটি)</option>
+                          <option value="Standard">Standard (স্ট্যান্ডার্ড)</option>
+                          <option value="A-Grade">A-Grade (এ-গ্রেড)</option>
+                          <option value="Economy">Economy / Budget (বাজেট ফ্রেন্ডলি)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold mb-1">
+                          {language === 'bn' ? 'পরিমাপের একক:' : 'Measurement Unit:'}
+                        </label>
+                        <select
+                          value={newUnit}
+                          onChange={(e) => setNewUnit(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                        >
+                          <option value="Piece">Piece (টি/পিস)</option>
+                          <option value="Kg">Kg (কেজি)</option>
+                          <option value="Litre">Litre (লিটার)</option>
+                          <option value="Box">Box (বক্স)</option>
+                          <option value="Pack">Pack (প্যাকেট)</option>
+                          <option value="Dozen">Dozen (ডজন)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold mb-1">
+                        {language === 'bn' ? 'ওয়ারেন্টি পলিসি:' : 'Warranty:'}
+                      </label>
+                      <select
+                        value={newWarranty}
+                        onChange={(e) => setNewWarranty(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      >
+                        <option value="No Warranty">No Warranty (ওয়ারেন্টি নেই)</option>
+                        <option value="6 Months Warranty">6 Months (৬ মাস ওয়ারেন্টি)</option>
+                        <option value="1 Year Warranty">1 Year (১ বছর অফিসিয়াল ওয়ারেন্টি)</option>
+                        <option value="2 Years Warranty">2 Years (২ বছর রিপ্লেসমেন্ট ওয়ারেন্টি)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold mb-1">
+                        {language === 'bn' ? 'পণ্যের বিবরণ (Description):' : 'Product Description:'}
+                      </label>
+                      <textarea
+                        value={newDesc}
+                        onChange={(e) => setNewDesc(e.target.value)}
+                        rows={3}
+                        placeholder={language === 'bn' ? 'পণ্যের বিশেষ বৈশিষ্ট্য ও সুবিধা লিখুন...' : 'Write product features and details...'}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      />
+                    </div>
+
+                    {/* Combo Pack Selector (Add Product) */}
+                    <div className="border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                            {language === 'bn' ? 'কম্বো প্যাকেজ হিসেবে বিক্রি করুন' : 'Sell as a Combo Package'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            {language === 'bn' ? 'একাধিক পণ্য একসাথে একটি প্যাকেজে বিশেষ ছাড়ে বিক্রি করুন' : 'Bundle multiple products together for a promotional package.'}
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isNewCombo}
+                          onChange={(e) => {
+                            setIsNewCombo(e.target.checked);
+                            if (e.target.checked && newComboItems.length === 0 && sellerProducts.length > 0) {
+                              setNewComboItems([{ productId: sellerProducts[0].id, quantity: 1 }]);
+                            }
+                          }}
+                          className="w-4.5 h-4.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </div>
+
+                      {isNewCombo && (
+                        <div className="space-y-3 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                          <label className="block font-semibold mb-1 text-slate-500">
+                            {language === 'bn' ? 'কম্বো পণ্যসমূহ নির্বাচন করুন:' : 'Select products to bundle:'}
+                          </label>
+
+                          {sellerProducts.length === 0 ? (
+                            <p className="text-[11px] text-amber-500 italic">
+                              {language === 'bn' ? 'কোন পণ্য পাওয়া যায়নি। কম্বো তৈরি করতে প্রথমে সাধারণ পণ্য যোগ করুন।' : 'No other products found. Add standard products first to create a combo.'}
+                            </p>
+                          ) : (
+                            <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
+                              {sellerProducts.map((p) => {
+                                const existingItem = newComboItems.find(item => item.productId === p.id);
+                                const isChecked = !!existingItem;
+
+                                const handleCheckboxChange = (checked: boolean) => {
+                                  if (checked) {
+                                    setNewComboItems([...newComboItems, { productId: p.id, quantity: 1 }]);
+                                  } else {
+                                    setNewComboItems(newComboItems.filter(item => item.productId !== p.id));
+                                  }
+                                };
+
+                                const handleQtyChange = (val: number) => {
+                                  if (val < 1) return;
+                                  setNewComboItems(newComboItems.map(item => 
+                                    item.productId === p.id ? { ...item, quantity: val } : item
+                                  ));
+                                };
+
+                                return (
+                                  <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-xs gap-2">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                      />
+                                      <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
+                                      <div className="truncate">
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
+                                        <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>
+                                      </div>
+                                    </div>
+
+                                    {isChecked && (
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleQtyChange((existingItem?.quantity || 1) - 1)}
+                                          className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
+                                        >
+                                          -
+                                        </button>
+                                        <span className="font-mono w-5 text-center font-bold">{existingItem?.quantity || 1}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleQtyChange((existingItem?.quantity || 1) + 1)}
+                                          className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Pricing Summary calculations */}
+                          {newComboItems.length > 0 && (
+                            <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 p-3 rounded-xl space-y-2 text-[11px]">
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">{language === 'bn' ? 'সাধারণ মোট মূল্য:' : 'Regular Item Sum:'}</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                  ৳{newComboItems.reduce((acc, item) => {
+                                    const prod = sellerProducts.find(p => p.id === item.productId);
+                                    return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                  }, 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{language === 'bn' ? 'প্রস্তাবিত কম্বো অফার (১৫% ছাড়):' : 'Suggested Combo (15% Off):'}</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  ৳{Math.round(newComboItems.reduce((acc, item) => {
+                                    const prod = sellerProducts.find(p => p.id === item.productId);
+                                    return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                  }, 0) * 0.85)}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const total = newComboItems.reduce((acc, item) => {
+                                    const prod = sellerProducts.find(p => p.id === item.productId);
+                                    return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                  }, 0);
+                                  setNewPrice(String(total));
+                                  setNewDiscount(String(Math.round(total * 0.85)));
+                                }}
+                                className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition cursor-pointer"
+                              >
+                                {language === 'bn' ? 'অফারের মূল্য সেট করুন' : 'Apply Offer Pricing'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {renderPricingAndOffersConfig(
+                      newVariants,
+                      setNewVariants,
+                      newVariantPrices,
+                      setNewVariantPrices,
+                      newBulkOffers,
+                      setNewBulkOffers,
+                      newVarGroupName,
+                      setNewVarGroupName,
+                      newVarOptionsInput,
+                      setNewVarOptionsInput
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Product Description (পণ্যের বিবরণ):</label>
-                <textarea
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  rows={3}
-                  placeholder="এখানে আপনার পণ্যের বিস্তারিত বিবরণ লিখুন..."
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
+              {/* Submit Buttons */}
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="w-1/3 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl transition shadow-md shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{language === 'bn' ? 'সরাসরি পণ্য যোগ ও লাইভ করুন' : 'Publish Product Now'}</span>
+                </button>
               </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shrink-0"
-              >
-                Save & Publish Listing (পণ্য পাবলিশ করুন)
-              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* EDIT PRODUCT MODAL */}
+      {/* EDIT PRODUCT MODAL (TABBED & COMPREHENSIVE) */}
       {isEditProductOpen && editingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] sm:max-h-[85vh] text-xs overflow-hidden">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700/60 p-4 sm:p-5 font-bold text-sm shrink-0">
-              <span className="text-slate-900 dark:text-white font-extrabold text-base">Edit Product Listing (পণ্য সম্পাদনা করুন)</span>
-              <button onClick={() => { setIsEditProductOpen(false); setEditingProduct(null); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] text-xs overflow-hidden border border-slate-200 dark:border-slate-700">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700/60 p-4 sm:p-5 bg-slate-50/80 dark:bg-slate-900/50 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center font-bold">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-slate-900 dark:text-white font-extrabold text-sm sm:text-base flex items-center gap-2">
+                    <span>{language === 'bn' ? 'পণ্য সম্পাদনা ও আপডেট' : 'Edit Product Listing'}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md">
+                      #{editingProduct.id.slice(-6)}
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-xs sm:max-w-md">
+                    {editTitleBn || editTitle || editingProduct.title}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setIsEditProductOpen(false); setEditingProduct(null); }} 
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleUpdateProductSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-              <div>
-                <label className="block font-semibold mb-1">Product Title (English) - পণ্যের নাম (ইংরেজি):</label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
+            {/* TAB BAR NAVIGATION */}
+            <div className="flex items-center border-b border-slate-200 dark:border-slate-700/80 bg-slate-100/50 dark:bg-slate-900/30 px-3 overflow-x-auto no-scrollbar shrink-0">
+              {[
+                { id: 'basic', labelBn: '🏷️ মূল তথ্য', labelEn: '🏷️ Basic', icon: Info },
+                { id: 'pricing', labelBn: '💰 মূল্য ও স্টক', labelEn: '💰 Price & Stock', icon: Tag },
+                { id: 'images', labelBn: '🖼️ ছবি ও গ্যালারি', labelEn: '🖼️ Photos', icon: ImageIcon },
+                { id: 'desc', labelBn: '📝 বিবরণ ও স্পেক্স', labelEn: '📝 Specs & AI', icon: Sparkles },
+                { id: 'delivery', labelBn: '🚚 ডেলিভারি ও পলিসি', labelEn: '🚚 Delivery', icon: Truck },
+                { id: 'variants', labelBn: '📦 কম্বো ও ভ্যারিয়েন্ট', labelEn: '📦 Offers', icon: Layers }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setEditActiveTab(tab.id as any)}
+                  className={`px-3 py-2.5 font-extrabold text-[11px] whitespace-nowrap border-b-2 transition flex items-center space-x-1.5 cursor-pointer ${
+                    editActiveTab === tab.id
+                      ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-800'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span>{language === 'bn' ? tab.labelBn : tab.labelEn}</span>
+                </button>
+              ))}
+            </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Product Title (Bangla) - পণ্যের নাম (বাংলা):</label>
-                <input
-                  type="text"
-                  value={editTitleBn}
-                  onChange={(e) => setEditTitleBn(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Regular Price (৳) - সাধারণ দাম (৳):</label>
-                  <input
-                    type="number"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900 font-bold text-emerald-600"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Discount Price (৳) - অফার মূল্য (৳):</label>
-                  <input
-                    type="number"
-                    value={editDiscount}
-                    onChange={(e) => setEditDiscount(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Category (ক্যাটাগরি):</label>
-                  <select
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Stock Quantity (স্টক সংখ্যা):</label>
-                  <input
-                    type="number"
-                    value={editStock}
-                    onChange={(e) => setEditStock(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Brand (ব্র্যান্ড):</label>
-                  <input
-                    type="text"
-                    value={editBrand}
-                    onChange={(e) => setEditBrand(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Warranty (ওয়ারেন্টি):</label>
-                  <select
-                    value={editWarranty}
-                    onChange={(e) => setEditWarranty(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="No Warranty">No Warranty (ওয়ারেন্টি নেই)</option>
-                    <option value="6 Months Warranty">6 Months (৬ মাস)</option>
-                    <option value="1 Year Warranty">1 Year (১ বছর)</option>
-                    <option value="2 Years Warranty">2 Years (২ বছর)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Product Quality (পণ্যের কোয়ালিটি):</label>
-                  <select
-                    value={editQuality}
-                    onChange={(e) => setEditQuality(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="Premium">Premium (সেরা কোয়ালিটি)</option>
-                    <option value="Standard">Standard (স্ট্যান্ডার্ড)</option>
-                    <option value="A-Grade">A-Grade (এ-গ্রেড)</option>
-                    <option value="Economy">Economy / Budget (বাজেট ফ্রেন্ডলি)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Measurement Unit (পরিমাপের একক):</label>
-                  <select
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  >
-                    <option value="Piece">Piece (টি/পিস)</option>
-                    <option value="Kg">Kg (কেজি)</option>
-                    <option value="Litre">Litre (লিটার)</option>
-                    <option value="Box">Box (বক্স)</option>
-                    <option value="Pack">Pack (প্যাকেট)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Combo Pack Selector (Edit Product) */}
-              <div className="border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
-                <div className="flex items-center justify-between">
+            <form onSubmit={handleUpdateProductSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* TAB 1: BASIC INFORMATION */}
+              {editActiveTab === 'basic' && (
+                <div className="space-y-3.5 animate-in fade-in">
                   <div>
-                    <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
-                      {language === 'bn' ? 'কম্বো প্যাকেজ হিসেবে বিক্রি করুন' : 'Sell as a Combo Package'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block">
-                      {language === 'bn' ? 'একাধিক পণ্য একসাথে একটি প্যাকেজে বিশেষ ছাড়ে বিক্রি করুন' : 'Bundle multiple products together for a promotional package.'}
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={isEditCombo}
-                    onChange={(e) => {
-                      setIsEditCombo(e.target.checked);
-                      if (e.target.checked && editComboItems.length === 0) {
-                        const selectable = sellerProducts.filter(p => p.id !== editingProduct?.id);
-                        if (selectable.length > 0) {
-                          setEditComboItems([{ productId: selectable[0].id, quantity: 1 }]);
-                        }
-                      }
-                    }}
-                    className="w-4.5 h-4.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
-                </div>
-
-                {isEditCombo && (
-                  <div className="space-y-3 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
-                    <label className="block font-semibold mb-1 text-slate-500">
-                      {language === 'bn' ? 'কম্বো পণ্যসমূহ নির্বাচন করুন:' : 'Select products to bundle:'}
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের নাম (বাংলা):' : 'Product Title (Bangla):'}
                     </label>
+                    <input
+                      type="text"
+                      value={editTitleBn}
+                      onChange={(e) => setEditTitleBn(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
 
-                    {sellerProducts.filter(p => p.id !== editingProduct?.id).length === 0 ? (
-                      <p className="text-[11px] text-amber-500 italic">
-                        {language === 'bn' ? 'অন্য কোন পণ্য পাওয়া যায়নি। কম্বো তৈরি করতে অন্য পণ্য থাকতে হবে।' : 'No other products found. Add more products first to build a combo.'}
-                      </p>
-                    ) : (
-                      <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
-                        {sellerProducts.filter(p => p.id !== editingProduct?.id).map((p) => {
-                          const existingItem = editComboItems.find(item => item.productId === p.id);
-                          const isChecked = !!existingItem;
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের নাম (English):' : 'Product Title (English):'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
 
-                          const handleCheckboxChange = (checked: boolean) => {
-                            if (checked) {
-                              setEditComboItems([...editComboItems, { productId: p.id, quantity: 1 }]);
-                            } else {
-                              setEditComboItems(editComboItems.filter(item => item.productId !== p.id));
-                            }
-                          };
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'ক্যাটাগরি:' : 'Category:'}
+                      </label>
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                      >
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'ব্র্যান্ড:' : 'Brand:'}
+                      </label>
+                      <input
+                        type="text"
+                        value={editBrand}
+                        onChange={(e) => setEditBrand(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
 
-                          const handleQtyChange = (val: number) => {
-                            if (val < 1) return;
-                            setEditComboItems(editComboItems.map(item => 
-                              item.productId === p.id ? { ...item, quantity: val } : item
-                            ));
-                          };
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'এসকেইউ কোড (SKU):' : 'SKU Code:'}
+                      </label>
+                      <input
+                        type="text"
+                        value={editSku}
+                        onChange={(e) => setEditSku(e.target.value)}
+                        placeholder="SKU-1002"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'কোয়ালিটি গ্রেড:' : 'Quality:'}
+                      </label>
+                      <select
+                        value={editQuality}
+                        onChange={(e) => setEditQuality(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      >
+                        <option value="Premium">Premium (সেরা কোয়ালিটি)</option>
+                        <option value="Standard">Standard (স্ট্যান্ডার্ড)</option>
+                        <option value="A-Grade">A-Grade (এ-গ্রেড)</option>
+                        <option value="Economy">Economy / Budget (বাজেট)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'পরিমাপের একক:' : 'Unit:'}
+                      </label>
+                      <select
+                        value={editUnit}
+                        onChange={(e) => setEditUnit(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      >
+                        <option value="Piece">Piece (টি/পিস)</option>
+                        <option value="Kg">Kg (কেজি)</option>
+                        <option value="Litre">Litre (লিটার)</option>
+                        <option value="Box">Box (বক্স)</option>
+                        <option value="Pack">Pack (প্যাকেট)</option>
+                        <option value="Dozen">Dozen (ডজন)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                          return (
-                            <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-xs gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => handleCheckboxChange(e.target.checked)}
-                                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                />
-                                <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
-                                <div className="truncate">
-                                  <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
-                                  <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>
-                                </div>
-                              </div>
+              {/* TAB 2: PRICING & STOCK */}
+              {editActiveTab === 'pricing' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'সাধারণ দাম (৳):' : 'Regular Price (৳):'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-black text-emerald-600 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'অফার / ডিসকাউন্ট দাম (৳):' : 'Discount Price (৳):'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editDiscount}
+                        onChange={(e) => setEditDiscount(e.target.value)}
+                        placeholder="ঐচ্ছিক"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'স্টক সংখ্যা (Stock):' : 'Stock Quantity:'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editStock}
+                        onChange={(e) => setEditStock(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
 
-                              {isChecked && (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQtyChange((existingItem?.quantity || 1) - 1)}
-                                    className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="font-mono w-5 text-center font-bold">{existingItem?.quantity || 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQtyChange((existingItem?.quantity || 1) + 1)}
-                                    className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                      {language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ছাড় সেটিংস:' : 'Payment & Delivery Discounts:'}
+                    </h4>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                          {language === 'bn' ? 'ক্যাশ অন ডেলিভারি (COD) প্রযোজ্য' : 'Cash on Delivery Available'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {language === 'bn' ? 'গ্রাহক পণ্য হাতে পেয়ে টাকা পরিশোধ করতে পারবেন।' : 'Customer can pay after receiving delivery.'}
+                        </span>
                       </div>
-                    )}
+                      <input
+                        type="checkbox"
+                        checked={editIsCodAvailable}
+                        onChange={(e) => setEditIsCodAvailable(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                      />
+                    </div>
 
-                    {/* Pricing Summary calculations */}
-                    {editComboItems.length > 0 && (
-                      <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 p-3 rounded-xl space-y-2 text-[11px]">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">{language === 'bn' ? 'সাধারণ মোট মূল্য:' : 'Regular Item Sum:'}</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            ৳{editComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">{language === 'bn' ? 'প্রস্তাবিত কম্বো অফার (১৫% ছাড়):' : 'Suggested Combo (15% Off):'}</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                            ৳{Math.round(editComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0) * 0.85)}
-                          </span>
-                        </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-2.5">
+                      <div>
+                        <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                          {language === 'bn' ? 'ফ্রি ডেলিভারি অফার (Free Shipping)' : 'Free Shipping Offer'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {language === 'bn' ? 'এই পণ্যের জন্য ডেলিভারি চার্জ সম্পূর্ণ ফ্রি থাকবে।' : 'Delivery charges will be ৳0 for this item.'}
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={editIsFreeDelivery}
+                        onChange={(e) => setEditIsFreeDelivery(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: PHOTOS & MEDIA GALLERY */}
+              {editActiveTab === 'images' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-emerald-600" />
+                        <span>{language === 'bn' ? 'নতুন ছবি যোগ করুন (গ্যালারি)' : 'Upload or Add Photos'}</span>
+                      </span>
+                      {isUploadingEditImage && <span className="text-[10px] text-emerald-600 font-bold animate-pulse">প্রসেস হচ্ছে...</span>}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl cursor-pointer transition font-bold text-xs">
+                        <Camera className="w-4 h-4" />
+                        <span>{language === 'bn' ? 'ডিভাইস থেকে ফটো আপলোড' : 'Upload Images'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files || files.length === 0) return;
+                            setIsUploadingEditImage(true);
+                            try {
+                              const uploadedUrls: string[] = [];
+                              for (let i = 0; i < files.length; i++) {
+                                const dataUrl = await compressAndReadImage(files[i]);
+                                uploadedUrls.push(dataUrl);
+                              }
+                              setEditImages(prev => [...prev, ...uploadedUrls]);
+                            } catch (err) {
+                              alert('Failed to upload image');
+                            } finally {
+                              setIsUploadingEditImage(false);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text"
+                          value={editAddImageUrlInput}
+                          onChange={(e) => setEditAddImageUrlInput(e.target.value)}
+                          placeholder="https://... ছবির URL দিন"
+                          className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs outline-none"
+                        />
                         <button
                           type="button"
                           onClick={() => {
-                            const total = editComboItems.reduce((acc, item) => {
-                              const prod = sellerProducts.find(p => p.id === item.productId);
-                              return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
-                            }, 0);
-                            setEditPrice(String(total));
-                            setEditDiscount(String(Math.round(total * 0.85)));
+                            if (editAddImageUrlInput.trim()) {
+                              setEditImages(prev => [...prev, editAddImageUrlInput.trim()]);
+                              setEditAddImageUrlInput('');
+                            }
                           }}
-                          className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
+                          className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
                         >
-                          {language === 'bn' ? 'অফারের মূল্য সেট করুন' : 'Apply Offer Pricing'}
+                          + যোগ
                         </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-2">
+                      {language === 'bn' ? 'বর্তমান ছবির তালিকা (প্রথমটি কভার ছবি হিসেবে প্রদর্শিত হবে):' : 'Product Photo Gallery (First is Cover Image):'}
+                    </label>
+
+                    {editImages.length === 0 ? (
+                      <p className="text-slate-400 italic text-center py-6 border border-dashed rounded-xl">
+                        {language === 'bn' ? 'কোন ছবি নেই। উপরে থেকে ছবি আপলোড করুন।' : 'No images added yet. Upload or paste links above.'}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {editImages.map((imgUrl, idx) => (
+                          <div key={idx} className={`relative group rounded-xl overflow-hidden border-2 bg-slate-100 dark:bg-slate-900 aspect-square ${idx === 0 ? 'border-emerald-500 shadow-md ring-2 ring-emerald-500/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                            <img src={imgUrl} alt={`Prod-${idx}`} className="w-full h-full object-cover" />
+                            {idx === 0 && (
+                              <span className="absolute bottom-1 left-1 bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow">
+                                Cover Photo
+                              </span>
+                            )}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
+                              {idx !== 0 && (
+                                <button
+                                  type="button"
+                                  title="Make Primary Cover"
+                                  onClick={() => {
+                                    const reordered = [imgUrl, ...editImages.filter((_, i) => i !== idx)];
+                                    setEditImages(reordered);
+                                  }}
+                                  className="p-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                title="Remove photo"
+                                onClick={() => setEditImages(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-1 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-
-              {renderPricingAndOffersConfig(
-                editVariants,
-                setEditVariants,
-                editVariantPrices,
-                setEditVariantPrices,
-                editBulkOffers,
-                setEditBulkOffers,
-                editVarGroupName,
-                setEditVarGroupName,
-                editVarOptionsInput,
-                setEditVarOptionsInput
+                </div>
               )}
 
-              <div>
-                <label className="block font-semibold mb-1">Product Image URL (পণ্যের ছবি লিংক):</label>
-                <input
-                  type="text"
-                  value={editImage}
-                  onChange={(e) => setEditImage(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
+              {/* TAB 4: DESCRIPTION & SPECS & AI */}
+              {editActiveTab === 'desc' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 p-3 rounded-xl">
+                    <div>
+                      <span className="font-bold text-purple-900 dark:text-purple-200 text-xs block">
+                        ✨ স্মার্ট এআই বিবরণ জেনারেটর (AI Copywriter)
+                      </span>
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300">
+                        {language === 'bn' ? 'এক ক্লিকেই বাংলা ও ইংরেজিতে আকর্ষণীয় পণ্যের বিবরণ তৈরি করুন' : 'Auto-generate engaging product descriptions in Bangla & English'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isGeneratingEditAiDesc}
+                      onClick={handleAiCopywriteEdit}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{isGeneratingEditAiDesc ? 'তৈরি হচ্ছে...' : 'জেনারেট করুন'}</span>
+                    </button>
+                  </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Product Description (পণ্যের বিবরণ):</label>
-                <textarea
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-900"
-                  placeholder="পণ্যের বিস্তারিত বিবরণ এখানে লিখুন..."
-                />
-              </div>
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের বিবরণ (বাংলা):' : 'Product Description (Bangla):'}
+                    </label>
+                    <textarea
+                      value={editDescBn}
+                      onChange={(e) => setEditDescBn(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                      placeholder="পণ্যের বিস্তারিত বিবরণ ও বিশেষত্ব লিখুন..."
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shrink-0"
-              >
-                Update Product Listing (পণ্য আপডেট করুন)
-              </button>
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'পণ্যের বিবরণ (English):' : 'Product Description (English):'}
+                    </label>
+                    <textarea
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                      placeholder="Product features and specifications..."
+                    />
+                  </div>
+
+                  {/* Custom Specs Key-Values */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 text-xs">
+                      {language === 'bn' ? 'কাস্টম স্পেসিফিকেশন ও বৈশিষ্ট্য (Specifications):' : 'Custom Specifications:'}
+                    </label>
+
+                    <div className="space-y-2">
+                      {editCustomSpecs.map((spec, sIdx) => (
+                        <div key={sIdx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={spec.labelBn || spec.label}
+                            onChange={(e) => {
+                              const updated = [...editCustomSpecs];
+                              updated[sIdx] = { ...updated[sIdx], labelBn: e.target.value, label: e.target.value };
+                              setEditCustomSpecs(updated);
+                            }}
+                            placeholder="বৈশিষ্ট্য (যেমন: রঙ / উপাদান)"
+                            className="w-1/3 px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={spec.valueBn || spec.value}
+                            onChange={(e) => {
+                              const updated = [...editCustomSpecs];
+                              updated[sIdx] = { ...updated[sIdx], valueBn: e.target.value, value: e.target.value };
+                              setEditCustomSpecs(updated);
+                            }}
+                            placeholder="মান (যেমন: ব্ল্যাক / কটন)"
+                            className="flex-1 px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditCustomSpecs(editCustomSpecs.filter((_, i) => i !== sIdx))}
+                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <input
+                          type="text"
+                          value={newSpecLabel}
+                          onChange={(e) => setNewSpecLabel(e.target.value)}
+                          placeholder="নতুন বৈশিষ্ট্য (যেমন: ওজন)"
+                          className="w-1/3 px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={newSpecValue}
+                          onChange={(e) => setNewSpecValue(e.target.value)}
+                          placeholder="মান (যেমন: ৫০০ গ্রাম)"
+                          className="flex-1 px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newSpecLabel.trim() && newSpecValue.trim()) {
+                              setEditCustomSpecs(prev => [...prev, { label: newSpecLabel.trim(), labelBn: newSpecLabel.trim(), value: newSpecValue.trim(), valueBn: newSpecValue.trim() }]);
+                              setNewSpecLabel('');
+                              setNewSpecValue('');
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-xs"
+                        >
+                          + যোগ
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: DELIVERY & GUARANTEES */}
+              {editActiveTab === 'delivery' && (
+                <div className="space-y-3.5 animate-in fade-in">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'ডেলিভারি চার্জ (ঢাকার ভেতরে - ৳):' : 'Inside Dhaka Delivery (৳):'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editDeliveryChargeInside}
+                        onChange={(e) => setEditDeliveryChargeInside(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'ডেলিভারি চার্জ (ঢাকার বাইরে - ৳):' : 'Outside Dhaka Delivery (৳):'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editDeliveryChargeOutside}
+                        onChange={(e) => setEditDeliveryChargeOutside(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'সম্ভাব্য ডেলিভারি সময়:' : 'Estimated Delivery Time:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editDeliveryTime}
+                      onChange={(e) => setEditDeliveryTime(e.target.value)}
+                      placeholder="যেমন: ২৪-৪৮ ঘণ্টার মধ্যে"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'ওয়ারেন্টি অপশন:' : 'Warranty:'}
+                      </label>
+                      <select
+                        value={editWarranty}
+                        onChange={(e) => setEditWarranty(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      >
+                        <option value="No Warranty">No Warranty (ওয়ারেন্টি নেই)</option>
+                        <option value="6 Months Warranty">6 Months (৬ মাস)</option>
+                        <option value="1 Year Warranty">1 Year (১ বছর)</option>
+                        <option value="2 Years Warranty">2 Years (২ বছর)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        {language === 'bn' ? 'রিটার্ন পলিসি:' : 'Return Policy:'}
+                      </label>
+                      <input
+                        type="text"
+                        value={editReturnPolicy}
+                        onChange={(e) => setEditReturnPolicy(e.target.value)}
+                        placeholder="৭ দিনের ইজি রিটার্ন"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {language === 'bn' ? 'নিশ্চয়তা ও গ্যারান্টি নোট:' : 'Warranty & Guarantee Policy:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editWarrantyPolicy}
+                      onChange={(e) => setEditWarrantyPolicy(e.target.value)}
+                      placeholder="১০০% অরিজিনাল ও মানসম্মত পণ্যের নিশ্চয়তা"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: OFFERS, COMBOS & VARIANTS */}
+              {editActiveTab === 'variants' && (
+                <div className="space-y-4 animate-in fade-in">
+                  {/* Combo Pack Selector (Edit Product) */}
+                  <div className="border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">
+                          {language === 'bn' ? 'কম্বো প্যাকেজ হিসেবে বিক্রি করুন' : 'Sell as a Combo Package'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          {language === 'bn' ? 'একাধিক পণ্য একসাথে একটি প্যাকেজে বিশেষ ছাড়ে বিক্রি করুন' : 'Bundle multiple products together for a promotional package.'}
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isEditCombo}
+                        onChange={(e) => {
+                          setIsEditCombo(e.target.checked);
+                          if (e.target.checked && editComboItems.length === 0) {
+                            const selectable = sellerProducts.filter(p => p.id !== editingProduct?.id);
+                            if (selectable.length > 0) {
+                              setEditComboItems([{ productId: selectable[0].id, quantity: 1 }]);
+                            }
+                          }
+                        }}
+                        className="w-4.5 h-4.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                    </div>
+
+                    {isEditCombo && (
+                      <div className="space-y-3 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                        <label className="block font-semibold mb-1 text-slate-500">
+                          {language === 'bn' ? 'কম্বো পণ্যসমূহ নির্বাচন করুন:' : 'Select products to bundle:'}
+                        </label>
+
+                        {sellerProducts.filter(p => p.id !== editingProduct?.id).length === 0 ? (
+                          <p className="text-[11px] text-amber-500 italic">
+                            {language === 'bn' ? 'অন্য কোন পণ্য পাওয়া যায়নি। কম্বো তৈরি করতে অন্য পণ্য থাকতে হবে।' : 'No other products found. Add more products first to build a combo.'}
+                          </p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
+                            {sellerProducts.filter(p => p.id !== editingProduct?.id).map((p) => {
+                              const existingItem = editComboItems.find(item => item.productId === p.id);
+                              const isChecked = !!existingItem;
+
+                              const handleCheckboxChange = (checked: boolean) => {
+                                if (checked) {
+                                  setEditComboItems([...editComboItems, { productId: p.id, quantity: 1 }]);
+                                } else {
+                                  setEditComboItems(editComboItems.filter(item => item.productId !== p.id));
+                                }
+                              };
+
+                              const handleQtyChange = (val: number) => {
+                                if (val < 1) return;
+                                setEditComboItems(editComboItems.map(item => 
+                                  item.productId === p.id ? { ...item, quantity: val } : item
+                                ));
+                              };
+
+                              return (
+                                <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-xs gap-2">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => handleCheckboxChange(e.target.checked)}
+                                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                    <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
+                                    <div className="truncate">
+                                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
+                                      <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>
+                                    </div>
+                                  </div>
+
+                                  {isChecked && (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQtyChange((existingItem?.quantity || 1) - 1)}
+                                        className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="font-mono w-5 text-center font-bold">{existingItem?.quantity || 1}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQtyChange((existingItem?.quantity || 1) + 1)}
+                                        className="w-5 h-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 font-bold"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Pricing Summary calculations */}
+                        {editComboItems.length > 0 && (
+                          <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 p-3 rounded-xl space-y-2 text-[11px]">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">{language === 'bn' ? 'সাধারণ মোট মূল্য:' : 'Regular Item Sum:'}</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                ৳{editComboItems.reduce((acc, item) => {
+                                  const prod = sellerProducts.find(p => p.id === item.productId);
+                                  return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                }, 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{language === 'bn' ? 'প্রস্তাবিত কম্বো অফার (১৫% ছাড়):' : 'Suggested Combo (15% Off):'}</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                ৳{Math.round(editComboItems.reduce((acc, item) => {
+                                  const prod = sellerProducts.find(p => p.id === item.productId);
+                                  return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                }, 0) * 0.85)}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const total = editComboItems.reduce((acc, item) => {
+                                  const prod = sellerProducts.find(p => p.id === item.productId);
+                                  return acc + (prod ? (prod.discountPrice || prod.price) * item.quantity : 0);
+                                }, 0);
+                                setEditPrice(String(total));
+                                setEditDiscount(String(Math.round(total * 0.85)));
+                              }}
+                              className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition cursor-pointer"
+                            >
+                              {language === 'bn' ? 'অফারের মূল্য সেট করুন' : 'Apply Offer Pricing'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {renderPricingAndOffersConfig(
+                    editVariants,
+                    setEditVariants,
+                    editVariantPrices,
+                    setEditVariantPrices,
+                    editBulkOffers,
+                    setEditBulkOffers,
+                    editVarGroupName,
+                    setEditVarGroupName,
+                    editVarOptionsInput,
+                    setEditVarOptionsInput
+                  )}
+                </div>
+              )}
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsEditProductOpen(false); setEditingProduct(null); }}
+                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition text-xs cursor-pointer"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition shadow-md shadow-emerald-500/20 text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <CheckCheck className="w-4 h-4" />
+                  <span>{language === 'bn' ? 'পরিবর্তনসমূহ সংরক্ষণ করুন' : 'Save & Update Changes'}</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -206,7 +206,11 @@ export const ProductApprovals: React.FC = () => {
 
   // Automatic Prohibited Item Vetting Engine (Checks for illegal / policy violating keywords)
   const runSafetyAudit = (product: Product) => {
-    const textToScan = `${product.title} ${product.description} ${product.brand} ${product.tags.join(' ')}`.toLowerCase();
+    const title = product.title || '';
+    const desc = product.description || '';
+    const brand = product.brand || '';
+    const tags = Array.isArray(product.tags) ? product.tags.join(' ') : '';
+    const textToScan = `${title} ${desc} ${brand} ${tags}`.toLowerCase();
     
     const weapons = ['knife', 'weapons', 'spring steel', 'combat', 'folding knife', 'gun', 'explosive', 'ছুরি', 'অস্ত্র'];
     const regulated = ['vape', 'tobacco', 'nicotine', 'e-cigarette', 'drugs', 'chemical', 'ভ্যাপ', 'নেশাজাতীয়', 'মাদক'];
@@ -251,11 +255,12 @@ export const ProductApprovals: React.FC = () => {
 
   // Filter products based on selected tab and search query
   const filteredProducts = productList.filter(p => {
-    const matchesSearch = 
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.titleBn && p.titleBn.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      p.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = (searchQuery || '').toLowerCase().trim();
+    const matchesSearch = !q ||
+      (p.title && p.title.toLowerCase().includes(q)) ||
+      (p.titleBn && p.titleBn.toLowerCase().includes(q)) ||
+      (p.sellerName && p.sellerName.toLowerCase().includes(q)) ||
+      (p.brand && p.brand.toLowerCase().includes(q));
 
     const isRejected = p.tags?.includes('rejected') || p.customSpecs?.some(s => s.label === 'Status' && s.value === 'Rejected');
 

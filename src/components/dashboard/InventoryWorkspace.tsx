@@ -1328,11 +1328,13 @@ export const InventoryWorkspace: React.FC = () => {
         (p.sellerId && p.sellerId.replace(/^(usr-|sel-)/, '') === strippedId);
       if (!matchSeller) return false;
     }
-    const q = search.toLowerCase();
-    return p.title.toLowerCase().includes(q) || 
-           (p.titleBn && p.titleBn.toLowerCase().includes(q)) ||
-           p.brand.toLowerCase().includes(q) ||
-           p.categoryName.toLowerCase().includes(q);
+    const q = (search || '').toLowerCase().trim();
+    if (!q) return true;
+    const title = (p.title || '').toLowerCase();
+    const titleBn = (p.titleBn || '').toLowerCase();
+    const brand = (p.brand || '').toLowerCase();
+    const categoryName = (p.categoryName || '').toLowerCase();
+    return title.includes(q) || titleBn.includes(q) || brand.includes(q) || categoryName.includes(q);
   });
 
   return (

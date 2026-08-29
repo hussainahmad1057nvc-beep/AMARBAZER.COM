@@ -872,12 +872,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
     // Custom search query
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       list = list.filter(p => 
-        p.title.toLowerCase().includes(q) || 
+        (p.title && p.title.toLowerCase().includes(q)) || 
         (p.titleBn && p.titleBn.toLowerCase().includes(q)) ||
-        p.brand.toLowerCase().includes(q) ||
-        p.tags.some(t => t.toLowerCase().includes(q))
+        (p.brand && p.brand.toLowerCase().includes(q)) ||
+        (Array.isArray(p.tags) && p.tags.some(t => t && t.toLowerCase().includes(q)))
       );
     }
 
@@ -887,10 +887,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
       const keyword = (campaignData.filterKeyword || '').toLowerCase().trim();
       if (keyword) {
         list = list.filter(p => 
-          p.title.toLowerCase().includes(keyword) || 
+          (p.title && p.title.toLowerCase().includes(keyword)) || 
           (p.titleBn && p.titleBn.toLowerCase().includes(keyword)) ||
-          p.brand.toLowerCase().includes(keyword) ||
-          p.tags.some(t => t.toLowerCase().includes(keyword)) ||
+          (p.brand && p.brand.toLowerCase().includes(keyword)) ||
+          (Array.isArray(p.tags) && p.tags.some(t => t && t.toLowerCase().includes(keyword))) ||
           (p.categoryId && p.categoryId.toLowerCase().includes(keyword))
         );
       } else {
@@ -899,27 +899,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
           // Show all products on the home page as requested, do not filter out products
         } else if (activeTab === 'unilever') {
           // UNILEVER-STOCK & SAVE: Only show Unilever brand items
-          list = list.filter(p => p.brand.toLowerCase() === 'unilever');
+          list = list.filter(p => (p.brand || '').toLowerCase() === 'unilever');
         } else if (activeTab === 'bogo') {
           // GREAT DEALS: Premium electronics and traditional boutique sarees with high value discounts
           list = list.filter(p => p.discountPrice && (p.price - p.discountPrice) >= 500);
         } else if (activeTab === 'summer') {
           // BUY & SAVE MORE: Household kitchen and organic pantry sizes (honey, oil, staples)
-          list = list.filter(p => ['sundarbans pure', 'kather ghani bd'].includes(p.brand.toLowerCase()) || p.tags.includes('grocery') || p.tags.includes('organic'));
+          list = list.filter(p => ['sundarbans pure', 'kather ghani bd'].includes((p.brand || '').toLowerCase()) || (Array.isArray(p.tags) && (p.tags.includes('grocery') || p.tags.includes('organic'))));
         } else {
           // For any custom newly created campaign where keyword was cleared,
           // let's fallback to matching keywords based on its badge/name to prevent empty state
           const label = (campaignData.badge?.en || '').toLowerCase();
           if (label.includes('gadget') || label.includes('tech') || label.includes('tv') || label.includes('phone')) {
-            list = list.filter(p => p.tags.includes('gadget') || p.tags.includes('walton') || p.tags.includes('samsung'));
+            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('gadget') || p.tags.includes('walton') || p.tags.includes('samsung')));
           } else if (label.includes('fashion') || label.includes('saree') || label.includes('panjabi') || label.includes('clothing')) {
-            list = list.filter(p => p.tags.includes('saree') || p.tags.includes('panjabi') || p.tags.includes('menswear'));
+            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('saree') || p.tags.includes('panjabi') || p.tags.includes('menswear')));
           } else if (label.includes('beauty') || label.includes('soap') || label.includes('shampoo')) {
-            list = list.filter(p => p.tags.includes('beauty') || p.tags.includes('soap') || p.tags.includes('shampoo'));
+            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('beauty') || p.tags.includes('soap') || p.tags.includes('shampoo')));
           } else if (label.includes('drink') || label.includes('tea') || label.includes('beverage')) {
-            list = list.filter(p => p.tags.includes('drinks') || p.tags.includes('beverage') || p.tags.includes('summer'));
+            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('drinks') || p.tags.includes('beverage') || p.tags.includes('summer')));
           } else if (label.includes('shoe') || label.includes('leather') || label.includes('footwear')) {
-            list = list.filter(p => p.tags.includes('shoes') || p.tags.includes('leather'));
+            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('shoes') || p.tags.includes('leather')));
           } else {
             // Default fallback if no match found: show featured/popular products
             list = list.filter(p => p.isFeatured || p.isFlashDeal || p.price < 5000);

@@ -75,7 +75,8 @@ purgeLegacyMockData();
 
 function isLegacyMockId(id?: string): boolean {
   if (!id) return false;
-  return id.startsWith('prod-10') || id.startsWith('prod-11') || id.startsWith('prod-12') || id.startsWith('pending-');
+  const legacySet = new Set(['pending-1', 'pending-2', 'pending-3', 'prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8', 'prod-9', 'prod-10', 'prod-11', 'prod-12', 'prod-101', 'prod-102', 'prod-103', 'prod-104', 'prod-105']);
+  return legacySet.has(id);
 }
 
 export function getDeletedProductIds(): Set<string> {
@@ -462,6 +463,7 @@ export const api = {
     }
 
     const newProd: Product = {
+      ...product,
       id: newId,
       title: titleText,
       titleBn: titleBnText,
@@ -499,15 +501,8 @@ export const api = {
       deliveryChargeOutside: product.deliveryChargeOutside ?? 120,
       isCodAvailable: product.isCodAvailable ?? true,
       isExpressDelivery: Boolean(product.isExpressDelivery),
-      createdAt: new Date().toISOString(),
-      ...product,
-      // Ensure required properties aren't overridden by undefined values
-      id: newId,
-      title: titleText,
-      titleBn: titleBnText,
-      price: priceNum,
-      images: validImages,
-      isApproved: true
+      isApproved: true,
+      createdAt: product.createdAt || new Date().toISOString()
     };
 
     // 1. Immediately persist to local cache
