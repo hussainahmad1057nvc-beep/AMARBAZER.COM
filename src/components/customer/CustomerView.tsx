@@ -414,15 +414,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
   // Selected subcategory or special filter tab
 
-  // Handle active tab switching if the selected tab becomes deactivated
+  // Handle active tab switching if the selected tab becomes deactivated (preserve 'all' for store browsing)
   useEffect(() => {
+    if (activeTab === 'all') return;
     const activeTabs = Object.entries(dynamicCampaigns)
       .filter(([_, value]: [string, any]) => value && value.isActive !== false)
       .map(([key]) => ({ id: key, isActive: true }));
 
     const isCurrentActive = activeTabs.some(t => t.id === activeTab);
     if (!isCurrentActive && activeTabs.length > 0) {
-      setActiveTab(activeTabs[0].id as any);
+      setActiveTab('all');
     }
   }, [dynamicCampaigns, activeTab]);
   const [sortOption, setSortOption] = useState<'newest' | 'price-low' | 'price-high' | 'rating'>('newest');
@@ -555,318 +556,137 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
     // Category filter
     if (selectedCategory) {
+      const selCatLower = selectedCategory.toLowerCase();
+      
       list = list.filter(p => {
-        // Direct category ID match
-        if (p.categoryId === selectedCategory) return true;
+        const pCatId = (p.categoryId || '').toLowerCase();
+        const pCatName = (p.categoryName || '').toLowerCase();
+        const pSubCat = (p.subCategory || '').toLowerCase();
+        const pSubCatId = ((p as any).subCategoryId || '').toLowerCase();
+        const titleLower = (p.title || '').toLowerCase();
+        const titleBnLower = (p.titleBn || '').toLowerCase();
+        const brandLower = (p.brand || '').toLowerCase();
+        const tags = (Array.isArray(p.tags) ? p.tags : []).map(t => (t || '').toLowerCase());
+        const combinedText = `${titleLower} ${titleBnLower} ${pCatName} ${pSubCat} ${brandLower} ${tags.join(' ')}`;
 
-        // Matching with active categories object (including subcategories & dynamic names)
-        const activeCat = categories.find(c => c.id === selectedCategory);
-        if (activeCat) {
-          if (p.categoryId === activeCat.id) return true;
-          if (p.categoryName && (p.categoryName.toLowerCase() === activeCat.name.toLowerCase() || p.categoryName.toLowerCase() === (activeCat.nameBn || '').toLowerCase())) return true;
-          if (p.subCategory && activeCat.subcategories?.some(s => s.name.toLowerCase() === p.subCategory?.toLowerCase() || s.nameBn?.toLowerCase() === p.subCategory?.toLowerCase() || s.id === p.subCategory)) return true;
+        // 1. Direct category ID or Name match
+        if (pCatId === selCatLower) return true;
+        if (pCatName === selCatLower) return true;
+        if (pSubCat === selCatLower || pSubCatId === selCatLower) return true;
+
+        // 2. Lookup in loaded categories object hierarchy
+        const matchedCat = categories.find(c => c.id.toLowerCase() === selCatLower || c.name.toLowerCase() === selCatLower || (c.nameBn && c.nameBn.toLowerCase() === selCatLower));
+        if (matchedCat) {
+          if (pCatId === matchedCat.id.toLowerCase()) return true;
+          if (pCatName === matchedCat.name.toLowerCase() || (matchedCat.nameBn && pCatName === matchedCat.nameBn.toLowerCase())) return true;
+          if (matchedCat.subcategories?.some(s => s.id.toLowerCase() === pCatId || s.name.toLowerCase() === pSubCat || (s.nameBn && s.nameBn.toLowerCase() === pSubCat))) return true;
         }
 
-        // Check if selectedCategory is a Subcategory ID across all categories
+        // 3. Subcategory across all categories lookup
         for (const c of categories) {
-          const sub = c.subcategories?.find(s => s.id === selectedCategory);
+          const sub = c.subcategories?.find(s => s.id.toLowerCase() === selCatLower || s.name.toLowerCase() === selCatLower || (s.nameBn && s.nameBn.toLowerCase() === selCatLower));
           if (sub) {
-            if (p.categoryId === c.id) {
-              const sNameEn = sub.name.toLowerCase();
-              const sNameBn = (sub.nameBn || '').toLowerCase();
-              const pSub = (p.subCategory || '').toLowerCase();
-              const pSubId = ((p as any).subCategoryId || '').toLowerCase();
-              if (pSub === sNameEn || pSub === sNameBn || pSubId === sub.id.toLowerCase()) return true;
-
-              const titleCombined = (p.title + ' ' + (p.titleBn || '')).toLowerCase();
-              const pTags = (p.tags || []).map(t => t.toLowerCase());
-              // Match any key words of the subcategory
-              const keywords = [...sNameEn.split(/[\s,&/]+/), ...sNameBn.split(/[\s,&/]+/)].filter(w => w.length > 2);
-              if (keywords.some(k => titleCombined.includes(k) || pTags.some(t => t.includes(k)))) {
-                return true;
-              }
-              // If no specific subcategory is tagged on product, still show products from this parent category
+            if (pCatId === c.id.toLowerCase() || pCatName === c.name.toLowerCase()) {
+              if (pSubCat === sub.name.toLowerCase() || (sub.nameBn && pSubCat === sub.nameBn.toLowerCase()) || pSubCatId === sub.id.toLowerCase()) return true;
+              // If product belongs to parent category and has matching keywords
+              const subKeywords = [sub.name, sub.nameBn || ''].join(' ').toLowerCase().split(/[\s,&/]+/).filter(w => w.length > 2);
+              if (subKeywords.some(k => combinedText.includes(k))) return true;
               return true;
             }
           }
         }
 
-        // Custom child/grandchild matching to make it look 100% functional
-        const nameLower = (p.title + ' ' + (p.titleBn || '') + ' ' + (p.categoryName || '') + ' ' + (p.subCategory || '') + ' ' + p.brand).toLowerCase();
-        const tagsLower = (p.tags || []).map(t => t.toLowerCase()).join(' ');
-
-        if (selectedCategory === 'cat-1' || selectedCategory === 'electronics') {
-          return p.categoryId === 'cat-1' || tagsLower.includes('phone') || tagsLower.includes('laptop') || tagsLower.includes('gadget') || tagsLower.includes('smart') || nameLower.includes('phone') || nameLower.includes('laptop') || nameLower.includes('tv') || nameLower.includes('headphone') || nameLower.includes('watch');
+        // 4. Keyword & slug mappings for standard marketplace categories
+        if (selCatLower === 'cat-1' || selCatLower === 'electronics') {
+          return pCatId === 'cat-1' || combinedText.includes('phone') || combinedText.includes('laptop') || combinedText.includes('gadget') || combinedText.includes('tv') || combinedText.includes('watch') || combinedText.includes('ইলেকট্রনিক্স');
         }
-        if (selectedCategory === 'cat-2' || selectedCategory === 'clothing') {
-          return p.categoryId === 'cat-2' || tagsLower.includes('clothing') || tagsLower.includes('panjabi') || tagsLower.includes('shirt') || tagsLower.includes('t-shirt') || nameLower.includes('panjabi') || nameLower.includes('shirt') || nameLower.includes('polo') || nameLower.includes('পোশাক');
+        if (selCatLower === 'cat-2' || selCatLower === 'clothing' || selCatLower === 'fashion') {
+          return pCatId === 'cat-2' || combinedText.includes('panjabi') || combinedText.includes('shirt') || combinedText.includes('t-shirt') || combinedText.includes('clothing') || combinedText.includes('পোশাক') || combinedText.includes('পাঞ্জাবি');
         }
-        if (selectedCategory === 'cat-3' || selectedCategory === 'saree-ethnic') {
-          return p.categoryId === 'cat-3' || tagsLower.includes('saree') || tagsLower.includes('jamdani') || tagsLower.includes('silk') || nameLower.includes('saree') || nameLower.includes('শাড়ি') || nameLower.includes('jamdani') || nameLower.includes('কাতান');
+        if (selCatLower === 'cat-3' || selCatLower === 'saree-ethnic' || selCatLower === 'sarees-ethnic') {
+          return pCatId === 'cat-3' || combinedText.includes('saree') || combinedText.includes('jamdani') || combinedText.includes('silk') || combinedText.includes('শাড়ি') || combinedText.includes('কাতান');
         }
-        if (selectedCategory === 'cat-4' || selectedCategory === 'grocery-products') {
-          return p.categoryId === 'cat-4' || tagsLower.includes('oil') || tagsLower.includes('rice') || tagsLower.includes('honey') || tagsLower.includes('ghee') || nameLower.includes('oil') || nameLower.includes('চাল') || nameLower.includes('মধু') || nameLower.includes('ঘি') || nameLower.includes('তেল') || nameLower.includes('মসলা');
+        if (selCatLower === 'cat-4' || selCatLower === 'grocery-products' || selCatLower === 'grocery') {
+          return pCatId === 'cat-4' || combinedText.includes('oil') || combinedText.includes('rice') || combinedText.includes('honey') || combinedText.includes('ghee') || combinedText.includes('মধু') || combinedText.includes('তেল') || combinedText.includes('চাল') || combinedText.includes('গ্রোসারি');
         }
-        if (selectedCategory === 'cat-5' || selectedCategory === 'shoes') {
-          return p.categoryId === 'cat-5' || tagsLower.includes('shoe') || tagsLower.includes('sandal') || tagsLower.includes('sneaker') || nameLower.includes('shoe') || nameLower.includes('জুতা') || nameLower.includes('sandal') || nameLower.includes('sneaker');
+        if (selCatLower === 'cat-5' || selCatLower === 'shoes' || selCatLower === 'footwear') {
+          return pCatId === 'cat-5' || combinedText.includes('shoe') || combinedText.includes('sandal') || combinedText.includes('sneaker') || combinedText.includes('জুতা');
         }
-        if (selectedCategory === 'cat-6' || selectedCategory === 'watches') {
-          return p.categoryId === 'cat-6' || tagsLower.includes('watch') || nameLower.includes('watch') || nameLower.includes('ঘড়ি') || nameLower.includes('chronograph');
+        if (selCatLower === 'cat-6' || selCatLower === 'watches') {
+          return pCatId === 'cat-6' || combinedText.includes('watch') || combinedText.includes('ঘড়ি') || combinedText.includes('smartwatch');
         }
-        if (selectedCategory === 'cat-7' || selectedCategory === 'cosmetics') {
-          return p.categoryId === 'cat-7' || tagsLower.includes('cosmetics') || tagsLower.includes('cream') || tagsLower.includes('lipstick') || nameLower.includes('lipstick') || nameLower.includes('cream') || nameLower.includes('sunscreen') || nameLower.includes('কসমেটিক্স');
+        if (selCatLower === 'cat-7' || selCatLower === 'cosmetics' || selCatLower === 'beauty') {
+          return pCatId === 'cat-7' || combinedText.includes('cosmetic') || combinedText.includes('cream') || combinedText.includes('lipstick') || combinedText.includes('soap') || combinedText.includes('shampoo') || combinedText.includes('কসমেটিক্স');
         }
-        if (selectedCategory === 'cat-8' || selectedCategory === 'baby-care') {
-          return p.categoryId === 'cat-8' || tagsLower.includes('baby') || tagsLower.includes('diaper') || nameLower.includes('baby') || nameLower.includes('diaper') || nameLower.includes('ডায়াপার') || nameLower.includes('বেবি');
+        if (selCatLower === 'cat-8' || selCatLower === 'baby-care' || selCatLower === 'baby-food' || selCatLower === 'diapers') {
+          return pCatId === 'cat-8' || combinedText.includes('baby') || combinedText.includes('diaper') || combinedText.includes('ডায়াপার') || combinedText.includes('বেবি');
         }
-        if (selectedCategory === 'cat-9' || selectedCategory === 'toys') {
-          return p.categoryId === 'cat-9' || tagsLower.includes('toy') || tagsLower.includes('puzzle') || nameLower.includes('toy') || nameLower.includes('খেলনা') || nameLower.includes('lego') || nameLower.includes('puzzle');
+        if (selCatLower === 'cat-9' || selCatLower === 'toys') {
+          return pCatId === 'cat-9' || combinedText.includes('toy') || combinedText.includes('puzzle') || combinedText.includes('lego') || combinedText.includes('খেলনা');
         }
-        if (selectedCategory === 'cat-10' || selectedCategory === 'sports') {
-          return p.categoryId === 'cat-10' || tagsLower.includes('sports') || tagsLower.includes('cricket') || tagsLower.includes('football') || nameLower.includes('bat') || nameLower.includes('ball') || nameLower.includes('cricket') || nameLower.includes('football') || nameLower.includes('খেলাধুলা');
+        if (selCatLower === 'cat-10' || selCatLower === 'sports' || selCatLower === 'sports-fitness') {
+          return pCatId === 'cat-10' || combinedText.includes('sport') || combinedText.includes('cricket') || combinedText.includes('football') || combinedText.includes('bat') || combinedText.includes('ball') || combinedText.includes('খেলাধুলা');
         }
-        if (selectedCategory === 'cat-11' || selectedCategory === 'medicine') {
-          return p.categoryId === 'cat-11' || tagsLower.includes('medicine') || tagsLower.includes('health') || tagsLower.includes('tablet') || nameLower.includes('napa') || nameLower.includes('seclo') || nameLower.includes('vitamin') || nameLower.includes('ওষুধ') || nameLower.includes('ঔষধ');
+        if (selCatLower === 'cat-11' || selCatLower === 'medicine' || selCatLower === 'health') {
+          return pCatId === 'cat-11' || combinedText.includes('medicine') || combinedText.includes('tablet') || combinedText.includes('health') || combinedText.includes('ঔষধ') || combinedText.includes('ওষুধ');
         }
-        if (selectedCategory === 'cat-12' || selectedCategory === 'books') {
-          return p.categoryId === 'cat-12' || tagsLower.includes('book') || tagsLower.includes('stationery') || nameLower.includes('book') || nameLower.includes('বই') || nameLower.includes('novel') || nameLower.includes('উপন্যাস');
+        if (selCatLower === 'cat-12' || selCatLower === 'books' || selCatLower === 'stationery' || selCatLower === 'stationeries') {
+          return pCatId === 'cat-12' || combinedText.includes('book') || combinedText.includes('pen') || combinedText.includes('notebook') || combinedText.includes('বই') || combinedText.includes('খাতা');
         }
-
-        // New Grocery & Daily Essential Categories
-        if (selectedCategory === 'cat-spices' || selectedCategory === 'spices' || selectedCategory === 'groceries-spices') {
-          return p.categoryId === 'cat-spices' || tagsLower.includes('spice') || tagsLower.includes('masala') || tagsLower.includes('turmeric') || tagsLower.includes('chili') || tagsLower.includes('cumin') || tagsLower.includes('coriander') || nameLower.includes('মসলা') || nameLower.includes('হলুদ') || nameLower.includes('মরিচ') || nameLower.includes('জিরা') || nameLower.includes('ধনিয়া') || nameLower.includes('এলাচ') || nameLower.includes('গরম মসলা');
+        if (selCatLower === 'cat-fruits' || selCatLower === 'fresh-fruits' || selCatLower === 'fruits' || selCatLower === 'fruits-veg') {
+          return pCatId === 'cat-fruits' || combinedText.includes('fruit') || combinedText.includes('apple') || combinedText.includes('mango') || combinedText.includes('banana') || combinedText.includes('orange') || combinedText.includes('ফল') || combinedText.includes('আম') || combinedText.includes('আপেল') || combinedText.includes('কলা') || combinedText.includes('মাল্টা') || combinedText.includes('বেদানা');
         }
-        if (selectedCategory === 'cat-honey' || selectedCategory === 'honey' || selectedCategory === 'organic-honey') {
-          return p.categoryId === 'cat-honey' || tagsLower.includes('honey') || tagsLower.includes('মধু') || nameLower.includes('honey') || nameLower.includes('মধু') || nameLower.includes('সুন্দরবন') || nameLower.includes('খলিসা');
+        if (selCatLower === 'cat-vegetables' || selCatLower === 'fresh-vegetables' || selCatLower === 'vegetables') {
+          return pCatId === 'cat-vegetables' || combinedText.includes('vegetable') || combinedText.includes('potato') || combinedText.includes('onion') || combinedText.includes('tomato') || combinedText.includes('সবজি') || combinedText.includes('শাক') || combinedText.includes('আলু') || combinedText.includes('পেঁয়াজ');
         }
-        if (selectedCategory === 'cat-gur' || selectedCategory === 'gur' || selectedCategory === 'jaggery') {
-          return p.categoryId === 'cat-gur' || tagsLower.includes('gur') || tagsLower.includes('jaggery') || tagsLower.includes('sugar') || nameLower.includes('গুড়') || nameLower.includes('পাটালি') || nameLower.includes('নলেন') || nameLower.includes('jaggery') || nameLower.includes('চিনি');
+        if (selCatLower === 'cat-fish-meat' || selCatLower === 'meat-fish' || selCatLower === 'fresh-fish' || selCatLower === 'chicken' || selCatLower === 'beef-mutton') {
+          return pCatId === 'cat-fish-meat' || combinedText.includes('fish') || combinedText.includes('meat') || combinedText.includes('chicken') || combinedText.includes('beef') || combinedText.includes('mutton') || combinedText.includes('মাছ') || combinedText.includes('মাংস') || combinedText.includes('মুরগি') || combinedText.includes('গরু');
         }
-        if (selectedCategory === 'cat-flour' || selectedCategory === 'flour' || selectedCategory === 'atta' || selectedCategory === 'maida') {
-          return p.categoryId === 'cat-flour' || tagsLower.includes('atta') || tagsLower.includes('maida') || tagsLower.includes('flour') || tagsLower.includes('besan') || tagsLower.includes('suji') || nameLower.includes('আটা') || nameLower.includes('ময়দা') || nameLower.includes('সুজি') || nameLower.includes('বেসন') || nameLower.includes('flour');
+        if (selCatLower === 'cat-spices' || selCatLower === 'spices' || selCatLower === 'groceries-spices') {
+          return pCatId === 'cat-spices' || combinedText.includes('spice') || combinedText.includes('masala') || combinedText.includes('turmeric') || combinedText.includes('chili') || combinedText.includes('cumin') || combinedText.includes('মসলা') || combinedText.includes('হলুদ') || combinedText.includes('মরিচ') || combinedText.includes('জিরা');
         }
-        if (selectedCategory === 'cat-chola' || selectedCategory === 'chola' || selectedCategory === 'chickpeas') {
-          return p.categoryId === 'cat-chola' || tagsLower.includes('chola') || tagsLower.includes('chickpea') || tagsLower.includes('kabuli') || nameLower.includes('ছোলা') || nameLower.includes('বুট') || nameLower.includes('ডাবলি') || nameLower.includes('কাবলি') || nameLower.includes('মটর');
+        if (selCatLower === 'cat-honey' || selCatLower === 'honey' || selCatLower === 'organic-honey') {
+          return pCatId === 'cat-honey' || combinedText.includes('honey') || combinedText.includes('মধু') || combinedText.includes('সুন্দরবন');
         }
-        if (selectedCategory === 'cat-daal' || selectedCategory === 'daal' || selectedCategory === 'dal' || selectedCategory === 'lentils') {
-          return p.categoryId === 'cat-daal' || tagsLower.includes('dal') || tagsLower.includes('daal') || tagsLower.includes('lentil') || tagsLower.includes('masoor') || tagsLower.includes('moong') || nameLower.includes('ডাল') || nameLower.includes('মসুর') || nameLower.includes('মুগ') || nameLower.includes('বুটের ডাল');
+        if (selCatLower === 'cat-gur' || selCatLower === 'gur' || selCatLower === 'jaggery') {
+          return pCatId === 'cat-gur' || combinedText.includes('gur') || combinedText.includes('jaggery') || combinedText.includes('গুড়') || combinedText.includes('পাটালি');
         }
-        if (selectedCategory === 'cat-oil-ghee' || selectedCategory === 'oil-ghee' || selectedCategory === 'oil' || selectedCategory === 'ghee') {
-          return p.categoryId === 'cat-oil-ghee' || tagsLower.includes('oil') || tagsLower.includes('ghee') || tagsLower.includes('mustard') || nameLower.includes('তেল') || nameLower.includes('ঘি') || nameLower.includes('সরিষা') || nameLower.includes('সয়াবিন') || nameLower.includes('গাওয়া ঘি');
+        if (selCatLower === 'cat-oil-ghee' || selCatLower === 'oil-ghee' || selCatLower === 'oil' || selCatLower === 'ghee') {
+          return pCatId === 'cat-oil-ghee' || combinedText.includes('oil') || combinedText.includes('ghee') || combinedText.includes('mustard') || combinedText.includes('তেল') || combinedText.includes('ঘি') || combinedText.includes('সরিষা');
         }
-        if (selectedCategory === 'cat-rice' || selectedCategory === 'rice' || selectedCategory === 'grain-rice') {
-          return p.categoryId === 'cat-rice' || tagsLower.includes('rice') || tagsLower.includes('chinigura') || tagsLower.includes('polao') || nameLower.includes('চাল') || nameLower.includes('পোলাও') || nameLower.includes('মিনিকেট') || nameLower.includes('নাজিরশাইল') || nameLower.includes('চিনিগুঁড়া');
+        if (selCatLower === 'cat-rice' || selCatLower === 'rice' || selCatLower === 'grain-rice') {
+          return pCatId === 'cat-rice' || combinedText.includes('rice') || combinedText.includes('চাল') || combinedText.includes('পোলাও') || combinedText.includes('মিনিকেট');
         }
-        if (selectedCategory === 'cat-tea-coffee' || selectedCategory === 'tea-coffee' || selectedCategory === 'tea') {
-          return p.categoryId === 'cat-tea-coffee' || tagsLower.includes('tea') || tagsLower.includes('coffee') || nameLower.includes('চা') || nameLower.includes('কফি') || nameLower.includes('ispahani') || nameLower.includes('nescafe');
+        if (selCatLower === 'cat-tea-coffee' || selCatLower === 'tea-coffee' || selCatLower === 'tea') {
+          return pCatId === 'cat-tea-coffee' || combinedText.includes('tea') || combinedText.includes('coffee') || combinedText.includes('চা') || combinedText.includes('কফি');
         }
-        if (selectedCategory === 'cat-dry-fruits' || selectedCategory === 'dry-fruits' || selectedCategory === 'dry-fruits-nuts' || selectedCategory === 'dry-fruits-dates') {
-          return p.categoryId === 'cat-dry-fruits' || tagsLower.includes('date') || tagsLower.includes('nut') || tagsLower.includes('cashew') || tagsLower.includes('almond') || nameLower.includes('খেজুর') || nameLower.includes('বাদাম') || nameLower.includes('আজওয়া') || nameLower.includes('কাজুবাদাম') || nameLower.includes('কাঠবাদাম');
+        if (selCatLower === 'cat-dry-fruits' || selCatLower === 'dry-fruits' || selCatLower === 'dry-fruits-nuts' || selCatLower === 'dry-fruits-dates') {
+          return pCatId === 'cat-dry-fruits' || combinedText.includes('date') || combinedText.includes('nut') || combinedText.includes('cashew') || combinedText.includes('almond') || combinedText.includes('খেজুর') || combinedText.includes('বাদাম');
         }
-        if (selectedCategory === 'cat-dairy-milk' || selectedCategory === 'dairy-milk' || selectedCategory === 'milk') {
-          return p.categoryId === 'cat-dairy-milk' || tagsLower.includes('milk') || tagsLower.includes('dairy') || tagsLower.includes('egg') || tagsLower.includes('butter') || tagsLower.includes('cheese') || nameLower.includes('দুধ') || nameLower.includes('ডিম') || nameLower.includes('মাখন') || nameLower.includes('পনির') || nameLower.includes('দই');
+        if (selCatLower === 'cat-dairy-milk' || selCatLower === 'dairy-milk' || selCatLower === 'milk') {
+          return pCatId === 'cat-dairy-milk' || combinedText.includes('milk') || combinedText.includes('dairy') || combinedText.includes('egg') || combinedText.includes('butter') || combinedText.includes('দুধ') || combinedText.includes('ডিম') || combinedText.includes('ঘি');
         }
-        if (selectedCategory === 'cat-snacks' || selectedCategory === 'snacks-biscuits' || selectedCategory === 'snacks') {
-          return p.categoryId === 'cat-snacks' || tagsLower.includes('snack') || tagsLower.includes('biscuit') || tagsLower.includes('cookie') || tagsLower.includes('chanachur') || tagsLower.includes('chips') || nameLower.includes('বিস্কুট') || nameLower.includes('চানাচুর') || nameLower.includes('চিপস') || nameLower.includes('নিমকি');
+        if (selCatLower === 'cat-snacks' || selCatLower === 'snacks-biscuits' || selCatLower === 'snacks') {
+          return pCatId === 'cat-snacks' || combinedText.includes('snack') || combinedText.includes('biscuit') || combinedText.includes('cookie') || combinedText.includes('chips') || combinedText.includes('বিস্কুট') || combinedText.includes('চিপস') || combinedText.includes('চানাচুর');
         }
-        if (selectedCategory === 'cat-beverages' || selectedCategory === 'beverages') {
-          return p.categoryId === 'cat-beverages' || tagsLower.includes('drink') || tagsLower.includes('juice') || tagsLower.includes('beverage') || nameLower.includes('শরবত') || nameLower.includes('জুস') || nameLower.includes('পানি') || nameLower.includes('কোকা') || nameLower.includes('পানীয়');
+        if (selCatLower === 'cat-beverages' || selCatLower === 'beverages') {
+          return pCatId === 'cat-beverages' || combinedText.includes('drink') || combinedText.includes('juice') || combinedText.includes('beverage') || combinedText.includes('শরবত') || combinedText.includes('জুস') || combinedText.includes('পানি');
         }
-        if (selectedCategory === 'cat-fruits' || selectedCategory === 'fresh-fruits') {
-          return p.categoryId === 'cat-fruits' || tagsLower.includes('fruit') || nameLower.includes('ফল') || nameLower.includes('আম') || nameLower.includes('আপেল') || nameLower.includes('কলা') || nameLower.includes('মাল্টা') || nameLower.includes('বেদানা');
+        if (selCatLower === 'cat-cleaning' || selCatLower === 'home-cleaning') {
+          return pCatId === 'cat-cleaning' || combinedText.includes('cleaning') || combinedText.includes('detergent') || combinedText.includes('soap') || combinedText.includes('ডিটারজেন্ট') || combinedText.includes('সাবান');
         }
-        if (selectedCategory === 'cat-vegetables' || selectedCategory === 'fresh-vegetables' || selectedCategory === 'fruits-veg') {
-          return p.categoryId === 'cat-vegetables' || tagsLower.includes('vegetable') || nameLower.includes('শাক') || nameLower.includes('সবজি') || nameLower.includes('আলু') || nameLower.includes('পেঁয়াজ') || nameLower.includes('রসুন') || nameLower.includes('টমেটো');
+        if (selCatLower === 'cat-kitchen' || selCatLower === 'home-kitchen') {
+          return pCatId === 'cat-kitchen' || combinedText.includes('kitchen') || combinedText.includes('cooker') || combinedText.includes('blender') || combinedText.includes('চুলা') || combinedText.includes('রান্নাঘর');
         }
-        if (selectedCategory === 'cat-fish-meat' || selectedCategory === 'meat-fish' || selectedCategory === 'fresh-fish') {
-          return p.categoryId === 'cat-fish-meat' || tagsLower.includes('meat') || tagsLower.includes('fish') || tagsLower.includes('chicken') || tagsLower.includes('beef') || nameLower.includes('মাছ') || nameLower.includes('মাংস') || nameLower.includes('মুরগি') || nameLower.includes('খাসি') || nameLower.includes('গরু') || nameLower.includes('ইলিশ');
+        if (selCatLower === 'cat-combo' || selCatLower === 'combo-deals' || selCatLower === 'combo-package-builder') {
+          return pCatId === 'cat-combo' || Boolean(p.isCombo) || combinedText.includes('combo') || combinedText.includes('package') || combinedText.includes('কম্বো') || combinedText.includes('প্যাকেজ');
         }
-        if (selectedCategory === 'cat-cleaning' || selectedCategory === 'home-cleaning') {
-          return p.categoryId === 'cat-cleaning' || tagsLower.includes('cleaning') || tagsLower.includes('detergent') || tagsLower.includes('soap') || nameLower.includes('ডিটারজেন্ট') || nameLower.includes('সার্ফ এক্সেল') || nameLower.includes('পরিষ্কার') || nameLower.includes('সাবান') || nameLower.includes('হারপিক');
-        }
-        if (selectedCategory === 'cat-kitchen' || selectedCategory === 'home-kitchen') {
-          return p.categoryId === 'cat-kitchen' || tagsLower.includes('kitchen') || tagsLower.includes('cooker') || tagsLower.includes('blender') || nameLower.includes('চুলা') || nameLower.includes('ব্লেন্ডার') || nameLower.includes('রান্নাঘর') || nameLower.includes('ফ্রাই প্যান') || nameLower.includes('কুকার');
+        if (selCatLower === 'cat-fast-food' || selCatLower === 'fast-food') {
+          return pCatId === 'cat-fast-food' || combinedText.includes('burger') || combinedText.includes('fast food') || combinedText.includes('fries') || combinedText.includes('বার্গার');
         }
 
-        if (selectedCategory === 'combo-deals' || selectedCategory === 'combo-package-builder') {
-          return p.categoryId === 'combo-deals' || 
-                 tagsLower.includes('combo') || tagsLower.includes('package') || tagsLower.includes('bundle') || tagsLower.includes('deal') ||
-                 nameLower.includes('combo') || nameLower.includes('package') || nameLower.includes('bundle') || nameLower.includes('কম্বো') || nameLower.includes('প্যাকেজ') || nameLower.includes('অফার') || nameLower.includes('প্যাক') || nameLower.includes('duo');
-        }
-        if (selectedCategory === 'fast-food') {
-          return p.categoryId === 'fast-food' ||
-                 tagsLower.includes('fast food') || tagsLower.includes('burger') || tagsLower.includes('wings') || tagsLower.includes('fries') ||
-                 nameLower.includes('burger') || nameLower.includes('fast food') || nameLower.includes('fried chicken') || nameLower.includes('wings') || nameLower.includes('french fries') || nameLower.includes('বার্গার') || nameLower.includes('ফাস্টফুড') || nameLower.includes('ফ্রাই');
-        }
-        if (selectedCategory === 'pizza-pasta') {
-          return p.categoryId === 'pizza-pasta' ||
-                 tagsLower.includes('pizza') || tagsLower.includes('pasta') ||
-                 nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('spaghetti') || nameLower.includes('alfredo') || nameLower.includes('পিজ্জা') || nameLower.includes('পাস্তা');
-        }
-        if (selectedCategory === 'cakes-pastry') {
-          return p.categoryId === 'cakes-pastry' ||
-                 tagsLower.includes('cake') || tagsLower.includes('pastry') || tagsLower.includes('bakery') ||
-                 nameLower.includes('cake') || nameLower.includes('pastry') || nameLower.includes('cupcake') || nameLower.includes('birthday cake') || nameLower.includes('কেক') || nameLower.includes('পেস্ট্রি');
-        }
-        if (selectedCategory === 'sweets-desserts') {
-          return p.categoryId === 'sweets-desserts' ||
-                 tagsLower.includes('sweet') || tagsLower.includes('misti') || tagsLower.includes('dessert') ||
-                 nameLower.includes('sweet') || nameLower.includes('misti') || nameLower.includes('chomchom') || nameLower.includes('rosogolla') || nameLower.includes('laddu') || nameLower.includes('barfi') || nameLower.includes('মিষ্টি') || nameLower.includes('চমচম') || nameLower.includes('রসগোল্লা') || nameLower.includes('লাড্ডু');
-        }
-        if (selectedCategory === 'restaurant-meals') {
-          return p.categoryId === 'restaurant-meals' ||
-                 tagsLower.includes('biryani') || tagsLower.includes('kacchi') || tagsLower.includes('restaurant') || tagsLower.includes('meal') ||
-                 nameLower.includes('biryani') || nameLower.includes('kacchi') || nameLower.includes('khichuri') || nameLower.includes('platter') || nameLower.includes('kebab') || nameLower.includes('বিরিয়ানি') || nameLower.includes('কাচ্চি') || nameLower.includes('খিচুড়ি') || nameLower.includes('খাবার');
-        }
-        if (selectedCategory === 'ice-cream') {
-          return tagsLower.includes('ice cream') || nameLower.includes('ice cream') || nameLower.includes('icecream') || nameLower.includes('kulfi') || nameLower.includes('আইসক্রিম') || nameLower.includes('কুলফি');
-        }
-        if (selectedCategory === 'chocolates-candy') {
-          return tagsLower.includes('chocolate') || tagsLower.includes('candy') || nameLower.includes('chocolate') || nameLower.includes('candy') || nameLower.includes('চকলেট') || nameLower.includes('ক্যান্ডি');
-        }
-        if (selectedCategory === 'fruits-veg') {
-          return p.categoryId === 'cat-3' && (
-            p.tags?.some(t => t.toLowerCase().includes('fruit') || t.toLowerCase().includes('vegetable') || t.toLowerCase().includes('fresh')) ||
-            nameLower.includes('carrot') || nameLower.includes('tomato') || nameLower.includes('onion') || nameLower.includes('potato') ||
-            nameLower.includes('chili') || nameLower.includes('cucumber') || nameLower.includes('pepe') || nameLower.includes('dherosh') ||
-            nameLower.includes('gourd') || nameLower.includes('শাক') || nameLower.includes('সবজি') || nameLower.includes('ফল') || nameLower.includes('lady finger')
-          );
-        }
-        if (selectedCategory === 'fresh-fruits') {
-          return p.categoryId === 'cat-3' && (
-            p.tags?.some(t => t.toLowerCase().includes('fruit')) ||
-            nameLower.includes('mango') || nameLower.includes('banana') || nameLower.includes('apple') || nameLower.includes('orange') ||
-            nameLower.includes('ফল') || nameLower.includes('আম') || nameLower.includes('কলা') || nameLower.includes('মধু') || nameLower.includes('honey')
-          );
-        }
-        if (selectedCategory === 'fresh-vegetables') {
-          return p.categoryId === 'cat-3' && (
-            p.tags?.some(t => t.toLowerCase().includes('vegetable')) ||
-            nameLower.includes('carrot') || nameLower.includes('tomato') || nameLower.includes('onion') || nameLower.includes('garlic') ||
-            nameLower.includes('ginger') || nameLower.includes('chili') || nameLower.includes('pepe') || nameLower.includes('chichinga') ||
-            nameLower.includes('dherosh') || nameLower.includes('cucumber') || nameLower.includes('সবজি') || nameLower.includes('শাক') || nameLower.includes('lady finger')
-          );
-        }
-        if (selectedCategory === 'dry-fruits') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('dry') || nameLower.includes('nuts') || nameLower.includes('dates') || nameLower.includes('খেজুর'));
-        }
-        if (selectedCategory === 'meat-fish') {
-          return p.categoryId === 'cat-3' && (
-            p.tags?.some(t => t.toLowerCase().includes('fish') || t.toLowerCase().includes('meat') || t.toLowerCase().includes('chicken')) ||
-            nameLower.includes('chicken') || nameLower.includes('fish') || nameLower.includes('meat') || nameLower.includes('beef') ||
-            nameLower.includes('mutton') || nameLower.includes('মাছ') || nameLower.includes('মাংস') || nameLower.includes('মুরগি')
-          );
-        }
-        if (selectedCategory === 'chicken') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('chicken') || nameLower.includes('মুরগি') || nameLower.includes('পোল্ট্রি'));
-        }
-        if (selectedCategory === 'beef-mutton') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('beef') || nameLower.includes('mutton') || nameLower.includes('গরু') || nameLower.includes('খাসি'));
-        }
-        if (selectedCategory === 'fresh-fish') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('fish') || nameLower.includes('মাছ'));
-        }
-        if (selectedCategory === 'eggs') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('egg') || nameLower.includes('ডিম'));
-        }
-        if (selectedCategory === 'baby-food' || selectedCategory === 'baby-care') {
-          return (p.categoryId === 'cat-3' || p.categoryId === 'baby-food' || p.categoryId === 'cat-10') && (nameLower.includes('baby') || nameLower.includes('cerelac') || nameLower.includes('nestle') || nameLower.includes('দুধ') || nameLower.includes('lactogen') || nameLower.includes('diaper') || nameLower.includes('ডায়াপার'));
-        }
-        if (selectedCategory === 'diapers') {
-          return nameLower.includes('diaper') || nameLower.includes('pampers') || nameLower.includes('ডায়াপার');
-        }
-        if (selectedCategory === 'home-cleaning') {
-          return (p.categoryId === 'cat-4' || p.categoryId === 'home-cleaning') && (
-            nameLower.includes('clean') || nameLower.includes('wash') || nameLower.includes('detergent') ||
-            nameLower.includes('surf excel') || nameLower.includes('soap') || nameLower.includes('lux') ||
-            nameLower.includes('পরিষ্কার')
-          );
-        }
-        if (selectedCategory === 'pet-care') {
-          return nameLower.includes('pet') || nameLower.includes('dog') || nameLower.includes('cat') || nameLower.includes('whiskas') || nameLower.includes('খাবার');
-        }
-        if (selectedCategory === 'stationeries' || selectedCategory === 'cat-12') {
-          return p.categoryId === 'cat-12' || nameLower.includes('pen') || nameLower.includes('notebook') || nameLower.includes('pencil') || nameLower.includes('paper') || nameLower.includes('book') || nameLower.includes('বই') || nameLower.includes('খাতা') || nameLower.includes('কলম');
-        }
-        if (selectedCategory === 'toys-sports' || selectedCategory === 'cat-10') {
-          return p.categoryId === 'cat-10' || nameLower.includes('toy') || nameLower.includes('ball') || nameLower.includes('cricket') || nameLower.includes('football') || nameLower.includes('খেলনা');
-        }
-        if (selectedCategory === 'dry-fruits-nuts') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('nuts') || nameLower.includes('বাদাম') || nameLower.includes('cashew') || nameLower.includes('almond') || nameLower.includes('কাঠবাদাম'));
-        }
-        if (selectedCategory === 'dry-fruits-dates') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('dates') || nameLower.includes('খেজুর') || nameLower.includes('khejur') || nameLower.includes('mariam') || nameLower.includes('ajwa'));
-        }
-        if (selectedCategory === 'grain-rice') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('rice') || nameLower.includes('চাল') || nameLower.includes('chal') || nameLower.includes('miniket') || nameLower.includes('chinigura') || nameLower.includes('নাজিরশাইল'));
-        }
-        if (selectedCategory === 'organic-honey') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('honey') || nameLower.includes('মধু') || nameLower.includes('madhu'));
-        }
-        if (selectedCategory === 'oil-ghee') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('oil') || nameLower.includes('ghee') || nameLower.includes('তেল') || nameLower.includes('ঘি') || nameLower.includes('mustard'));
-        }
-        if (selectedCategory === 'groceries-spices') {
-          return p.categoryId === 'cat-7' || (p.categoryId === 'cat-3' && (nameLower.includes('spice') || nameLower.includes('মসলা') || nameLower.includes('হলুদ') || nameLower.includes('মরিচ') || nameLower.includes('ধনিয়া') || nameLower.includes('জিরা') || nameLower.includes('powder')));
-        }
-        if (selectedCategory === 'dairy-milk') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('milk') || nameLower.includes('dairy') || nameLower.includes('butter') || nameLower.includes('cheese') || nameLower.includes('দুধ') || nameLower.includes('মাখন') || nameLower.includes('পনির') || nameLower.includes('দই') || nameLower.includes('yogurt'));
-        }
-        if (selectedCategory === 'tea-coffee') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('tea') || nameLower.includes('coffee') || nameLower.includes('চা') || nameLower.includes('কফি') || nameLower.includes('ispahani') || nameLower.includes('nescafe'));
-        }
-        if (selectedCategory === 'snacks-biscuits') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('biscuit') || nameLower.includes('cookie') || nameLower.includes('snacks') || nameLower.includes('chips') || nameLower.includes('চিপস') || nameLower.includes('বিস্কুট') || nameLower.includes('চানাচুর') || nameLower.includes('chanachur'));
-        }
-        if (selectedCategory === 'beverages') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('juice') || nameLower.includes('drink') || nameLower.includes('water') || nameLower.includes('soda') || nameLower.includes('কোকা') || nameLower.includes('পানি') || nameLower.includes('জুস'));
-        }
-        if (selectedCategory === 'cat-fast-food' || selectedCategory === 'fast-food') {
-          return p.categoryId === 'cat-fast-food' || tagsLower.includes('fast food') || tagsLower.includes('burger') || tagsLower.includes('wings') || tagsLower.includes('fries') || nameLower.includes('burger') || nameLower.includes('fast food') || nameLower.includes('fried chicken') || nameLower.includes('wings') || nameLower.includes('french fries') || nameLower.includes('বার্গার') || nameLower.includes('ফাস্টফুড') || nameLower.includes('ফ্রাই');
-        }
-        if (selectedCategory === 'cat-pizza-pasta' || selectedCategory === 'pizza-pasta') {
-          return p.categoryId === 'cat-pizza-pasta' || tagsLower.includes('pizza') || tagsLower.includes('pasta') || nameLower.includes('pizza') || nameLower.includes('pasta') || nameLower.includes('spaghetti') || nameLower.includes('alfredo') || nameLower.includes('পিজ্জা') || nameLower.includes('পাস্তা');
-        }
-        if (selectedCategory === 'cat-bakery' || selectedCategory === 'bakery' || selectedCategory === 'cakes-pastry') {
-          return p.categoryId === 'cat-bakery' || (p.categoryId === 'cat-3' || p.categoryId === 'cakes-pastry') && (nameLower.includes('bread') || nameLower.includes('cake') || nameLower.includes('bun') || nameLower.includes('কেক') || nameLower.includes('পাউরুটি') || nameLower.includes('মিষ্টি') || nameLower.includes('sweet'));
-        }
-        if (selectedCategory === 'cat-frozen' || selectedCategory === 'frozen-food' || selectedCategory === 'frozen-foods') {
-          return p.categoryId === 'cat-frozen' || nameLower.includes('frozen') || nameLower.includes('nugget') || nameLower.includes('পরাটা') || nameLower.includes('পরোটা') || nameLower.includes('সসেজ') || nameLower.includes('সমুচা');
-        }
-        if (selectedCategory === 'cat-combo' || selectedCategory === 'combo-deals' || selectedCategory === 'combo-package-builder') {
-          return p.categoryId === 'cat-combo' || Boolean(p.isCombo) || tagsLower.includes('combo') || tagsLower.includes('package') || tagsLower.includes('bundle') || tagsLower.includes('deal') || nameLower.includes('combo') || nameLower.includes('package') || nameLower.includes('bundle') || nameLower.includes('কম্বো') || nameLower.includes('প্যাকেজ') || nameLower.includes('অফার');
-        }
-        if (selectedCategory === 'cat-pet-care' || selectedCategory === 'pet-care') {
-          return p.categoryId === 'cat-pet-care' || nameLower.includes('pet') || nameLower.includes('dog') || nameLower.includes('cat') || nameLower.includes('whiskas') || nameLower.includes('খাবার') || nameLower.includes('বিড়াল');
-        }
-        if (selectedCategory === 'cat-gardening' || selectedCategory === 'gardening') {
-          return p.categoryId === 'cat-gardening' || (p.categoryId === 'cat-4' && (nameLower.includes('plant') || nameLower.includes('seed') || nameLower.includes('soil') || nameLower.includes('টব') || nameLower.includes('বীজ') || nameLower.includes('গাছ')));
-        }
-        if (selectedCategory === 'cat-automotive' || selectedCategory === 'automotive') {
-          return p.categoryId === 'cat-automotive' || (p.categoryId === 'cat-1' || p.categoryId === 'automotive') && (nameLower.includes('car') || nameLower.includes('bike') || nameLower.includes('charger') || nameLower.includes('holder') || nameLower.includes('গাড়ি') || nameLower.includes('বাইক'));
-        }
-        if (selectedCategory === 'sports-fitness' || selectedCategory === 'cat-10') {
-          return (p.categoryId === 'cat-10' || p.categoryId === 'sports-fitness') && (nameLower.includes('sport') || nameLower.includes('bat') || nameLower.includes('ball') || nameLower.includes('cricket') || nameLower.includes('jersey') || nameLower.includes('খেলাধূলা'));
-        }
-        if (selectedCategory === 'sarees-ethnic') {
-          return p.categoryId === 'cat-2' && (nameLower.includes('saree') || nameLower.includes('panjabi') || nameLower.includes('kurta') || nameLower.includes('শাড়ি') || nameLower.includes('পাঞ্জাবি') || nameLower.includes('সালোয়ার'));
-        }
-        if (selectedCategory === 'pickles-sauces') {
-          return p.categoryId === 'cat-3' && (nameLower.includes('pickle') || nameLower.includes('sauce') || nameLower.includes('ketchup') || nameLower.includes('আচার') || nameLower.includes('সস'));
-        }
-        if (selectedCategory === 'home-kitchen') {
-          return p.categoryId === 'cat-4' && (nameLower.includes('cooker') || nameLower.includes('blender') || nameLower.includes('kitchen') || nameLower.includes('pan') || nameLower.includes('চুলা') || nameLower.includes('ব্লেন্ডার'));
-        }
-        if (selectedCategory === 'watch-accessories') {
-          return nameLower.includes('watch') || nameLower.includes('smartwatch') || nameLower.includes('ঘড়ি') || nameLower.includes('sunglass') || nameLower.includes('চশমা');
-        }
-
-        // Generic fallback: direct match on categoryId or categoryName
-        if (selectedCategory && (p.categoryId === selectedCategory || p.categoryName?.toLowerCase() === selectedCategory.toLowerCase())) {
-          return true;
-        }
-
-        return false;
+        // Generic fallback: check if any part of category label matches
+        return combinedText.includes(selCatLower);
       });
     }
 
@@ -881,49 +701,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
       );
     }
 
-    // Special Filter Tabs
-    const campaignData = dynamicCampaigns[activeTab];
-    if (campaignData) {
-      const keyword = (campaignData.filterKeyword || '').toLowerCase().trim();
-      if (keyword) {
-        list = list.filter(p => 
-          (p.title && p.title.toLowerCase().includes(keyword)) || 
-          (p.titleBn && p.titleBn.toLowerCase().includes(keyword)) ||
-          (p.brand && p.brand.toLowerCase().includes(keyword)) ||
-          (Array.isArray(p.tags) && p.tags.some(t => t && t.toLowerCase().includes(keyword))) ||
-          (p.categoryId && p.categoryId.toLowerCase().includes(keyword))
-        );
-      } else {
-        // Fallback default campaign logic
-        if (activeTab === 'all') {
-          // Show all products on the home page as requested, do not filter out products
-        } else if (activeTab === 'unilever') {
-          // UNILEVER-STOCK & SAVE: Only show Unilever brand items
-          list = list.filter(p => (p.brand || '').toLowerCase() === 'unilever');
-        } else if (activeTab === 'bogo') {
-          // GREAT DEALS: Premium electronics and traditional boutique sarees with high value discounts
-          list = list.filter(p => p.discountPrice && (p.price - p.discountPrice) >= 500);
-        } else if (activeTab === 'summer') {
-          // BUY & SAVE MORE: Household kitchen and organic pantry sizes (honey, oil, staples)
-          list = list.filter(p => ['sundarbans pure', 'kather ghani bd'].includes((p.brand || '').toLowerCase()) || (Array.isArray(p.tags) && (p.tags.includes('grocery') || p.tags.includes('organic'))));
-        } else {
-          // For any custom newly created campaign where keyword was cleared,
-          // let's fallback to matching keywords based on its badge/name to prevent empty state
-          const label = (campaignData.badge?.en || '').toLowerCase();
-          if (label.includes('gadget') || label.includes('tech') || label.includes('tv') || label.includes('phone')) {
-            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('gadget') || p.tags.includes('walton') || p.tags.includes('samsung')));
-          } else if (label.includes('fashion') || label.includes('saree') || label.includes('panjabi') || label.includes('clothing')) {
-            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('saree') || p.tags.includes('panjabi') || p.tags.includes('menswear')));
-          } else if (label.includes('beauty') || label.includes('soap') || label.includes('shampoo')) {
-            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('beauty') || p.tags.includes('soap') || p.tags.includes('shampoo')));
-          } else if (label.includes('drink') || label.includes('tea') || label.includes('beverage')) {
-            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('drinks') || p.tags.includes('beverage') || p.tags.includes('summer')));
-          } else if (label.includes('shoe') || label.includes('leather') || label.includes('footwear')) {
-            list = list.filter(p => Array.isArray(p.tags) && (p.tags.includes('shoes') || p.tags.includes('leather')));
-          } else {
-            // Default fallback if no match found: show featured/popular products
-            list = list.filter(p => p.isFeatured || p.isFlashDeal || p.price < 5000);
-          }
+    // Special Filter Tabs (only filter if activeTab is not 'all')
+    if (activeTab && activeTab !== 'all') {
+      const campaignData = dynamicCampaigns[activeTab];
+      if (campaignData) {
+        const keyword = (campaignData.filterKeyword || '').toLowerCase().trim();
+        if (keyword) {
+          list = list.filter(p => 
+            (p.title && p.title.toLowerCase().includes(keyword)) || 
+            (p.titleBn && p.titleBn.toLowerCase().includes(keyword)) ||
+            (p.brand && p.brand.toLowerCase().includes(keyword)) ||
+            (Array.isArray(p.tags) && p.tags.some(t => t && t.toLowerCase().includes(keyword))) ||
+            (p.categoryId && p.categoryId.toLowerCase().includes(keyword))
+          );
         }
       }
     }
