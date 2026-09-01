@@ -355,40 +355,30 @@ export const api = {
     const deletedSet = await syncDeletedProductIdsFromCloud();
     const q = params ? '?' + new URLSearchParams(params).toString() : '';
 
-    let authoritativeProducts: Product[] | null = null;
+    // 1. Parallel Fetch: Always query BOTH Firebase Firestore cloud database AND Backend API server
+    const [serverRes, fbRes] = await Promise.allSettled([
+      fetchJson<Product[]>(`/api/products${q}`),
+      firebaseDb.getProducts()
+    ]);
 
-    // 1. Try Backend Server API (/api/products)
-    try {
-      const serverProducts = await fetchJson<Product[]>(`/api/products${q}`);
-      if (serverProducts && Array.isArray(serverProducts)) {
-        authoritativeProducts = serverProducts;
-      }
-    } catch (err) {
-      // Backend request fallback
-    }
-
-    // 2. If backend failed, try Firebase Firestore directly
-    if (authoritativeProducts === null) {
-      try {
-        const fbProducts = await firebaseDb.getProducts();
-        if (fbProducts && Array.isArray(fbProducts)) {
-          authoritativeProducts = fbProducts;
-        }
-      } catch (e) {
-        // Firebase fallback
-      }
-    }
-
-    // 3. Robust Merge: Preserve existing local products and combine with authoritative cloud/server products
-    const localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
     const productMap = new Map<string, Product>();
 
-    // Put local products first
+    // A. Add local products first
+    const localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
     localList.forEach(p => productMap.set(p.id, p));
 
-    // Overlay authoritative products (cloud/server updates override or add new)
-    if (authoritativeProducts !== null && Array.isArray(authoritativeProducts)) {
-      authoritativeProducts.forEach(p => {
+    // B. Add Server API products
+    if (serverRes.status === 'fulfilled' && Array.isArray(serverRes.value)) {
+      serverRes.value.forEach(p => {
+        if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
+          productMap.set(p.id, p);
+        }
+      });
+    }
+
+    // C. Add Firebase Firestore multi-device cloud products (global real-time cloud store)
+    if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
+      fbRes.value.forEach(p => {
         if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
           productMap.set(p.id, p);
         }
@@ -440,12 +430,15 @@ export const api = {
     if (localFound) return localFound;
 
     try {
+      const fbList = await firebaseDb.getProducts();
+      const fbFound = fbList?.find(p => p.id === id && !deletedSet.has(p.id));
+      if (fbFound) return fbFound;
+    } catch {}
+
+    try {
       const p = await fetchJson<Product>(`/api/products/${id}`);
       if (p && !deletedSet.has(p.id)) return p;
     } catch (err) {
-      const list = await firebaseDb.getProducts();
-      const found = list?.find(p => p.id === id && !deletedSet.has(p.id));
-      if (found) return found;
       throw err;
     }
     throw new Error('Product not found');
@@ -643,13 +636,27 @@ export const api = {
   // Orders
   getOrders: async (params?: { userId?: string; sellerId?: string }): Promise<Order[]> => {
     const q = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-    try {
-      return await fetchJson<Order[]>(`/api/orders${q}`);
-    } catch (err) {
-      const list = await firebaseDb.getOrders();
-      if (list) return list;
-      throw err;
+    const [serverRes, fbRes] = await Promise.allSettled([
+      fetchJson<Order[]>(`/api/orders${q}`),
+      firebaseDb.getOrders()
+    ]);
+
+    const orderMap = new Map<string, Order>();
+    if (serverRes.status === 'fulfilled' && Array.isArray(serverRes.value)) {
+      serverRes.value.forEach(o => orderMap.set(o.id, o));
     }
+    if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
+      fbRes.value.forEach(o => orderMap.set(o.id, o));
+    }
+
+    let ordersList = Array.from(orderMap.values());
+    if (params?.userId) {
+      ordersList = ordersList.filter(o => o.userId === params.userId);
+    }
+    if (params?.sellerId) {
+      ordersList = ordersList.filter(o => o.items && o.items.some(item => item.sellerId === params.sellerId || (item as any).product?.sellerId === params.sellerId));
+    }
+    return ordersList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   },
 
   getOrderById: (id: string) => fetchJson<Order>(`/api/orders/${id}`),

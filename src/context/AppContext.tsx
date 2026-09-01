@@ -932,7 +932,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           if (hasNew) {
             safeStorage.setItem('amarbazar_deleted_product_ids', JSON.stringify(Array.from(localSet)));
-            setProducts(prev => prev.filter(p => !localSet.has(p.id)));
+            setProducts(prev => {
+              const remaining = prev.filter(p => !localSet.has(p.id));
+              try {
+                safeStorage.setItem('amarbazar_products_store', JSON.stringify(remaining));
+              } catch (e) {}
+              return remaining;
+            });
             setCart(prev => prev.filter(c => !localSet.has(c.product.id)));
             setWishlist(prev => prev.filter(wid => !localSet.has(wid)));
             setSelectedProduct(prev => (prev && localSet.has(prev.id) ? null : prev));
@@ -944,29 +950,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Firebase deleted products listener notice:', e);
     }
 
-    // 3. Real-time Firebase Firestore products listener
+    // 3. Real-time Firebase Firestore products listener (Instant multi-device catalog reflection)
     let unsubscribeProducts: (() => void) | null = null;
     try {
       unsubscribeProducts = firebaseDb.subscribeToProducts((fbProds) => {
-        if (fbProds && Array.isArray(fbProds) && fbProds.length > 0) {
-          const deletedSet = getDeletedProductIds();
-          const liveList = fbProds.filter(p => !deletedSet.has(p.id));
-          setProducts(prev => {
-            const map = new Map<string, Product>();
-            // Add live products from Firestore
-            liveList.forEach(p => map.set(p.id, p));
-            // Keep existing products that aren't deleted
-            prev.forEach(p => {
-              if (!deletedSet.has(p.id) && !map.has(p.id)) {
-                map.set(p.id, p);
-              }
-            });
-            const merged = Array.from(map.values());
-            try {
-              safeStorage.setItem('amarbazar_products_store', JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
+        const deletedSet = getDeletedProductIds();
+        if (Array.isArray(fbProds) && fbProds.length > 0) {
+          const liveList = fbProds.filter(p => !deletedSet.has(p.id) && !p.id.startsWith('pending-mock-') && p.id !== 'temp-preview');
+          setProducts(liveList);
+          try {
+            safeStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
+          } catch (e) {}
         }
       });
     } catch (e) {

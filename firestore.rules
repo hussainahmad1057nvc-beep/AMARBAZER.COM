@@ -37,11 +37,7 @@ service cloud.firestore {
     // Products Collection (Public Catalog, Seller & Admin Management)
     match /products/{productId} {
       allow read: if true;
-      allow create: if isValidId(productId) &&
-        incoming().title is string && incoming().title.size() <= 255 &&
-        incoming().price is number && incoming().price >= 0;
-      allow update: if isValidId(productId) &&
-        incoming().title is string && incoming().title.size() <= 255;
+      allow create, update: if isValidId(productId);
       allow delete: if isValidId(productId);
     }
 
@@ -95,6 +91,24 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isValidId(userId);
       allow delete: if isValidId(userId);
+    }
+
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(reviewId);
+    }
+
+    // Withdrawals Collection
+    match /withdrawals/{withdrawalId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(withdrawalId);
+    }
+
+    // Coupons Collection
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(couponId);
     }
   }
 }
