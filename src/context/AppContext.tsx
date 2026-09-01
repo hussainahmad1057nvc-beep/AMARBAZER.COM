@@ -576,7 +576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter(p => !deletedSet.has(p.id) && !p.id.startsWith('prod-10') && !p.id.startsWith('prod-11') && !p.id.startsWith('prod-12') && !p.id.startsWith('pending-'));
+        return parsed.filter(p => !deletedSet.has(p.id) && !p.id.startsWith('pending-mock-') && p.id !== 'temp-preview');
       }
     } catch (e) {}
     return [];

@@ -379,17 +379,25 @@ export const api = {
       }
     }
 
-    let resultList: Product[];
-    if (authoritativeProducts !== null) {
-      // Filter out any known deleted products or legacy mock IDs
-      resultList = authoritativeProducts.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
-      if (!params || Object.keys(params).length === 0) {
-        saveLocalProducts(resultList, false);
-      }
-    } else {
-      // Offline fallback: Use local storage cache excluding deleted items and legacy mock IDs
-      let localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
-      resultList = localList;
+    // 3. Robust Merge: Preserve existing local products and combine with authoritative cloud/server products
+    const localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
+    const productMap = new Map<string, Product>();
+
+    // Put local products first
+    localList.forEach(p => productMap.set(p.id, p));
+
+    // Overlay authoritative products (cloud/server updates override or add new)
+    if (authoritativeProducts !== null && Array.isArray(authoritativeProducts)) {
+      authoritativeProducts.forEach(p => {
+        if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
+          productMap.set(p.id, p);
+        }
+      });
+    }
+
+    const resultList = Array.from(productMap.values());
+    if (!params || Object.keys(params).length === 0) {
+      saveLocalProducts(resultList, false);
     }
 
     let filtered = resultList;

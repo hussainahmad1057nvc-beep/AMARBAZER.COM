@@ -551,7 +551,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
     // Filter by outlet/seller
     if (selectedSellerId) {
-      list = list.filter(p => p.sellerId === selectedSellerId);
+      const sId = selectedSellerId.toLowerCase();
+      const stripped = sId.replace(/^(usr-|sel-)/, '');
+      list = list.filter(p => {
+        if (!p.sellerId) return false;
+        const pSellerLower = p.sellerId.toLowerCase();
+        const pStripped = pSellerLower.replace(/^(usr-|sel-)/, '');
+        return pSellerLower === sId || pStripped === stripped;
+      });
     }
 
     // Category filter
