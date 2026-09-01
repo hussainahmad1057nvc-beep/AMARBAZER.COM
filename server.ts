@@ -891,64 +891,57 @@ async function startServer() {
   });
 
   app.post('/api/products', (req, res) => {
-    const seller = db.sellers.find(s => s.id === req.body.sellerId || s.sellerId === req.body.sellerId);
-    let finalImages = req.body.images?.length ? req.body.images : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'];
-    
-    if (seller && seller.storageType && seller.storageType !== 'central' && seller.storageCredentials) {
-      try {
-        const creds = JSON.parse(seller.storageCredentials);
-        if (seller.storageType === 'google_cloud' && creds.bucket_name) {
-          finalImages = finalImages.map((img: string, idx: number) => {
-            if (img.startsWith('data:') || img.includes('unsplash.com') || img.includes('images.unsplash.com')) {
-              return `https://storage.googleapis.com/${creds.bucket_name}/products/${Date.now()}_prod_${idx}.jpg`;
-            }
-            return img;
-          });
-        } else if (seller.storageType === 'firebase' && creds.storageBucket) {
-          finalImages = finalImages.map((img: string, idx: number) => {
-            if (img.startsWith('data:') || img.includes('unsplash.com') || img.includes('images.unsplash.com')) {
-              return `https://firebasestorage.googleapis.com/v0/b/${creds.storageBucket}/o/products%2F${Date.now()}_prod_${idx}.jpg?alt=media`;
-            }
-            return img;
-          });
-        }
-      } catch (err) {
-        console.error('Error parsing vendor credentials for media mapping:', err);
-      }
+    let finalImages: string[] = [];
+    if (Array.isArray(req.body.images) && req.body.images.length > 0) {
+      finalImages = req.body.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0);
     }
+    if (finalImages.length === 0) {
+      finalImages = ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'];
+    }
+
+    const titleText = (req.body.title && req.body.title.trim()) || (req.body.titleBn && req.body.titleBn.trim()) || 'New Bangladeshi Product';
+    const titleBnText = (req.body.titleBn && req.body.titleBn.trim()) || (req.body.title && req.body.title.trim()) || 'নতুন পণ্য';
+    const defaultCat = (db.categories && db.categories.length > 0) ? db.categories[0] : { id: 'cat-1', name: 'General' };
 
     const newProduct: Product = {
       id: req.body.id || `prod-${Date.now()}`,
-      title: req.body.title || 'New Bangladeshi Product',
-      titleBn: req.body.titleBn,
-      slug: (req.body.title || 'prod').toLowerCase().replace(/\s+/g, '-'),
+      title: titleText,
+      titleBn: titleBnText,
+      slug: (req.body.slug || titleText).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `prod-${Date.now()}`,
       description: req.body.description || 'High quality BD local & imported product.',
-      descriptionBn: req.body.descriptionBn,
-      price: Number(req.body.price) || 100,
+      descriptionBn: req.body.descriptionBn || req.body.description || 'উচ্চমানের মানসম্মত পণ্য।',
+      price: Number(req.body.price) > 0 ? Number(req.body.price) : 100,
       discountPrice: req.body.discountPrice ? Number(req.body.discountPrice) : undefined,
-      categoryId: req.body.categoryId || db.categories[0].id,
-      categoryName: req.body.categoryName || db.categories[0].name,
+      categoryId: req.body.categoryId || defaultCat.id,
+      categoryName: req.body.categoryName || defaultCat.name,
       subCategory: req.body.subCategory,
-      brand: req.body.brand || 'Local BD',
+      brand: req.body.brand || 'Official BD',
       sellerId: req.body.sellerId || 'sel-1',
-      sellerName: req.body.sellerName || 'Dhaka Tech Store',
-      stock: Number(req.body.stock) || 10,
-      sku: req.body.sku || `SKU-${Math.floor(Math.random() * 10000)}`,
+      sellerName: req.body.sellerName || 'Verified BD Store',
+      stock: req.body.stock !== undefined && !isNaN(Number(req.body.stock)) ? Number(req.body.stock) : 20,
+      sku: req.body.sku || `SKU-${Date.now().toString().slice(-6)}`,
       images: finalImages,
-      rating: 5.0,
-      reviewCount: 0,
-      tags: req.body.tags || ['bangladesh', 'shopping'],
-      isFeatured: Boolean(req.body.isFeatured),
+      rating: req.body.rating || 5.0,
+      reviewCount: req.body.reviewCount || 0,
+      tags: Array.isArray(req.body.tags) && req.body.tags.length > 0 ? req.body.tags : ['bangladesh', 'shopping', 'new'],
+      isFeatured: req.body.isFeatured !== undefined ? Boolean(req.body.isFeatured) : true,
       isFlashDeal: Boolean(req.body.isFlashDeal),
       isCombo: Boolean(req.body.isCombo),
       comboItems: req.body.comboItems || [],
       variants: req.body.variants || [],
       variantPrices: req.body.variantPrices || {},
       bulkOffers: req.body.bulkOffers || [],
-      warranty: req.body.warranty,
-      customSpecs: req.body.customSpecs,
-      isApproved: req.body.isApproved !== undefined ? Boolean(req.body.isApproved) : true,
-      createdAt: new Date().toISOString()
+      warranty: req.body.warranty || 'No Warranty',
+      warrantyPolicy: req.body.warrantyPolicy,
+      returnPolicy: req.body.returnPolicy,
+      deliveryTime: req.body.deliveryTime,
+      isFreeDelivery: Boolean(req.body.isFreeDelivery),
+      deliveryChargeInside: req.body.deliveryChargeInside ?? 60,
+      deliveryChargeOutside: req.body.deliveryChargeOutside ?? 120,
+      isCodAvailable: req.body.isCodAvailable ?? true,
+      customSpecs: req.body.customSpecs || [],
+      isApproved: true,
+      createdAt: req.body.createdAt || new Date().toISOString()
     };
     db.products.unshift(newProduct);
     if (db.deletedProductIds) {

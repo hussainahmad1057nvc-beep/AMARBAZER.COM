@@ -75,8 +75,7 @@ purgeLegacyMockData();
 
 function isLegacyMockId(id?: string): boolean {
   if (!id) return false;
-  const legacySet = new Set(['pending-1', 'pending-2', 'pending-3', 'prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8', 'prod-9', 'prod-10', 'prod-11', 'prod-12', 'prod-101', 'prod-102', 'prod-103', 'prod-104', 'prod-105']);
-  return legacySet.has(id);
+  return id.startsWith('pending-mock-') || id === 'temp-preview';
 }
 
 export function getDeletedProductIds(): Set<string> {

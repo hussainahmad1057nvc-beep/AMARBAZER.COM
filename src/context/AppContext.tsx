@@ -948,13 +948,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubscribeProducts: (() => void) | null = null;
     try {
       unsubscribeProducts = firebaseDb.subscribeToProducts((fbProds) => {
-        if (fbProds && Array.isArray(fbProds)) {
+        if (fbProds && Array.isArray(fbProds) && fbProds.length > 0) {
           const deletedSet = getDeletedProductIds();
           const liveList = fbProds.filter(p => !deletedSet.has(p.id));
-          setProducts(liveList);
-          try {
-            safeStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
-          } catch (e) {}
+          setProducts(prev => {
+            const map = new Map<string, Product>();
+            // Add live products from Firestore
+            liveList.forEach(p => map.set(p.id, p));
+            // Keep existing products that aren't deleted
+            prev.forEach(p => {
+              if (!deletedSet.has(p.id) && !map.has(p.id)) {
+                map.set(p.id, p);
+              }
+            });
+            const merged = Array.from(map.values());
+            try {
+              safeStorage.setItem('amarbazar_products_store', JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
         }
       });
     } catch (e) {
