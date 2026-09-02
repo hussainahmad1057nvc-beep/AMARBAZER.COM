@@ -8,7 +8,9 @@ import {
   getFirestore as getFirebaseServerDb, 
   doc as serverDoc, 
   setDoc as serverSetDoc, 
-  deleteDoc as serverDeleteDoc 
+  deleteDoc as serverDeleteDoc,
+  getDocs as serverGetDocs,
+  collection as serverCollection
 } from 'firebase/firestore';
 import { 
   INITIAL_CATEGORIES, 
@@ -193,16 +195,43 @@ try {
     const serverApp = initFirebaseServerApp(firebaseConfig, 'server-backend-app');
     serverFirestoreDb = getFirebaseServerDb(serverApp);
     console.log('[Firebase Backend] Initialized with project:', firebaseConfig.projectId);
+    loadProductsFromFirestoreOnBoot();
   }
 } catch (err) {
   console.warn('[Firebase Backend] Init notice:', err);
+}
+
+async function loadProductsFromFirestoreOnBoot() {
+  if (!serverFirestoreDb) return;
+  try {
+    const snap = await serverGetDocs(serverCollection(serverFirestoreDb, 'products'));
+    if (!snap.empty) {
+      const prodMap = new Map<string, Product>();
+      snap.forEach((d: any) => {
+        const data = d.data() as Product;
+        if (data && data.id) {
+          prodMap.set(data.id, { ...data, id: d.id });
+        }
+      });
+      // Merge with db.products
+      db.products.forEach(p => {
+        if (!prodMap.has(p.id)) prodMap.set(p.id, p);
+      });
+      db.products = Array.from(prodMap.values());
+      saveDb();
+      console.log(`[Firebase Backend] Synced ${snap.size} products from Firestore cloud.`);
+    }
+  } catch (e) {
+    console.warn('[Firebase Backend] Error syncing products from Firestore on boot:', e);
+  }
 }
 
 // Background sync helpers
 async function syncProductToFirebase(p: Product) {
   if (!serverFirestoreDb || !p || !p.id) return;
   try {
-    await serverSetDoc(serverDoc(serverFirestoreDb, 'products', p.id), p, { merge: true });
+    const clean = JSON.parse(JSON.stringify(p));
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'products', p.id), clean, { merge: true });
     try {
       await serverDeleteDoc(serverDoc(serverFirestoreDb, 'deleted_products', p.id));
     } catch {}

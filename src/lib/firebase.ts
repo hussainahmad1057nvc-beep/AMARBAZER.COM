@@ -87,6 +87,17 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
 }
 
+// Utility to recursively sanitize objects for Firestore (omits undefined values which throw FirebaseError)
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === undefined || data === null) return data;
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (err) {
+    console.warn('sanitizeForFirestore serialization notice:', err);
+    return data;
+  }
+}
+
 // Clean helper database interface for AmarBazar components
 export const firebaseDb = {
   // PRODUCTS
@@ -109,11 +120,13 @@ export const firebaseDb = {
   async insertProduct(product: Product): Promise<Product> {
     const path = `products/${product.id}`;
     try {
-      await setDoc(doc(db, 'products', product.id), product);
+      const sanitized = sanitizeForFirestore(product);
+      await setDoc(doc(db, 'products', product.id), sanitized);
       // If it was in deleted_products, clean it up
       try {
         await deleteDoc(doc(db, 'deleted_products', product.id));
       } catch {}
+      console.log('[Firestore] Product saved to live cloud:', product.id);
       return product;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -125,7 +138,8 @@ export const firebaseDb = {
     const path = `products/${id}`;
     try {
       const docRef = doc(db, 'products', id);
-      await setDoc(docRef, updates, { merge: true });
+      const sanitized = sanitizeForFirestore(updates);
+      await setDoc(docRef, sanitized, { merge: true });
       // If it was in deleted_products, clean it up
       try {
         await deleteDoc(doc(db, 'deleted_products', id));
@@ -230,7 +244,8 @@ export const firebaseDb = {
   async insertSeller(seller: SellerStore): Promise<SellerStore> {
     const path = `sellers/${seller.id}`;
     try {
-      await setDoc(doc(db, 'sellers', seller.id), seller);
+      const sanitized = sanitizeForFirestore(seller);
+      await setDoc(doc(db, 'sellers', seller.id), sanitized);
       return seller;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -242,7 +257,8 @@ export const firebaseDb = {
     const path = `sellers/${id}`;
     try {
       const docRef = doc(db, 'sellers', id);
-      await setDoc(docRef, updates, { merge: true });
+      const sanitized = sanitizeForFirestore(updates);
+      await setDoc(docRef, sanitized, { merge: true });
       const snap = await getDoc(docRef);
       return { ...snap.data(), id } as SellerStore;
     } catch (err) {
@@ -292,7 +308,8 @@ export const firebaseDb = {
   async insertCategory(category: Category): Promise<Category> {
     const path = `categories/${category.id}`;
     try {
-      await setDoc(doc(db, 'categories', category.id), category);
+      const sanitized = sanitizeForFirestore(category);
+      await setDoc(doc(db, 'categories', category.id), sanitized);
       try {
         await deleteDoc(doc(db, 'deleted_categories', category.id));
       } catch {}
@@ -306,7 +323,8 @@ export const firebaseDb = {
   async updateCategory(id: string, updates: Partial<Category>): Promise<void> {
     const path = `categories/${id}`;
     try {
-      await updateDoc(doc(db, 'categories', id), updates);
+      const sanitized = sanitizeForFirestore(updates);
+      await updateDoc(doc(db, 'categories', id), sanitized);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
@@ -368,7 +386,8 @@ export const firebaseDb = {
     const fullOrder = { ...order, id } as Order;
     const path = `orders/${id}`;
     try {
-      await setDoc(doc(db, 'orders', id), fullOrder);
+      const sanitized = sanitizeForFirestore(fullOrder);
+      await setDoc(doc(db, 'orders', id), sanitized);
       return fullOrder;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -411,11 +430,12 @@ export const firebaseDb = {
     const path = `orders/${id}`;
     try {
       const docRef = doc(db, 'orders', id);
-      await updateDoc(docRef, { 
+      const updates = sanitizeForFirestore({ 
         status, 
         trackingStatus: status === 'delivered' ? 'Delivered' : status === 'shipped' ? 'Handed to Courier' : 'Order Processing',
         ...(note ? { adminNote: note } : {}) 
       });
+      await updateDoc(docRef, updates);
       const snap = await getDoc(docRef);
       return { ...snap.data(), id } as Order;
     } catch (err) {
@@ -476,7 +496,8 @@ export const firebaseDb = {
   async insertUser(user: User): Promise<User> {
     const path = `users/${user.id}`;
     try {
-      await setDoc(doc(db, 'users', user.id), user);
+      const sanitized = sanitizeForFirestore(user);
+      await setDoc(doc(db, 'users', user.id), sanitized);
       return user;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
@@ -487,7 +508,8 @@ export const firebaseDb = {
   async updateUser(id: string, updates: Partial<User>): Promise<void> {
     const path = `users/${id}`;
     try {
-      await setDoc(doc(db, 'users', id), updates, { merge: true });
+      const sanitized = sanitizeForFirestore(updates);
+      await setDoc(doc(db, 'users', id), sanitized, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
@@ -542,7 +564,8 @@ export const firebaseDb = {
   async saveSettings(settings: Partial<SystemSettings>): Promise<void> {
     const path = 'settings/general';
     try {
-      await setDoc(doc(db, 'settings', 'general'), settings, { merge: true });
+      const sanitized = sanitizeForFirestore(settings);
+      await setDoc(doc(db, 'settings', 'general'), sanitized, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, path);
     }

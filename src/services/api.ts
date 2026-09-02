@@ -378,9 +378,16 @@ export const api = {
 
     // C. Add Firebase Firestore multi-device cloud products (global real-time cloud store)
     if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
+      const cloudIds = new Set(fbRes.value.map(p => p.id));
       fbRes.value.forEach(p => {
         if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
           productMap.set(p.id, p);
+        }
+      });
+      // Auto-upload any locally created products that are not yet in Firestore cloud
+      localList.forEach(p => {
+        if (!cloudIds.has(p.id) && !deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
+          firebaseDb.insertProduct(p).catch(e => console.warn('AutoSync upload error:', e));
         }
       });
     }
