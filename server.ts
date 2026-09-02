@@ -3,6 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { initializeApp as initFirebaseServerApp } from 'firebase/app';
+import { 
+  getFirestore as getFirebaseServerDb, 
+  doc as serverDoc, 
+  setDoc as serverSetDoc, 
+  deleteDoc as serverDeleteDoc 
+} from 'firebase/firestore';
 import { 
   INITIAL_CATEGORIES, 
   INITIAL_PRODUCTS, 
@@ -53,19 +60,7 @@ let db: DatabaseStore = {
   sellers: INITIAL_SELLERS,
   users: INITIAL_USERS,
   orders: INITIAL_ORDERS,
-  withdrawals: [
-    {
-      id: 'w-1',
-      sellerId: 'usr-seller-1',
-      sellerName: 'Dhaka Tech Store',
-      amount: 25000,
-      method: 'bkash',
-      accountNumber: '01711223344',
-      status: 'approved',
-      requestDate: '2026-07-20',
-      processedDate: '2026-07-21'
-    }
-  ],
+  withdrawals: [],
   notifications: [
     {
       id: 'notif-1',
@@ -189,21 +184,62 @@ loadDb();
 // Firebase Cloud Configuration
 const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'amarbazer-519c5';
 
+// Firebase Cloud Backend Initialization
+let serverFirestoreDb: any = null;
+try {
+  const cfgPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(cfgPath)) {
+    const firebaseConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    const serverApp = initFirebaseServerApp(firebaseConfig, 'server-backend-app');
+    serverFirestoreDb = getFirebaseServerDb(serverApp);
+    console.log('[Firebase Backend] Initialized with project:', firebaseConfig.projectId);
+  }
+} catch (err) {
+  console.warn('[Firebase Backend] Init notice:', err);
+}
+
 // Background sync helpers
 async function syncProductToFirebase(p: Product) {
-  // Product is persisted and available for cloud synchronization
+  if (!serverFirestoreDb || !p || !p.id) return;
+  try {
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'products', p.id), p, { merge: true });
+    try {
+      await serverDeleteDoc(serverDoc(serverFirestoreDb, 'deleted_products', p.id));
+    } catch {}
+  } catch (err) {
+    console.warn('[Firebase Backend] syncProduct error:', err);
+  }
 }
 
 async function deleteProductFromFirebase(id: string) {
-  // Product delete synchronized
+  if (!serverFirestoreDb || !id) return;
+  try {
+    await serverDeleteDoc(serverDoc(serverFirestoreDb, 'products', id));
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'deleted_products', id), {
+      id,
+      deletedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn('[Firebase Backend] deleteProduct error:', err);
+  }
 }
 
 async function syncSellerToFirebase(s: SellerStore) {
-  // Seller store synchronized
+  if (!serverFirestoreDb || !s || !s.id) return;
+  try {
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'sellers', s.id), s, { merge: true });
+  } catch (err) {
+    console.warn('[Firebase Backend] syncSeller error:', err);
+  }
 }
 
 async function syncOrderToFirebase(o: Order) {
-  // Customer order synchronized
+  if (!serverFirestoreDb || !o || !o.id) return;
+  try {
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'orders', o.id), o, { merge: true });
+  } catch (err) {
+    console.warn('[Firebase Backend] syncOrder error:', err);
+  }
 }
 
 // Lazy setup for Gemini API
@@ -1076,7 +1112,7 @@ async function startServer() {
       list = list.filter(o => o.userId === userId);
     }
     if (sellerId) {
-      list = list.filter(o => o.items.some(item => item.sellerId === sellerId));
+      list = list.filter(o => o.items && Array.isArray(o.items) && o.items.some(item => item.sellerId === sellerId));
     }
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     res.json(list);

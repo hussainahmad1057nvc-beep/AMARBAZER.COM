@@ -73,7 +73,7 @@ export function purgeLegacyMockData() {
 // Run purge immediately
 purgeLegacyMockData();
 
-function isLegacyMockId(id?: string): boolean {
+export function isLegacyMockId(id?: string): boolean {
   if (!id) return false;
   return id.startsWith('pending-mock-') || id === 'temp-preview';
 }

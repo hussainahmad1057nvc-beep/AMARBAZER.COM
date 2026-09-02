@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
+import { firebaseDb } from '../../lib/firebase';
 import { hasPermission } from '../../lib/permissions';
 import { Product, Order, WithdrawalRequest, SellerStore, ProductVariant, VariantPriceDetails } from '../../types';
 import { getTranslation } from '../../translations';
@@ -100,8 +101,8 @@ export const SellerDashboard: React.FC = () => {
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 1200;
-            const MAX_HEIGHT = 1200;
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
             let width = img.width;
             let height = img.height;
 
@@ -124,7 +125,7 @@ export const SellerDashboard: React.FC = () => {
               return;
             }
             ctx.drawImage(img, 0, 0, width, height);
-            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            const compressed = canvas.toDataURL('image/jpeg', 0.75);
             resolve(compressed);
           } catch {
             resolve(dataUrl);
@@ -586,27 +587,32 @@ export const SellerDashboard: React.FC = () => {
       const sellersList = await api.getSellers();
       // Find the store belonging to this logged-in user
       let currentS = sellersList.find(s => 
-        s.sellerId === sellerId || 
-        s.id === sellerId || 
         (currentUser?.id && (s.sellerId === currentUser.id || s.id === currentUser.id || s.id === `sel-${currentUser.id.replace('usr-', '')}`)) ||
+        (s.sellerId === sellerId && s.id !== 'sel-1') ||
         (currentUser?.email && s.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
         (currentUser?.phone && s.phone && s.phone === currentUser.phone)
       );
 
-      if (!currentS && sellersList.length > 0) {
-        currentS = sellersList[0];
+      // If user is Tanvir / demo seller or no other store found and user is usr-seller-1
+      if (!currentS && (currentUser?.id === 'usr-seller-1' || currentUser?.email === 'tanvir@dhakatech.com.bd')) {
+        currentS = sellersList.find(s => s.id === 'sel-1') || sellersList[0];
       }
 
+      // If still no store, dynamically create a dedicated store for this specific user
       if (!currentS) {
+        const userStoreId = currentUser?.id 
+          ? (currentUser.id.startsWith('sel-') ? currentUser.id : `sel-${currentUser.id.replace(/^usr-/, '')}`)
+          : `sel-${Date.now()}`;
+
         currentS = {
-          id: `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`,
-          sellerId: currentUser?.id || 'usr-seller-1',
-          storeName: currentUser?.name ? `${currentUser.name}'s Store` : 'Dhaka Tech Store',
-          storeNameBn: currentUser?.name ? `${currentUser.name}-এর দোকান` : 'ঢাকা টেক স্টোর',
+          id: userStoreId,
+          sellerId: currentUser?.id || `usr-${Date.now()}`,
+          storeName: currentUser?.name ? `${currentUser.name}'s Store` : 'My Store',
+          storeNameBn: currentUser?.name ? `${currentUser.name}-এর স্টোর` : 'আমার স্টোর',
           ownerName: currentUser?.name || 'Seller',
           email: currentUser?.email || 'seller@amarbazar.bd',
           phone: currentUser?.phone || '01700000000',
-          logoUrl: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=200&q=80',
+          logoUrl: currentUser?.avatar || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=200&q=80',
           bannerUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
           tradeLicenseNumber: 'TRAD/BD/2026/01',
           bkashNumber: currentUser?.phone || '01711000000',
@@ -622,6 +628,8 @@ export const SellerDashboard: React.FC = () => {
           isFeatured: false,
           createdAt: new Date().toISOString()
         } as SellerStore;
+
+        api.createSeller(currentS).catch(() => {});
       }
       setStoreInfo(currentS);
 
@@ -630,10 +638,20 @@ export const SellerDashboard: React.FC = () => {
         setSellerProducts(allProds);
 
         const allOrds = await api.getOrders({ sellerId: currentS.id });
-        setSellerOrders(allOrds);
+        const storeSId = currentS.id;
+        const storeUId = currentS.sellerId;
+        const curUId = currentUser?.id;
+        const strictlyMine = (allOrds || []).filter(o => 
+          o.items && Array.isArray(o.items) && o.items.some(item => 
+            item.sellerId === storeSId ||
+            item.sellerId === storeUId ||
+            (curUId && item.sellerId === curUId)
+          )
+        );
+        setSellerOrders(strictlyMine);
 
         const allWithdraw = await api.getWithdrawals(currentS.id);
-        setWithdrawals(allWithdraw);
+        setWithdrawals(allWithdraw || []);
       }
     } catch (err) {
       console.log('Error loading seller data');
@@ -642,7 +660,34 @@ export const SellerDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [sellerId]);
+  }, [sellerId, currentUser?.id]);
+
+  // Real-time synchronization for orders from Firestore across all devices
+  useEffect(() => {
+    if (!storeInfo?.id && !currentUser?.id) return;
+    const myStoreId = storeInfo?.id;
+    const myStoreSellerId = storeInfo?.sellerId;
+    const curUserId = currentUser?.id;
+
+    const unsubscribe = firebaseDb.subscribeToOrders((allFbOrders) => {
+      if (!allFbOrders || !Array.isArray(allFbOrders)) return;
+      const matched = allFbOrders.filter(o => 
+        o.items && Array.isArray(o.items) && o.items.some(item => 
+          (myStoreId && item.sellerId === myStoreId) ||
+          (myStoreSellerId && item.sellerId === myStoreSellerId) ||
+          (curUserId && item.sellerId === curUserId) ||
+          (curUserId && item.sellerId === `sel-${curUserId.replace(/^usr-/, '')}`)
+        )
+      );
+      setSellerOrders(matched);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [storeInfo?.id, storeInfo?.sellerId, currentUser?.id]);
 
       // Real-time synchronization for seller products when global products change across any device
   useEffect(() => {
@@ -1135,19 +1180,23 @@ export const SellerDashboard: React.FC = () => {
     }
   };
 
-  // Dynamic Real-time Calculations for Sales, Balance, Orders and Rating
-  const sellerStoreId = storeInfo?.id || `sel-${(currentUser?.id || 'seller-1').replace('usr-', '')}`;
-  const sellerUserId = storeInfo?.sellerId || currentUser?.id || 'usr-seller-1';
-  const strippedStoreId = sellerStoreId.replace(/^(usr-|sel-)/, '');
+  // Strict dynamic calculation for seller items, revenue, balance and orders
+  const isSellerItem = (item: any) => {
+    if (!item || !item.sellerId) return false;
+    const storeId = storeInfo?.id;
+    const storeSellerId = storeInfo?.sellerId;
+    const curUserId = currentUser?.id;
+    return (
+      (storeId && item.sellerId === storeId) ||
+      (storeSellerId && item.sellerId === storeSellerId) ||
+      (curUserId && item.sellerId === curUserId) ||
+      (curUserId && item.sellerId === `sel-${curUserId.replace(/^usr-/, '')}`)
+    );
+  };
 
   const relevantOrders = sellerOrders.filter(o => {
-    if (!o.items || o.items.length === 0) return true;
-    return o.items.some(item => 
-      item.sellerId === sellerStoreId ||
-      item.sellerId === sellerUserId ||
-      (sellerStoreId === 'sel-1' && (item.sellerId === 'sel-1' || item.sellerId === 'usr-seller-1')) ||
-      (item.sellerId && item.sellerId.replace(/^(usr-|sel-)/, '') === strippedStoreId)
-    );
+    if (!o.items || !Array.isArray(o.items) || o.items.length === 0) return false;
+    return o.items.some(isSellerItem);
   });
 
   const confirmedOrDeliveredOrders = relevantOrders.filter(o => 
@@ -1155,19 +1204,14 @@ export const SellerDashboard: React.FC = () => {
   );
 
   const calculatedRevenue = confirmedOrDeliveredOrders.reduce((sum, o) => {
-    const sellerItems = (o.items || []).filter(item => 
-      item.sellerId === sellerStoreId ||
-      item.sellerId === sellerUserId ||
-      (sellerStoreId === 'sel-1' && (item.sellerId === 'sel-1' || item.sellerId === 'usr-seller-1')) ||
-      (item.sellerId && item.sellerId.replace(/^(usr-|sel-)/, '') === strippedStoreId)
-    );
-    const itemTotal = sellerItems.reduce((iSum, item) => iSum + (item.price * item.quantity), 0);
-    return sum + (itemTotal > 0 ? itemTotal : (o.items?.length ? o.totalAmount : 0));
+    const sellerItems = (o.items || []).filter(isSellerItem);
+    const itemTotal = sellerItems.reduce((iSum, item) => iSum + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+    return sum + itemTotal;
   }, 0);
 
   const approvedWithdrawalsTotal = withdrawals
     .filter(w => w.status === 'approved')
-    .reduce((sum, w) => sum + (w.amount || 0), 0);
+    .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
 
   const calculatedBalance = Math.max(0, calculatedRevenue - approvedWithdrawalsTotal);
   const pendingOrdersCount = relevantOrders.filter(o => o.status === 'pending').length;
@@ -2217,8 +2261,8 @@ export const SellerDashboard: React.FC = () => {
               <ShoppingBag className="w-4 h-4" />
               <span>
                 {language === 'bn' 
-                  ? `পেন্ডিং অর্ডার (${sellerOrders.filter(o => o.status === 'pending').length})` 
-                  : `Pending Orders (${sellerOrders.filter(o => o.status === 'pending').length})`}
+                  ? `পেন্ডিং অর্ডার (${relevantOrders.filter(o => o.status === 'pending').length})` 
+                  : `Pending Orders (${relevantOrders.filter(o => o.status === 'pending').length})`}
               </span>
             </button>
           )}
@@ -2233,8 +2277,8 @@ export const SellerDashboard: React.FC = () => {
               <CheckCircle className="w-4 h-4" />
               <span>
                 {language === 'bn' 
-                  ? `কনফার্মড অর্ডার (${sellerOrders.filter(o => o.status !== 'pending').length})` 
-                  : `Confirmed Orders (${sellerOrders.filter(o => o.status !== 'pending').length})`}
+                  ? `কনফার্মড অর্ডার (${relevantOrders.filter(o => o.status !== 'pending').length})` 
+                  : `Confirmed Orders (${relevantOrders.filter(o => o.status !== 'pending').length})`}
               </span>
             </button>
           )}
@@ -2509,13 +2553,13 @@ export const SellerDashboard: React.FC = () => {
               <span>{language === 'bn' ? 'আগত নতুন পেন্ডিং অর্ডারসমূহ' : 'New Incoming Pending Orders'}</span>
               <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] px-2.5 py-1 rounded-full font-bold">
                 {language === 'bn' 
-                  ? `${sellerOrders.filter(o => o.status === 'pending').length}টি পেন্ডিং` 
-                  : `${sellerOrders.filter(o => o.status === 'pending').length} Pending`}
+                  ? `${relevantOrders.filter(o => o.status === 'pending').length}টি পেন্ডিং` 
+                  : `${relevantOrders.filter(o => o.status === 'pending').length} Pending`}
               </span>
             </div>
             
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-              {sellerOrders.filter(o => o.status === 'pending').length === 0 ? (
+              {relevantOrders.filter(o => o.status === 'pending').length === 0 ? (
                 <div className="p-12 text-center space-y-3">
                   <div className="w-12 h-12 bg-slate-100 dark:bg-slate-900 text-slate-400 rounded-full flex items-center justify-center mx-auto">
                     <ShoppingBag className="w-6 h-6" />
@@ -2525,7 +2569,7 @@ export const SellerDashboard: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                sellerOrders.filter(o => o.status === 'pending').map((ord) => (
+                relevantOrders.filter(o => o.status === 'pending').map((ord) => (
                   <div key={ord.id} className="p-5 space-y-4 text-xs">
                     {/* Header */}
                     <div className="flex flex-wrap justify-between items-center gap-2">
@@ -2679,38 +2723,42 @@ export const SellerDashboard: React.FC = () => {
             <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 font-extrabold text-xs text-slate-800 dark:text-slate-200 flex justify-between items-center">
               <span>{language === 'bn' ? 'কনফার্মড ও ডেলিভারড অর্ডারসমূহ' : 'Confirmed & Delivered Orders'}</span>
               <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] px-2.5 py-1 rounded-full font-bold">
-                {sellerOrders.filter(o => o.status !== 'pending').length} Orders
+                {relevantOrders.filter(o => o.status !== 'pending').length} Orders
               </span>
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-              {sellerOrders.filter(o => o.status !== 'pending').length === 0 ? (
+              {relevantOrders.filter(o => o.status !== 'pending').length === 0 ? (
                 <div className="p-12 text-center space-y-3">
                   <p className="text-xs font-bold text-slate-500">No completed or processed orders yet.</p>
                 </div>
               ) : (
-                sellerOrders.filter(o => o.status !== 'pending').map((ord) => (
-                  <div key={ord.id} className="p-4 flex justify-between items-center text-xs">
-                    <div>
-                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{ord.orderNumber}</span>
-                      <p className="text-slate-400 text-[10px] mt-0.5">Customer: {ord.customerName} • {new Date(ord.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="text-right">
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">৳{ord.totalAmount.toLocaleString()}</span>
-                        <span className="block text-[10px] uppercase font-bold text-slate-500 mt-0.5">{ord.status}</span>
+                relevantOrders.filter(o => o.status !== 'pending').map((ord) => {
+                  const sellerItems = (ord.items || []).filter(isSellerItem);
+                  const myItemsTotal = sellerItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+                  return (
+                    <div key={ord.id} className="p-4 flex justify-between items-center text-xs">
+                      <div>
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{ord.orderNumber}</span>
+                        <p className="text-slate-400 text-[10px] mt-0.5">Customer: {ord.customerName} • {new Date(ord.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <button
-                        onClick={() => setSelectedInvoiceOrder(ord)}
-                        className="p-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1 cursor-pointer"
-                        title={language === 'bn' ? 'চালান ও মেমো স্লিপ দেখুন' : 'Print Invoice Slip'}
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold">{language === 'bn' ? 'স্লিপ' : 'Slip'}</span>
-                      </button>
+                      <div className="flex items-center space-x-3">
+                        <div className="text-right">
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">৳{myItemsTotal.toLocaleString()}</span>
+                          <span className="block text-[10px] uppercase font-bold text-slate-500 mt-0.5">{ord.status}</span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedInvoiceOrder(ord)}
+                          className="p-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1 cursor-pointer"
+                          title={language === 'bn' ? 'চালান ও মেমো স্লিপ দেখুন' : 'Print Invoice Slip'}
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-bold">{language === 'bn' ? 'স্লিপ' : 'Slip'}</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
