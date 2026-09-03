@@ -439,7 +439,7 @@ export const ProductApprovals: React.FC = () => {
                 {/* Product Image Banner */}
                 <div className="h-44 relative bg-slate-100 dark:bg-slate-900 overflow-hidden">
                   <img 
-                    src={product.images[0]} 
+                    src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
                     alt={product.title} 
                     className="w-full h-full object-cover group-hover:scale-102 transition duration-500" 
                   />
@@ -665,7 +665,7 @@ export const ProductApprovals: React.FC = () => {
               {/* Image Grid */}
               <div className="h-64 rounded-2xl bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
                 <img 
-                  src={selectedProduct.images[0]} 
+                  src={selectedProduct.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
                   alt={selectedProduct.title} 
                   className="w-full h-full object-contain" 
                 />
@@ -744,7 +744,7 @@ export const ProductApprovals: React.FC = () => {
                       return (
                         <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
                           <div className="flex items-center space-x-2.5">
-                            <img src={prod.images[0]} className="w-8 h-8 rounded object-cover" alt="" />
+                            <img src={prod.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} className="w-8 h-8 rounded object-cover" alt="" />
                             <div>
                               <p className="font-bold text-slate-800 dark:text-slate-100">
                                 {language === 'bn' ? prod.titleBn || prod.title : prod.title}

@@ -164,7 +164,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
   // Helper to fetch image as File for Native Web Share
   const getProductImageFile = async (): Promise<File | null> => {
     try {
-      const imgUrl = product.images[0];
+      const imgUrl = product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
       const res = await fetch(imgUrl, { mode: 'cors' });
       if (!res.ok) throw new Error('Fetch failed');
       const blob = await res.blob();
@@ -176,7 +176,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
         const canvas = document.createElement('canvas');
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.src = product.images[0];
+        img.src = product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = reject;
@@ -236,7 +236,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
     try {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.src = product.images[0];
+      img.src = product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
@@ -323,7 +323,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
   };
 
   const handleSharePinterest = () => {
-    const pinUrl = `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(shareUrl)}&media=${encodeURIComponent(product.images[0])}&description=${encodeURIComponent(shareText)}`;
+    const pinUrl = `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(shareUrl)}&media=${encodeURIComponent(product.images?.[0] || '')}&description=${encodeURIComponent(shareText)}`;
     window.open(pinUrl, '_blank', 'noopener,noreferrer,width=750,height=550');
   };
 
@@ -389,7 +389,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
         <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3.5 shrink-0">
           <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs">
             <img 
-              src={product.images[0]} 
+              src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
               alt={product.title} 
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
@@ -789,7 +789,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
                     <div className="rounded-xl overflow-hidden bg-white/70 dark:bg-black/30 border border-black/5">
                       <div className="relative aspect-video w-full overflow-hidden bg-slate-100">
                         <img 
-                          src={product.images[0]} 
+                          src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
                           alt="" 
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
@@ -855,7 +855,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
                   <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-900">
                     <div className="relative aspect-video w-full overflow-hidden">
                       <img 
-                        src={product.images[0]} 
+                        src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
                         alt="" 
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
@@ -899,7 +899,7 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({
 
                   <div className="rounded-2xl border border-slate-800 overflow-hidden bg-slate-950">
                     <img 
-                      src={product.images[0]} 
+                      src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} 
                       alt="" 
                       className="w-full aspect-video object-cover"
                       referrerPolicy="no-referrer"

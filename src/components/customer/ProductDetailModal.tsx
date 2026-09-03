@@ -590,7 +590,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-red-500 transition cursor-pointer group"
                   >
                     <div className="aspect-square rounded-xl overflow-hidden bg-white dark:bg-slate-900 mb-2">
-                      <img src={rel.images[0]} alt={rel.title} className="w-full h-full object-cover group-hover:scale-105 transition" referrerPolicy="no-referrer" />
+                      <img src={rel.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} alt={rel.title} className="w-full h-full object-cover group-hover:scale-105 transition" referrerPolicy="no-referrer" />
                     </div>
                     <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                       {language === 'bn' ? (rel.titleBn || rel.title) : rel.title}

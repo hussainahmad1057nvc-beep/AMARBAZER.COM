@@ -1459,7 +1459,7 @@ export const InventoryWorkspace: React.FC = () => {
                         <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition">
                           <td className="p-4">
                             <div className="flex items-center space-x-3 min-w-0">
-                              <img src={p.images[0]} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 bg-slate-100 dark:bg-slate-900" />
+                              <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 bg-slate-100 dark:bg-slate-900" />
                               <div className="min-w-0">
                                 <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate">
                                   {language === 'bn' ? (p.titleBn || p.title) : language === 'ar' ? (p.titleAr || p.title) : p.title}

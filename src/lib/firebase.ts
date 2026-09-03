@@ -98,6 +98,44 @@ export function sanitizeForFirestore<T>(data: T): T {
   }
 }
 
+// Utility to normalize products received from Firestore or API, ensuring images array and required fields are always valid
+export function normalizeProduct(p: any): Product {
+  const defaultImg = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
+  let validImages: string[] = [];
+  if (Array.isArray(p?.images) && p.images.length > 0) {
+    validImages = p.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0);
+  } else if (typeof p?.images === 'string' && p.images.trim().length > 0) {
+    validImages = [p.images.trim()];
+  } else if (typeof p?.image === 'string' && p.image.trim().length > 0) {
+    validImages = [p.image.trim()];
+  }
+  if (validImages.length === 0) {
+    validImages = [defaultImg];
+  }
+
+  const priceNum = Number(p?.price) > 0 ? Number(p.price) : 100;
+  const titleText = (p?.title && String(p.title).trim()) || (p?.titleBn && String(p.titleBn).trim()) || 'Product';
+  const titleBnText = (p?.titleBn && String(p.titleBn).trim()) || (p?.title && String(p.title).trim()) || 'পণ্য';
+
+  return {
+    ...p,
+    id: p?.id || `prod-${Date.now()}`,
+    title: titleText,
+    titleBn: titleBnText,
+    price: priceNum,
+    discountPrice: p?.discountPrice ? Number(p.discountPrice) : undefined,
+    images: validImages,
+    stock: p?.stock !== undefined && !isNaN(Number(p.stock)) ? Number(p.stock) : 20,
+    isApproved: p?.isApproved !== false,
+    categoryId: p?.categoryId || 'cat-1',
+    categoryName: p?.categoryName || 'General',
+    variants: Array.isArray(p?.variants) ? p.variants : [],
+    variantPrices: p?.variantPrices || {},
+    bulkOffers: Array.isArray(p?.bulkOffers) ? p.bulkOffers : [],
+    comboItems: Array.isArray(p?.comboItems) ? p.comboItems : []
+  };
+}
+
 // Clean helper database interface for AmarBazar components
 export const firebaseDb = {
   // PRODUCTS
@@ -108,7 +146,7 @@ export const firebaseDb = {
       const list: Product[] = [];
       snap.forEach(docSnap => {
         const d = docSnap.data();
-        list.push({ ...d, id: docSnap.id } as Product);
+        list.push(normalizeProduct({ ...d, id: docSnap.id }));
       });
       return list;
     } catch (err) {
@@ -211,7 +249,7 @@ export const firebaseDb = {
         (snap) => {
           const prods: Product[] = [];
           snap.forEach(docSnap => {
-            prods.push({ ...docSnap.data(), id: docSnap.id } as Product);
+            prods.push(normalizeProduct({ ...docSnap.data(), id: docSnap.id }));
           });
           callback(prods);
         },

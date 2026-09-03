@@ -2497,7 +2497,7 @@ export const SellerDashboard: React.FC = () => {
                 {sellerProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="p-3 flex items-center space-x-3">
-                      <img src={p.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                      <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} alt="" className="w-10 h-10 rounded-lg object-cover" />
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white truncate max-w-xs">{p.title}</p>
                         <p className="text-[10px] text-slate-400">{p.categoryName}</p>
@@ -4491,7 +4491,7 @@ export const SellerDashboard: React.FC = () => {
                                         onChange={(e) => handleCheckboxChange(e.target.checked)}
                                         className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                       />
-                                      <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
+                                      <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
                                       <div className="truncate">
                                         <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
                                         <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>
@@ -5239,7 +5239,7 @@ export const SellerDashboard: React.FC = () => {
                                       onChange={(e) => handleCheckboxChange(e.target.checked)}
                                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                     />
-                                    <img src={p.images[0]} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
+                                    <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} className="w-8 h-8 rounded object-cover shrink-0 bg-slate-100" />
                                     <div className="truncate">
                                       <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{language === 'bn' ? p.titleBn || p.title : p.title}</p>
                                       <p className="text-[10px] text-slate-400">৳{p.discountPrice || p.price}</p>

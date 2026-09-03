@@ -2090,7 +2090,7 @@ export const CustomerProfilePanel: React.FC = () => {
                   {wishlistProducts.map(p => (
                     <div key={p.id} className="bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-xl border border-slate-200/50 dark:border-slate-750 flex flex-col justify-between">
                       <div className="space-y-2">
-                        <img src={p.images[0]} alt={p.title} className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
+                        <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} alt={p.title} className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
                         <div className="min-w-0">
                           <h5 className="font-extrabold text-slate-800 dark:text-white text-xs truncate">{p.title}</h5>
                           <span className="text-[10px] text-slate-400 block font-bold">Brand: {p.brand}</span>

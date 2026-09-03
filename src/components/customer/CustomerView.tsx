@@ -287,42 +287,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
       const saved = localStorage.getItem('market_campaigns');
       if (saved) {
         const parsed = JSON.parse(saved);
-        const banners: any = {};
-        parsed.forEach((c: any) => {
-          banners[c.id] = {
-            id: c.id,
-            badge: {
-              en: c.name || '',
-              bn: c.nameBn || ''
-            },
-            title: {
-              en: c.tagline || '',
-              bn: c.taglineBn || ''
-            },
-            description: {
-              en: c.description || '',
-              bn: c.descriptionBn || ''
-            },
-            gradient: c.gradient || 'from-amber-500 via-orange-500 to-red-600',
-            image: c.image || '',
-            accentColor: c.accentColor || '#fb923c',
-            isActive: c.isActive !== false,
-            showBanner: c.showBanner !== false,
-            showBadge: c.showBadge !== false,
-            showImage: c.showImage !== false,
-            showTagline: c.showTagline !== false,
-            showDescription: c.showDescription !== false,
-            adImage: c.adImage || '',
-            showTimer: c.showTimer !== false,
-            timerEndsAt: c.timerEndsAt || '',
-            timerDays: c.timerDays !== undefined ? c.timerDays : 1,
-            timerHours: c.timerHours !== undefined ? c.timerHours : 15,
-            timerMinutes: c.timerMinutes !== undefined ? c.timerMinutes : 28,
-            timerSeconds: c.timerSeconds !== undefined ? c.timerSeconds : 47,
-            filterKeyword: c.filterKeyword || ''
-          };
-        });
-        return banners;
+        const list = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? Object.values(parsed) : []);
+        if (list.length > 0) {
+          const banners: any = {};
+          list.forEach((c: any) => {
+            if (!c || !c.id) return;
+            banners[c.id] = {
+              id: c.id,
+              badge: typeof c.badge === 'object' ? c.badge : { en: c.name || '', bn: c.nameBn || '' },
+              title: typeof c.title === 'object' ? c.title : { en: c.tagline || c.name || '', bn: c.taglineBn || c.nameBn || '' },
+              description: typeof c.description === 'object' ? c.description : { en: c.description || '', bn: c.descriptionBn || '' },
+              gradient: c.gradient || 'from-amber-500 via-orange-500 to-red-600',
+              image: c.image || '',
+              accentColor: c.accentColor || '#fb923c',
+              isActive: c.isActive !== false,
+              showBanner: c.showBanner !== false,
+              showBadge: c.showBadge !== false,
+              showImage: c.showImage !== false,
+              showTagline: c.showTagline !== false,
+              showDescription: c.showDescription !== false,
+              adImage: c.adImage || '',
+              showTimer: c.showTimer !== false,
+              timerEndsAt: c.timerEndsAt || '',
+              timerDays: c.timerDays !== undefined ? c.timerDays : 1,
+              timerHours: c.timerHours !== undefined ? c.timerHours : 15,
+              timerMinutes: c.timerMinutes !== undefined ? c.timerMinutes : 28,
+              timerSeconds: c.timerSeconds !== undefined ? c.timerSeconds : 47,
+              filterKeyword: c.filterKeyword || ''
+            };
+          });
+          return banners;
+        }
       }
     } catch (e) {
       console.error('Error parsing market_campaigns:', e);
@@ -364,42 +359,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
         const saved = localStorage.getItem('market_campaigns');
         if (saved) {
           const parsed = JSON.parse(saved);
-          const banners: any = {};
-          parsed.forEach((c: any) => {
-            banners[c.id] = {
-              id: c.id,
-              badge: {
-                en: c.name || '',
-                bn: c.nameBn || ''
-              },
-              title: {
-                en: c.tagline || '',
-                bn: c.taglineBn || ''
-              },
-              description: {
-                en: c.description || '',
-                bn: c.descriptionBn || ''
-              },
-              gradient: c.gradient || 'from-amber-500 via-orange-500 to-red-600',
-              image: c.image || '',
-              accentColor: c.accentColor || '#fb923c',
-              isActive: c.isActive !== false,
-              showBanner: c.showBanner !== false,
-              showBadge: c.showBadge !== false,
-              showImage: c.showImage !== false,
-              showTagline: c.showTagline !== false,
-              showDescription: c.showDescription !== false,
-              adImage: c.adImage || '',
-              showTimer: c.showTimer !== false,
-              timerEndsAt: c.timerEndsAt || '',
-              timerDays: c.timerDays !== undefined ? c.timerDays : 1,
-              timerHours: c.timerHours !== undefined ? c.timerHours : 15,
-              timerMinutes: c.timerMinutes !== undefined ? c.timerMinutes : 28,
-              timerSeconds: c.timerSeconds !== undefined ? c.timerSeconds : 47,
-              filterKeyword: c.filterKeyword || ''
-            };
-          });
-          setDynamicCampaigns(banners);
+          const list = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? Object.values(parsed) : []);
+          if (list.length > 0) {
+            const banners: any = {};
+            list.forEach((c: any) => {
+              if (!c || !c.id) return;
+              banners[c.id] = {
+                id: c.id,
+                badge: typeof c.badge === 'object' ? c.badge : { en: c.name || '', bn: c.nameBn || '' },
+                title: typeof c.title === 'object' ? c.title : { en: c.tagline || c.name || '', bn: c.taglineBn || c.nameBn || '' },
+                description: typeof c.description === 'object' ? c.description : { en: c.description || '', bn: c.descriptionBn || '' },
+                gradient: c.gradient || 'from-amber-500 via-orange-500 to-red-600',
+                image: c.image || '',
+                accentColor: c.accentColor || '#fb923c',
+                isActive: c.isActive !== false,
+                showBanner: c.showBanner !== false,
+                showBadge: c.showBadge !== false,
+                showImage: c.showImage !== false,
+                showTagline: c.showTagline !== false,
+                showDescription: c.showDescription !== false,
+                adImage: c.adImage || '',
+                showTimer: c.showTimer !== false,
+                timerEndsAt: c.timerEndsAt || '',
+                timerDays: c.timerDays !== undefined ? c.timerDays : 1,
+                timerHours: c.timerHours !== undefined ? c.timerHours : 15,
+                timerMinutes: c.timerMinutes !== undefined ? c.timerMinutes : 28,
+                timerSeconds: c.timerSeconds !== undefined ? c.timerSeconds : 47,
+                filterKeyword: c.filterKeyword || ''
+              };
+            });
+            setDynamicCampaigns(banners);
+          }
         }
       } catch (e) {
         console.error('Error handling storage change:', e);
@@ -547,15 +537,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
   // Filtered and sorted products list
   const filteredProducts = useMemo(() => {
-    let list = products.filter(p => p.isApproved !== false);
+    let list = (products || []).filter(p => p && p.id && p.isApproved !== false);
 
     // Filter by outlet/seller
     if (selectedSellerId) {
-      const sId = selectedSellerId.toLowerCase();
+      const sId = String(selectedSellerId).toLowerCase();
       const stripped = sId.replace(/^(usr-|sel-)/, '');
       list = list.filter(p => {
-        if (!p.sellerId) return false;
-        const pSellerLower = p.sellerId.toLowerCase();
+        if (!p || !p.sellerId) return false;
+        const pSellerLower = String(p.sellerId).toLowerCase();
         const pStripped = pSellerLower.replace(/^(usr-|sel-)/, '');
         return pSellerLower === sId || pStripped === stripped;
       });
@@ -563,9 +553,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
     // Category filter
     if (selectedCategory) {
-      const selCatLower = selectedCategory.toLowerCase();
+      const selCatLower = String(selectedCategory).toLowerCase();
       
       list = list.filter(p => {
+        if (!p) return false;
         const pCatId = (p.categoryId || '').toLowerCase();
         const pCatName = (p.categoryName || '').toLowerCase();
         const pSubCat = (p.subCategory || '').toLowerCase();
@@ -582,21 +573,30 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
         if (pSubCat === selCatLower || pSubCatId === selCatLower) return true;
 
         // 2. Lookup in loaded categories object hierarchy
-        const matchedCat = categories.find(c => c.id.toLowerCase() === selCatLower || c.name.toLowerCase() === selCatLower || (c.nameBn && c.nameBn.toLowerCase() === selCatLower));
+        const matchedCat = (categories || []).find(c => 
+          (c?.id && c.id.toLowerCase() === selCatLower) || 
+          (c?.name && c.name.toLowerCase() === selCatLower) || 
+          (c?.nameBn && c.nameBn.toLowerCase() === selCatLower)
+        );
         if (matchedCat) {
-          if (pCatId === matchedCat.id.toLowerCase()) return true;
-          if (pCatName === matchedCat.name.toLowerCase() || (matchedCat.nameBn && pCatName === matchedCat.nameBn.toLowerCase())) return true;
-          if (matchedCat.subcategories?.some(s => s.id.toLowerCase() === pCatId || s.name.toLowerCase() === pSubCat || (s.nameBn && s.nameBn.toLowerCase() === pSubCat))) return true;
+          if (pCatId === (matchedCat.id || '').toLowerCase()) return true;
+          if (pCatName === (matchedCat.name || '').toLowerCase() || (matchedCat.nameBn && pCatName === matchedCat.nameBn.toLowerCase())) return true;
+          if (matchedCat.subcategories?.some(s => (s?.id && s.id.toLowerCase() === pCatId) || (s?.name && s.name.toLowerCase() === pSubCat) || (s?.nameBn && s.nameBn.toLowerCase() === pSubCat))) return true;
         }
 
         // 3. Subcategory across all categories lookup
-        for (const c of categories) {
-          const sub = c.subcategories?.find(s => s.id.toLowerCase() === selCatLower || s.name.toLowerCase() === selCatLower || (s.nameBn && s.nameBn.toLowerCase() === selCatLower));
+        for (const c of (categories || [])) {
+          if (!c) continue;
+          const sub = c.subcategories?.find(s => 
+            (s?.id && s.id.toLowerCase() === selCatLower) || 
+            (s?.name && s.name.toLowerCase() === selCatLower) || 
+            (s?.nameBn && s.nameBn.toLowerCase() === selCatLower)
+          );
           if (sub) {
-            if (pCatId === c.id.toLowerCase() || pCatName === c.name.toLowerCase()) {
-              if (pSubCat === sub.name.toLowerCase() || (sub.nameBn && pSubCat === sub.nameBn.toLowerCase()) || pSubCatId === sub.id.toLowerCase()) return true;
+            if (pCatId === (c.id || '').toLowerCase() || pCatName === (c.name || '').toLowerCase()) {
+              if (pSubCat === (sub.name || '').toLowerCase() || (sub.nameBn && pSubCat === sub.nameBn.toLowerCase()) || pSubCatId === (sub.id || '').toLowerCase()) return true;
               // If product belongs to parent category and has matching keywords
-              const subKeywords = [sub.name, sub.nameBn || ''].join(' ').toLowerCase().split(/[\s,&/]+/).filter(w => w.length > 2);
+              const subKeywords = [sub.name || '', sub.nameBn || ''].join(' ').toLowerCase().split(/[\s,&/]+/).filter(w => w.length > 2);
               if (subKeywords.some(k => combinedText.includes(k))) return true;
               return true;
             }
@@ -843,7 +843,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
                               {slide.showBadge !== false && (
                                 <div className="inline-flex items-center space-x-1 bg-[#f6a51d] text-slate-950 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-sm">
                                   <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-slate-950 animate-bounce" />
-                                  <span>{language === 'bn' ? slide.badge.bn : slide.badge.en}</span>
+                                  <span>
+                                    {language === 'bn'
+                                      ? (typeof slide.badge === 'object' ? (slide.badge?.bn || slide.badge?.en || '') : (slide.badge || ''))
+                                      : (typeof slide.badge === 'object' ? (slide.badge?.en || slide.badge?.bn || '') : (slide.badge || ''))}
+                                  </span>
                                 </div>
                               )}
 
@@ -862,13 +866,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
                             {slide.showTagline !== false && (
                               <h2 className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tight leading-tight">
-                                {language === 'bn' ? slide.title.bn : slide.title.en}
+                                {language === 'bn'
+                                  ? (typeof slide.title === 'object' ? (slide.title?.bn || slide.title?.en || '') : (slide.title || ''))
+                                  : (typeof slide.title === 'object' ? (slide.title?.en || slide.title?.bn || '') : (slide.title || ''))}
                               </h2>
                             )}
 
                             {slide.showDescription !== false && (
                               <p className="hidden sm:block text-white/95 text-xs leading-relaxed font-medium max-w-xl">
-                                {language === 'bn' ? slide.description.bn : slide.description.en}
+                                {language === 'bn'
+                                  ? (typeof slide.description === 'object' ? (slide.description?.bn || slide.description?.en || '') : (slide.description || ''))
+                                  : (typeof slide.description === 'object' ? (slide.description?.en || slide.description?.bn || '') : (slide.description || ''))}
                               </p>
                             )}
                           </div>
@@ -1114,7 +1122,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
                     {/* Delivery Time & Image Block */}
                     <div className="relative w-full aspect-square overflow-hidden bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800/50">
                       <img
-                        src={p.images[0]}
+                        src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'}
                         alt={p.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         referrerPolicy="no-referrer"
@@ -1349,8 +1357,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({ onOpenProduct, onBuy
 
                 {/* Filter and Render Categories */}
                 {flatCategories.filter(item => {
-                  const q = categorySearchQuery.toLowerCase();
-                  return item.name.toLowerCase().includes(q) || item.nameBn.toLowerCase().includes(q);
+                  if (!item) return false;
+                  const q = (categorySearchQuery || '').toLowerCase();
+                  const nameEn = (item.name || '').toLowerCase();
+                  const nameBn = (item.nameBn || '').toLowerCase();
+                  return nameEn.includes(q) || nameBn.includes(q);
                 }).map((item) => {
                   const isSelected = selectedCategory === item.id;
                   return (

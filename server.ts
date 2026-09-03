@@ -204,22 +204,38 @@ try {
 async function loadProductsFromFirestoreOnBoot() {
   if (!serverFirestoreDb) return;
   try {
+    // 1. Fetch deleted products
+    const delSnap = await serverGetDocs(serverCollection(serverFirestoreDb, 'deleted_products'));
+    const delSet = new Set<string>(db.deletedProductIds || []);
+    delSnap.forEach((d: any) => delSet.add(d.id));
+    db.deletedProductIds = Array.from(delSet);
+
+    // 2. Fetch active products
     const snap = await serverGetDocs(serverCollection(serverFirestoreDb, 'products'));
     if (!snap.empty) {
-      const prodMap = new Map<string, Product>();
+      const cloudProds: Product[] = [];
+      const defaultImg = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
       snap.forEach((d: any) => {
         const data = d.data() as Product;
-        if (data && data.id) {
-          prodMap.set(data.id, { ...data, id: d.id });
+        if (data && d.id && !delSet.has(d.id)) {
+          let validImages: string[] = [];
+          if (Array.isArray(data.images) && data.images.length > 0) {
+            validImages = data.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0);
+          } else if (typeof (data as any).images === 'string' && (data as any).images.trim().length > 0) {
+            validImages = [(data as any).images.trim()];
+          }
+          if (validImages.length === 0) validImages = [defaultImg];
+          cloudProds.push({
+            ...data,
+            id: d.id,
+            images: validImages,
+            isApproved: data.isApproved !== false
+          });
         }
       });
-      // Merge with db.products
-      db.products.forEach(p => {
-        if (!prodMap.has(p.id)) prodMap.set(p.id, p);
-      });
-      db.products = Array.from(prodMap.values());
+      db.products = cloudProds;
       saveDb();
-      console.log(`[Firebase Backend] Synced ${snap.size} products from Firestore cloud.`);
+      console.log(`[Firebase Backend] Synced ${cloudProds.length} products from Firestore cloud.`);
     }
   } catch (e) {
     console.warn('[Firebase Backend] Error syncing products from Firestore on boot:', e);
@@ -890,7 +906,36 @@ async function startServer() {
   });
 
   // Products API (CRUD)
-  app.get('/api/products', (req, res) => {
+  app.get('/api/products', async (req, res) => {
+    if (serverFirestoreDb) {
+      try {
+        const snap = await serverGetDocs(serverCollection(serverFirestoreDb, 'products'));
+        if (!snap.empty) {
+          const delSet = new Set<string>(db.deletedProductIds || []);
+          const defaultImg = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80';
+          const freshList: Product[] = [];
+          snap.forEach((d: any) => {
+            const data = d.data() as Product;
+            if (data && d.id && !delSet.has(d.id)) {
+              let validImages: string[] = [];
+              if (Array.isArray(data.images) && data.images.length > 0) {
+                validImages = data.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0);
+              } else if (typeof (data as any).images === 'string' && (data as any).images.trim().length > 0) {
+                validImages = [(data as any).images.trim()];
+              }
+              if (validImages.length === 0) validImages = [defaultImg];
+              freshList.push({
+                ...data,
+                id: d.id,
+                images: validImages,
+                isApproved: data.isApproved !== false
+              });
+            }
+          });
+          db.products = freshList;
+        }
+      } catch (err) {}
+    }
     const { category, search, minPrice, maxPrice, sellerId, sort, flashDeal } = req.query;
     const deletedSet = new Set(db.deletedProductIds || []);
     let list = db.products.filter(p => !deletedSet.has(p.id));

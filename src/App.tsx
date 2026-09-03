@@ -128,9 +128,11 @@ function MainLayout() {
     isMobileChatActive: false
   });
 
+  const hasParsedUrlRef = useRef(false);
+
   // Direct Social Share / Google Search Landing URL Parser
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || hasParsedUrlRef.current) return;
 
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -169,6 +171,10 @@ function MainLayout() {
       const targetTrackId = urlParams.get('track') || urlParams.get('order');
       if (targetTrackId) {
         setTrackingOrderId(targetTrackId);
+      }
+
+      if (targetProductId || targetCatId || targetSearch || targetPanel || targetTrackId) {
+        hasParsedUrlRef.current = true;
       }
     } catch (err) {
       console.log('URL deep-link parsing notice:', err);

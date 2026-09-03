@@ -25,7 +25,9 @@ export const Header: React.FC = () => {
     try {
       const saved = localStorage.getItem('market_campaigns');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return Object.values(parsed);
       }
     } catch (e) {
       console.error('Error loading campaigns in Header:', e);
@@ -43,7 +45,12 @@ export const Header: React.FC = () => {
       try {
         const saved = localStorage.getItem('market_campaigns');
         if (saved) {
-          setCampaignList(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setCampaignList(parsed);
+          } else if (parsed && typeof parsed === 'object') {
+            setCampaignList(Object.values(parsed));
+          }
         }
       } catch (e) {
         console.error(e);
@@ -58,7 +65,12 @@ export const Header: React.FC = () => {
     try {
       const saved = localStorage.getItem('market_campaigns');
       if (saved) {
-        setCampaignList(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setCampaignList(parsed);
+        } else if (parsed && typeof parsed === 'object') {
+          setCampaignList(Object.values(parsed));
+        }
       }
     } catch (e) {
       console.error(e);
@@ -90,9 +102,12 @@ export const Header: React.FC = () => {
     return list;
   }, [categories]);
 
-  const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const cartTotalPrice = cart.reduce((acc, item) => acc + ((item.product.discountPrice || item.product.price) * item.quantity), 0);
-  const unreadNotifCount = notifications.filter(n => !n.isRead).length;
+  const cartItemsCount = (cart || []).reduce((acc, item) => acc + (item?.quantity || 0), 0);
+  const cartTotalPrice = (cart || []).reduce((acc, item) => {
+    const pPrice = item?.product ? (item.product.discountPrice || item.product.price || 0) : (item?.calculatedPrice || 0);
+    return acc + (pPrice * (item?.quantity || 1));
+  }, 0);
+  const unreadNotifCount = (notifications || []).filter(n => n && !n.isRead).length;
 
   const BANGLADESH_DISTRICTS = [
     'Dhaka', 'Gazipur', 'Narayanganj', 'Chittagong', 'Cox\'s Bazar', 'Sylhet', 'Moulvibazar', 
@@ -495,11 +510,11 @@ export const Header: React.FC = () => {
             
             {/* Middle Nav Links */}
             <div className="hidden md:flex items-center space-x-5 lg:space-x-7 text-[11px] font-black">
-              {campaignList.filter(link => link.isActive !== false).map((link) => (
+              {(Array.isArray(campaignList) ? campaignList : []).filter(link => link && link.isActive !== false).map((link) => (
                 <button
-                  key={link.id}
+                  key={link.id || Math.random()}
                   onClick={() => {
-                    setActiveCampaignTab(link.id);
+                    if (link.id) setActiveCampaignTab(link.id);
                     setSearchQuery('');
                     setSelectedCategory(null);
                   }}
@@ -509,7 +524,7 @@ export const Header: React.FC = () => {
                       : 'text-slate-600 dark:text-slate-400 border-transparent hover:border-[#da1c24]/30'
                   }`}
                 >
-                  {language === 'bn' ? link.nameBn : link.name}
+                  {language === 'bn' ? (link.nameBn || link.name) : (link.name || link.nameBn)}
                 </button>
               ))}
             </div>

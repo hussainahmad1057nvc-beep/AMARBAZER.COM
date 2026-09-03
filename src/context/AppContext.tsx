@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { User, Product, Category, CartItem, Order, Language, CurrencyCode, Role, SystemSettings, Notification, ColorPalette, getProductUnitPrice, getBulkDiscountedPrice, Address } from '../types';
 import { INITIAL_USERS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 import { api, getDeletedProductIds, syncDeletedProductIdsFromCloud, isLegacyMockId } from '../services/api';
-import { firebaseDb } from '../lib/firebase';
+import { firebaseDb, normalizeProduct } from '../lib/firebase';
 import { safeStorage } from '../lib/safeStorage';
 import { applyLiveLanguage } from '../services/languageService';
 import { applyLiveCurrency, formatCurrencyAmount } from '../services/currencyService';
@@ -576,7 +576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed = safeStorage.getJSON<Product[]>('amarbazar_products_store', []);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter(p => !deletedSet.has(p.id) && !p.id.startsWith('pending-mock-') && p.id !== 'temp-preview');
+        return parsed.filter(p => p && p.id && !deletedSet.has(p.id) && !p.id.startsWith('pending-mock-') && p.id !== 'temp-preview');
       }
     } catch (e) {}
     return [];
@@ -956,21 +956,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeProducts = firebaseDb.subscribeToProducts((fbProds) => {
         const deletedSet = getDeletedProductIds();
         if (Array.isArray(fbProds)) {
-          const liveList = fbProds.filter(p => !deletedSet.has(p.id) && !p.id.startsWith('pending-mock-') && p.id !== 'temp-preview');
-          setProducts(prev => {
-            const map = new Map<string, Product>();
-            // Keep existing non-deleted products
-            prev.forEach(p => {
-              if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) map.set(p.id, p);
-            });
-            // Merge in all live products from Firestore cloud
-            liveList.forEach(p => map.set(p.id, p));
-            const merged = Array.from(map.values());
-            try {
-              safeStorage.setItem('amarbazar_products_store', JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
+          const liveList = fbProds
+            .filter(p => p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id))
+            .map(normalizeProduct);
+          setProducts(liveList);
+          try {
+            safeStorage.setItem('amarbazar_products_store', JSON.stringify(liveList));
+          } catch (e) {}
         }
       });
     } catch (e) {

@@ -1,6 +1,6 @@
 import { Product, Category, Coupon, Order, SellerStore, User, WithdrawalRequest, SystemSettings, SellerStaffMember, AdminStaffMember, SellerPermissionConfig } from '../types';
 import { nativeBridge } from './nativeBridge';
-import { firebaseDb, testFirestoreConnection } from '../lib/firebase';
+import { firebaseDb, testFirestoreConnection, normalizeProduct } from '../lib/firebase';
 import { safeStorage } from '../lib/safeStorage';
 import { INITIAL_USERS, INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SELLERS, INITIAL_SYSTEM_SETTINGS } from '../data/initialData';
 
@@ -56,7 +56,7 @@ const STORAGE_KEY_SELLERS = 'amarbazar_sellers_store';
 export function purgeLegacyMockData() {
   if (typeof window === 'undefined') return;
   try {
-    const versionKey = 'amarbazar_storage_cleanup_v6_clean';
+    const versionKey = 'amarbazar_storage_cleanup_v8_fresh';
     const isCleaned = localStorage.getItem(versionKey);
     if (!isCleaned) {
       localStorage.removeItem(STORAGE_KEY_PRODUCTS);
@@ -161,7 +161,7 @@ function getLocalProducts(): Product[] {
   try {
     const parsed = safeStorage.getJSON<Product[]>(STORAGE_KEY_PRODUCTS, []);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
+      return parsed.filter(p => p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id));
     }
   } catch (e) {}
   return [];
@@ -169,7 +169,7 @@ function getLocalProducts(): Product[] {
 
 function saveLocalProducts(products: Product[], notify = true) {
   const deletedSet = getDeletedProductIds();
-  const filtered = products.filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
+  const filtered = (products || []).filter(p => p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id));
   try {
     safeStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(filtered));
     if (notify && typeof window !== 'undefined') {
@@ -355,7 +355,7 @@ export const api = {
     const deletedSet = await syncDeletedProductIdsFromCloud();
     const q = params ? '?' + new URLSearchParams(params).toString() : '';
 
-    // 1. Parallel Fetch: Always query BOTH Firebase Firestore cloud database AND Backend API server
+    // 1. Parallel Fetch: Query Firebase Firestore cloud database AND Backend API server
     const [serverRes, fbRes] = await Promise.allSettled([
       fetchJson<Product[]>(`/api/products${q}`),
       firebaseDb.getProducts()
@@ -363,33 +363,28 @@ export const api = {
 
     const productMap = new Map<string, Product>();
 
-    // A. Add local products first
-    const localList = getLocalProducts().filter(p => !deletedSet.has(p.id) && !isLegacyMockId(p.id));
-    localList.forEach(p => productMap.set(p.id, p));
-
-    // B. Add Server API products
-    if (serverRes.status === 'fulfilled' && Array.isArray(serverRes.value)) {
-      serverRes.value.forEach(p => {
-        if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
-          productMap.set(p.id, p);
+    // A. Add Firebase Firestore multi-device cloud products (global real-time cloud store)
+    if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
+      fbRes.value.forEach(p => {
+        if (p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
+          productMap.set(p.id, normalizeProduct(p));
         }
       });
     }
 
-    // C. Add Firebase Firestore multi-device cloud products (global real-time cloud store)
-    if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
-      const cloudIds = new Set(fbRes.value.map(p => p.id));
-      fbRes.value.forEach(p => {
-        if (!deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
-          productMap.set(p.id, p);
+    // B. Add Server API products
+    if (serverRes.status === 'fulfilled' && Array.isArray(serverRes.value)) {
+      serverRes.value.forEach(p => {
+        if (p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id) && !productMap.has(p.id)) {
+          productMap.set(p.id, normalizeProduct(p));
         }
       });
-      // Auto-upload any locally created products that are not yet in Firestore cloud
-      localList.forEach(p => {
-        if (!cloudIds.has(p.id) && !deletedSet.has(p.id) && !isLegacyMockId(p.id)) {
-          firebaseDb.insertProduct(p).catch(e => console.warn('AutoSync upload error:', e));
-        }
-      });
+    }
+
+    // C. If cloud returned nothing (offline/fallback), use non-deleted local storage
+    if (productMap.size === 0) {
+      const localList = getLocalProducts().filter(p => p && p.id && !deletedSet.has(p.id) && !isLegacyMockId(p.id));
+      localList.forEach(p => productMap.set(p.id, normalizeProduct(p)));
     }
 
     const resultList = Array.from(productMap.values());

@@ -226,7 +226,7 @@ export const DashboardHome: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {topSelling.map(p => (
             <div key={p.id} className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center space-x-3 bg-slate-50/50 dark:bg-slate-900/30">
-              <img src={p.images[0]} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+              <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
               <div className="min-w-0 flex-1">
                 <h4 className="font-bold text-xs truncate text-slate-800 dark:text-slate-200">
                   {language === 'bn' ? (p.titleBn || p.title) : language === 'ar' ? (p.titleAr || p.title) : p.title}

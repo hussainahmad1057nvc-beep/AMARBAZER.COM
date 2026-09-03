@@ -80,8 +80,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onProceedToCheckout }) =
               cart.map((item, idx) => (
                 <div key={`${item.product.id}-${idx}`} className="pt-3 flex space-x-3 items-center">
                   <img
-                    src={item.product.images[0]}
-                    alt={item.product.title}
+                    src={item.product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'}
+                    alt={item.product?.title || 'Product'}
                     className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
                   />
                   <div className="flex-1 min-w-0">

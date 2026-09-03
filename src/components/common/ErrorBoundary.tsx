@@ -61,20 +61,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private handleResetApp = () => {
     try {
-      localStorage.removeItem('currentUser');
-      localStorage.removeItem('amarbazar_products_store');
-      localStorage.removeItem('amarbazar_categories_store');
-      localStorage.removeItem('amarbazar_sellers_store');
-      localStorage.removeItem('amarbazar_orders_store');
+      localStorage.clear();
+      sessionStorage.clear();
     } catch (e) {
-      console.warn('Could not clear localStorage:', e);
+      console.warn('Could not clear storage:', e);
     }
+    this.setState({ hasError: false, error: null, errorInfo: null });
     window.location.href = window.location.pathname;
   };
 
   private handleGoHome = () => {
+    try {
+      localStorage.removeItem('market_campaigns');
+    } catch (e) {}
     this.setState({ hasError: false, error: null, errorInfo: null });
-    window.location.href = '/';
+    window.location.href = window.location.pathname;
   };
 
   // Helper to extract purchase receipt info from storage
