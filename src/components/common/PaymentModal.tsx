@@ -68,7 +68,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [error, setError] = useState<string>('');
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [showFullSlipModal, setShowFullSlipModal] = useState<boolean>(false);
-  const [autoDownloaded, setAutoDownloaded] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+  const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
 
   const [sellerInfo, setSellerInfo] = useState<any>(null);
   const [cartSellers, setCartSellers] = useState<any[]>([]);
@@ -96,9 +97,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [saveAddressForFuture, setSaveAddressForFuture] = useState<boolean>(true);
   const [addressValidationError, setAddressValidationError] = useState<string>('');
 
-  // Sync addresses on modal open
+  // Sync addresses on modal open and reset step to 'details' (Page 2)
   useEffect(() => {
     if (isOpen) {
+      // Always reset flow to step 1 (Page 2: Delivery Details & Payment Selection)
+      setStep('details');
+      setCreatedOrder(null);
+      setError('');
+      setIsLoading(false);
+      setIsDownloadingPdf(false);
+      setDownloadSuccess(false);
+      setTransactionId('');
+      setOtp('');
+      setPin('');
+      setShowFullSlipModal(false);
+      setShowAddressPicker(false);
+      setPaymentMethod('bkash');
+
       const list = addressService.getSavedAddresses(currentUser);
       setSavedAddresses(list);
       if (shippingAddress) {
@@ -500,31 +515,31 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   <div class="grid">
     <div class="info-box">
-      <h4>${language === 'bn' ? 'গ্রাহকের বিবরণ ও ডেলিভারি ঠিকানা (Ship To)' : 'CUSTOMER & DELIVERY DETAILS'}</h4>
+      <h4>${language === 'bn' ? 'গ্রাহকের বিবরণ ও ডেলিভারি ঠিকানা' : 'CUSTOMER & DELIVERY DETAILS'}</h4>
       <strong style="font-size: 13px; color: #0f172a;">${orderObj.customerName}</strong><br/>
-      <span>📞 ফোন: <strong>${orderObj.customerPhone}</strong></span><br/>
-      <span>🏠 ঠিকানা: ${orderObj.shippingAddress?.fullAddress || 'Address on file'}</span><br/>
-      <span>📍 থানা: <strong>${orderObj.shippingAddress?.thana || 'Dhanmondi'}</strong>, জেলা: <strong>${orderObj.shippingAddress?.district || 'Dhaka'}</strong> (${orderObj.shippingAddress?.division || 'Bangladesh'})</span>
+      <span>${language === 'bn' ? '📞 ফোন:' : '📞 Phone:'} <strong>${orderObj.customerPhone}</strong></span><br/>
+      <span>${language === 'bn' ? '🏠 ঠিকানা:' : '🏠 Address:'} ${orderObj.shippingAddress?.fullAddress || (language === 'bn' ? 'সংরক্ষিত ঠিকানা' : 'Address on file')}</span><br/>
+      <span>${language === 'bn' ? '📍 থানা:' : '📍 Thana:'} <strong>${orderObj.shippingAddress?.thana || 'Dhanmondi'}</strong>, ${language === 'bn' ? 'জেলা:' : 'District:'} <strong>${orderObj.shippingAddress?.district || 'Dhaka'}</strong> (${orderObj.shippingAddress?.division || (language === 'bn' ? 'বাংলাদেশ' : 'Bangladesh')})</span>
     </div>
     <div class="info-box">
-      <h4>${language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ট্র্যাকিং (Logistics)' : 'PAYMENT & LOGISTICS INFO'}</h4>
-      <div><strong>পেমেন্ট মাধ্যম:</strong> <span class="status-tag ${orderObj.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${orderObj.paymentMethod.toUpperCase()} (${orderObj.paymentStatus.toUpperCase()})</span></div>
+      <h4>${language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ট্র্যাকিং' : 'PAYMENT & LOGISTICS INFO'}</h4>
+      <div><strong>${language === 'bn' ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</strong> <span class="status-tag ${orderObj.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${orderObj.paymentMethod.toUpperCase()} (${orderObj.paymentStatus.toUpperCase()})</span></div>
       ${orderObj.transactionId ? `<div><strong>Txn ID:</strong> <span style="font-family: monospace; font-weight: bold;">${orderObj.transactionId}</span></div>` : ''}
-      <div style="margin-top: 4px;"><strong>কুরিয়ার পার্টনার:</strong> ${orderObj.courier?.provider || 'Pathao Express'}</div>
-      <div><strong>ট্র্যাকিং কোড:</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${orderObj.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
+      <div style="margin-top: 4px;"><strong>${language === 'bn' ? 'কুরিয়ার পার্টনার:' : 'Courier Partner:'}</strong> ${orderObj.courier?.provider || 'Pathao Express'}</div>
+      <div><strong>${language === 'bn' ? 'ট্র্যাকিং কোড:' : 'Tracking Code:'}</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${orderObj.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
     </div>
   </div>
 
   <!-- Detailed Verification & Delivery Handover Checklist -->
   <div class="checklist-container">
     <div class="checklist-title">
-      ✓ পণ্যের গুণমান ও ডেলিভারি হ্যান্ডওভার ভেরিফিকেশন চেকলিস্ট (Quality & Handover Audit)
+      ${language === 'bn' ? '✓ পণ্যের গুণমান ও ডেলিভারি হ্যান্ডওভার ভেরিফিকেশন চেকলিস্ট' : '✓ Product Quality & Handover Verification Checklist'}
     </div>
     <div class="checklist-grid">
-      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>১. পণ্যের নাম, মডেল ও স্পেসিফিকেশন মিলানো হয়েছে</span></div>
-      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>২. ১০০% অরিজিনাল ব্র্যান্ড কোয়ালিটি গ্রেড নিশ্চিত</span></div>
-      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>৩. প্যাকেজিং সিল ও নিরাপত্তা স্ট্যাম্প অক্ষত</span></div>
-      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>৪. গ্রাহকের কপি ও ইনভয়েস রসিদ স্লিপ ভেরিফাইড</span></div>
+      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>${language === 'bn' ? '১. পণ্যের নাম, মডেল ও স্পেসিফিকেশন মিলানো হয়েছে' : '1. Product name, model & specifications verified'}</span></div>
+      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>${language === 'bn' ? '২. ১০০% অরিজিনাল ব্র্যান্ড কোয়ালিটি গ্রেড নিশ্চিত' : '2. 100% original brand quality grade confirmed'}</span></div>
+      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>${language === 'bn' ? '৩. প্যাকেজিং সিল ও নিরাপত্তা স্ট্যাম্প অক্ষত' : '3. Packaging seal and security stamp intact'}</span></div>
+      <div class="checklist-item"><span class="checkbox-box">✓</span> <span>${language === 'bn' ? '৪. গ্রাহকের কপি ও ইনভয়েস রসিদ স্লিপ ভেরিফাইড' : '4. Customer copy and invoice receipt slip verified'}</span></div>
     </div>
   </div>
 
@@ -546,12 +561,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           <td>${idx + 1}</td>
           <td>
             <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${item.productTitle}</div>
-            <div class="sku-code">SKU: ${item.sku || 'SKU-BD' + (item.productId?.slice(-5) || '102')} | বিক্রেতা: ${item.sellerName || 'Verified Merchant'}</div>
+            <div class="sku-code">SKU: ${item.sku || 'SKU-BD' + (item.productId?.slice(-5) || '102')} | ${language === 'bn' ? 'বিক্রেতা:' : 'Seller:'} ${item.sellerName || (language === 'bn' ? 'ভেরিফাইড মার্চেন্ট' : 'Verified Merchant')}</div>
             ${item.selectedVariants ? `<div style="font-size: 10px; color: #3b82f6; font-weight: bold; margin-top: 2px;">${Object.entries(item.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}</div>` : ''}
           </td>
           <td>
-            <div><span class="quality-badge">⭐ ${item.qualityGrade || '১০০% অরিজিনাল এক্সপোর্ট কোয়ালিটি'}</span></div>
-            <div><span class="warranty-badge">🛡️ ${item.warranty || '৭ দিনের রিপ্লেসমেন্ট ও জেনুইন ওয়্যারেন্টি'}</span></div>
+            <div><span class="quality-badge">⭐ ${item.qualityGrade || (language === 'bn' ? '১০০% অরিজিনাল এক্সপোর্ট কোয়ালিটি' : '100% Export Quality')}</span></div>
+            <div><span class="warranty-badge">🛡️ ${item.warranty || (language === 'bn' ? '৭ দিনের রিপ্লেসমেন্ট ও জেনুইন ওয়্যারেন্টি' : '7-Day Replacement Warranty')}</span></div>
           </td>
           <td class="text-right">৳${item.price.toLocaleString()}</td>
           <td style="text-align: center; font-weight: 900;">${item.quantity}</td>
@@ -564,7 +579,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   <!-- Financial Calculation Breakdown -->
   <table class="calculation-table">
     <tr>
-      <td>${language === 'bn' ? 'পণ্য উপ-মোট (Subtotal):' : 'Items Subtotal:'}</td>
+      <td>${language === 'bn' ? 'পণ্য উপ-মোট:' : 'Items Subtotal:'}</td>
       <td class="text-right">৳${orderObj.subtotal.toLocaleString()}</td>
     </tr>
     ${orderObj.discountAmount > 0 ? `
@@ -573,11 +588,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       <td class="text-right">-৳${orderObj.discountAmount.toLocaleString()}</td>
     </tr>` : ''}
     <tr>
-      <td>${language === 'bn' ? 'ডেলিভারি চার্জ (Shipping):' : 'Delivery Fee:'}</td>
-      <td class="text-right">${orderObj.shippingFee === 0 ? 'ফ্রি' : `৳${orderObj.shippingFee.toLocaleString()}`}</td>
+      <td>${language === 'bn' ? 'ডেলিভারি চার্জ:' : 'Delivery Fee:'}</td>
+      <td class="text-right">${orderObj.shippingFee === 0 ? (language === 'bn' ? 'ফ্রি' : 'FREE') : `৳${orderObj.shippingFee.toLocaleString()}`}</td>
     </tr>
     <tr class="total-row">
-      <td><strong>${language === 'bn' ? 'সর্বমোট প্রদেয় (Grand Total):' : 'Grand Total:'}</strong></td>
+      <td><strong>${language === 'bn' ? 'সর্বমোট প্রদেয়:' : 'Grand Total:'}</strong></td>
       <td class="text-right"><strong>৳${orderObj.totalAmount.toLocaleString()}</strong></td>
     </tr>
   </table>
@@ -587,9 +602,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     <div>ORDER-SLIP-ID-${fiveDigitId}</div>
   </div>
 
+  <div class="no-print" style="background: #0f172a; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 13px; font-weight: bold;">AmarBazar BD — Official Order Receipt & Invoice</span>
+    <button onclick="window.print()" style="background: #da1c24; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">Print / Save as PDF</button>
+  </div>
   <div class="footer">
     <p>আমারবাজার বিডিতে কেনাকাটা করার জন্য ধন্যবাদ! যেকোনো প্রয়োজনে এই ৫-সংখ্যার অর্ডার আইডিটি সংরক্ষণ করুন: <strong>#${fiveDigitId}</strong>।</p>
   </div>
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() { window.print(); }, 400);
+    });
+  </script>
 </body>
 </html>
       `;
@@ -603,9 +627,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setAutoDownloaded(true);
     } catch (e) {
-      console.warn('Auto download slip error:', e);
+      console.warn('Download slip error:', e);
+    }
+  };
+
+  const handleSkipToHome = () => {
+    setActivePanel('customer');
+    onClose();
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleDownloadPdfAndGoHome = () => {
+    if (!createdOrder) return;
+    setIsDownloadingPdf(true);
+    try {
+      triggerDirectPdfDownload(createdOrder);
+      setDownloadSuccess(true);
+      // Brief delay for the browser download to start before redirecting to home page
+      setTimeout(() => {
+        setIsDownloadingPdf(false);
+        handleSkipToHome();
+      }, 1200);
+    } catch (err) {
+      console.error('PDF download error:', err);
+      setIsDownloadingPdf(false);
+      handleSkipToHome();
     }
   };
 
@@ -645,7 +694,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                        (p.brand ? `${p.brand} Official Grade` : '১০০% অরিজিনাল এক্সপোর্ট কোয়ালিটি');
         return {
           productId: p.id,
-          productTitle: p.titleBn && language === 'bn' ? `${p.titleBn} (${p.title})` : p.title,
+          productTitle: language === 'bn' ? (p.titleBn || p.title) : p.title,
           productImage: p.images?.[0] || '',
           sellerId: p.sellerId || (p as any).storeId || (p as any).sellerStoreId || (p as any).vendorId || 'sel-1',
           sellerName: p.sellerName || (p as any).storeName || 'Verified Merchant Store',
@@ -653,7 +702,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           price: item.calculatedPrice,
           selectedVariants: item.selectedVariants,
           qualityGrade: quality,
-          warranty: p.warranty || '৭ দিনের রিপ্লেসমেন্ট ও জেনুইন ওয়্যারেন্টি',
+          warranty: p.warranty || (language === 'bn' ? '৭ দিনের রিপ্লেসমেন্ট ও জেনুইন ওয়্যারেন্টি' : '7 Days Replacement Warranty'),
           sku: p.sku || `SKU-${p.id?.slice(-5)?.toUpperCase() || 'BD102'}`,
           category: p.categoryName || 'General',
           unit: 'Pcs'
@@ -685,11 +734,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setStep('success');
       onSuccess(newOrd.id);
 
-      // Auto-trigger direct slip download immediately upon order confirmation
-      setTimeout(() => {
-        triggerDirectPdfDownload(newOrd);
-      }, 300);
-
     } catch (err: any) {
       setError(err.message || 'Order placement failed. Please try again.');
       setStep('details');
@@ -700,8 +744,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 overflow-hidden text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
+      <div 
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            if (step === 'success') {
+              handleSkipToHome();
+            } else {
+              onClose();
+            }
+          }
+        }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+      >
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 overflow-hidden text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto"
+        >
           
           {/* Header theme based on payment method */}
           <div className={`p-4 flex items-center justify-between text-white ${
@@ -719,14 +777,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               )}
               <h3 className="font-black text-sm sm:text-base">
                 {step === 'success' 
-                  ? (language === 'bn' ? 'অর্ডার সফল ও স্লিপ প্রস্তুত!' : 'Order Placed & Slip Ready!') 
+                  ? (language === 'bn' ? 'অর্ডার সফলভাবে সম্পন্ন হয়েছে' : 'Order Placed Successfully') 
                   : (paymentMethod === 'bkash' ? 'bKash Payment Gateway' :
                      paymentMethod === 'nagad' ? 'Nagad Payment Gateway' :
                      paymentMethod === 'rocket' ? 'Rocket Payment' :
                      paymentMethod === 'card' ? 'Card Checkout' : 'Cash on Delivery')}
               </h3>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-black/20 rounded-full transition">
+            <button 
+              onClick={step === 'success' ? handleSkipToHome : onClose} 
+              className="p-1 hover:bg-black/20 rounded-full transition cursor-pointer"
+              title={language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1559,127 +1621,95 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             )}
 
-            {/* STEP 5: Rich Order Confirmation & Instant Slip Download Screen */}
+            {/* STEP 5: Clean Order Confirmation Screen with Only Two Options */}
             {step === 'success' && createdOrder && (
-              <div className="space-y-4">
-                {/* Success Banner */}
-                <div className="text-center py-2">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 flex items-center justify-center mx-auto shadow-xs border border-emerald-500/20 mb-2">
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
-                  <h3 className="font-black text-lg sm:text-xl text-slate-900 dark:text-white">
-                    {language === 'bn' ? 'অর্ডার সফলভাবে সম্পন্ন হয়েছে!' : 'Order Placed Successfully!'}
+              <div className="py-3 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                {/* Success Icon Badge */}
+                <div className="w-16 h-16 rounded-3xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs border border-emerald-500/20">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+
+                {/* Main Heading & Message */}
+                <div className="space-y-1.5 px-2">
+                  <h3 className="font-black text-xl sm:text-2xl text-slate-900 dark:text-white">
+                    {language === 'bn' ? 'আপনার অর্ডার সফল হয়েছে!' : 'Order Placed Successfully!'}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
                     {language === 'bn' 
-                      ? 'আপনার ক্যাশ মেমো ও ডেলিভারি স্লিপ স্বয়ংক্রিয়ভাবে ডাউনলোড হয়েছে।' 
-                      : 'Your official slip and delivery receipt have been generated & downloaded.'}
+                      ? 'আপনার অর্ডারটি নিশ্চিত করা হয়েছে। আপনি চাইলে রসিদের পিডিএফ ডাউনলোড করতে পারেন অথবা স্কিপ করে সরাসরি হোম পেজে যেতে পারেন।' 
+                      : 'Your order has been confirmed. You can download the receipt PDF or skip directly to the home page.'}
                   </p>
                 </div>
 
-                {/* Auto Download Notification Badge */}
-                {autoDownloaded && (
-                  <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 p-2.5 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200 animate-fade-in">
-                    <div className="flex items-center space-x-2">
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      <span className="font-bold">{language === 'bn' ? 'PDF/HTML স্লিপ ডাউনলোড সম্পন্ন' : 'PDF Slip Downloaded'}</span>
-                    </div>
-                    <span className="font-mono text-[10px] bg-emerald-200/60 dark:bg-emerald-900 px-2 py-0.5 rounded font-bold">
-                      #{createdOrder.order5DigitId || createdOrder.orderNumber}
+                {/* Order Summary Pill */}
+                <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex items-center justify-between text-xs max-w-sm mx-auto shadow-xs">
+                  <div className="text-left">
+                    <span className="text-slate-400 dark:text-slate-400 font-bold block text-[11px]">
+                      {language === 'bn' ? 'অর্ডার কোড' : 'Order ID'}
                     </span>
-                  </div>
-                )}
-
-                {/* 5-Digit Order Summary Card */}
-                <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl text-left text-xs space-y-2 border border-slate-200 dark:border-slate-700">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-bold">{language === 'bn' ? '৫-সংখ্যার অর্ডার কোড:' : '5-Digit Order Code:'}</span>
-                    <span className="font-mono font-black text-base text-[#da1c24] bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-lg border border-red-200 dark:border-red-800">
+                    <span className="font-mono font-black text-sm text-[#da1c24] dark:text-red-400">
                       #{createdOrder.order5DigitId || createdOrder.orderNumber.replace(/[^0-9]/g, '').slice(-5) || '58392'}
                     </span>
                   </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-bold">{language === 'bn' ? 'পেমেন্ট স্ট্যাটাস:' : 'Payment Status:'}</span>
-                    <span className="font-black text-emerald-600 uppercase">
-                      {createdOrder.paymentMethod.toUpperCase()} ({createdOrder.paymentStatus.toUpperCase()})
+                  <div className="text-right">
+                    <span className="text-slate-400 dark:text-slate-400 font-bold block text-[11px]">
+                      {createdOrder.paymentMethod === 'cod' 
+                        ? (language === 'bn' ? 'ক্যাশ অন ডেলিভারি' : 'Cash on Delivery') 
+                        : (language === 'bn' ? 'অনলাইন পেমেন্ট' : 'Online Payment')}
                     </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-bold">{language === 'bn' ? 'কুরিয়ার ও ট্র্যাকিং:' : 'Courier & Tracking:'}</span>
-                    <span className="font-bold text-sky-600">
-                      {createdOrder.courier?.provider} ({createdOrder.courier?.trackingNumber})
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-700 pt-1.5">
-                    <span className="text-slate-600 dark:text-slate-300 font-bold">{language === 'bn' ? 'সর্বমোট পরিশোধিত:' : 'Total Amount:'}</span>
-                    <span className="font-black text-sm text-slate-900 dark:text-white font-mono">
+                    <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono">
                       {formatPrice(createdOrder.totalAmount)}
                     </span>
                   </div>
                 </div>
 
-                {/* Item & Quality Breakdown Checklist Preview */}
-                <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-3 text-xs space-y-1.5">
-                  <div className="flex items-center space-x-1.5 text-amber-900 dark:text-amber-300 font-black text-[11px] uppercase">
-                    <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" />
-                    <span>{language === 'bn' ? 'স্লিপ ভেরিফিকেশন ও ডেলিভারি চেকলিস্ট' : 'Delivery Slip Verification'}</span>
+                {/* Progress message during download */}
+                {isDownloadingPdf && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-center space-x-2 text-xs text-emerald-700 dark:text-emerald-300 font-bold animate-pulse max-w-sm mx-auto">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>
+                      {downloadSuccess 
+                        ? (language === 'bn' ? 'পিডিএফ ডাউনলোড সম্পন্ন! হোম পেজে নিয়ে যাওয়া হচ্ছে...' : 'PDF downloaded! Redirecting to home page...') 
+                        : (language === 'bn' ? 'পিডিএফ ডাউনলোড হচ্ছে...' : 'Downloading PDF receipt...')}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                    {language === 'bn' 
-                      ? 'ডেলিভারি রাইডার ও বিক্রেতা এই স্লিপের বিবরণ মিলিয়ে আপনাকে পণ্যটি হ্যান্ডওভার করবেন। আপনিও স্লিপের সাথে মিলিয়ে পণ্য বুঝে নিন।' 
-                      : 'Delivery rider and seller will match all product items & quality grades against this official slip during handover.'}
-                  </div>
-                </div>
+                )}
 
-                {/* Action Buttons */}
-                <div className="space-y-2 pt-1">
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Instant Download Slip Button */}
-                    <button
-                      onClick={() => triggerDirectPdfDownload(createdOrder)}
-                      className="py-2.5 px-3 bg-[#da1c24] hover:bg-red-700 text-white font-black rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>{language === 'bn' ? 'স্লিপ PDF ডাউনলোড' : 'Download PDF'}</span>
-                    </button>
+                {/* EXACTLY TWO BUTTONS: 1. Download PDF, 2. Skip to Home */}
+                <div className="space-y-3 pt-2 max-w-sm mx-auto">
+                  {/* Option 1: Download PDF */}
+                  <button
+                    id="btn-download-pdf-receipt"
+                    type="button"
+                    onClick={handleDownloadPdfAndGoHome}
+                    disabled={isDownloadingPdf}
+                    className="w-full py-3.5 px-6 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-2xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                  >
+                    {isDownloadingPdf ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Download className="w-5 h-5" />
+                    )}
+                    <span>
+                      {isDownloadingPdf
+                        ? (language === 'bn' ? 'ডাউনলোড হচ্ছে...' : 'Downloading...')
+                        : (language === 'bn' ? 'পিডিএফ ডাউনলোড করুন' : 'Download PDF')}
+                    </span>
+                  </button>
 
-                    {/* View Full Official Slip Modal */}
-                    <button
-                      onClick={() => setShowFullSlipModal(true)}
-                      className="py-2.5 px-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-black rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <FileText className="w-4 h-4 text-amber-400" />
-                      <span>{language === 'bn' ? 'সম্পূর্ণ স্লিপ দেখুন' : 'View Full Slip'}</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Live Tracking */}
-                    <button
-                      onClick={() => {
-                        setTrackingOrderId(createdOrder.order5DigitId || createdOrder.orderNumber);
-                        onClose();
-                      }}
-                      className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <Truck className="w-4 h-4" />
-                      <span>{language === 'bn' ? 'লাইভ ট্র্যাক করুন' : 'Track Order'}</span>
-                    </button>
-
-                    {/* Go to Slips Vault */}
-                    <button
-                      onClick={() => {
-                        setActivePanel('customer_profile');
-                        onClose();
-                      }}
-                      className="py-2.5 px-3 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                    >
-                      {language === 'bn' ? 'স্লিপ ভল্ট দেখুন' : 'Slips Vault'}
-                    </button>
-                  </div>
+                  {/* Option 2: Skip to Home */}
+                  <button
+                    id="btn-skip-to-home"
+                    type="button"
+                    onClick={handleSkipToHome}
+                    disabled={isDownloadingPdf}
+                    className="w-full py-3.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-2xl text-sm transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                  >
+                    <Home className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                    <span>
+                      {language === 'bn' ? 'স্কিপ করুন' : 'Skip'}
+                    </span>
+                  </button>
                 </div>
               </div>
             )}

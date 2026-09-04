@@ -40,10 +40,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onProceedToCheckout }) =
         setDiscountAmount(res.discountAmount);
         setCouponSuccess(language === 'bn' ? `কুপন সফল! ${formatPrice(res.discountAmount)} সাশ্রয় হয়েছে` : `Coupon applied! Saved ${formatPrice(res.discountAmount)}`);
       } else {
-        setCouponError(res.message || 'Invalid coupon');
+        setCouponError(res.message || (language === 'bn' ? 'কুপনটি সঠিক নয়' : 'Invalid coupon'));
       }
     } catch (err: any) {
-      setCouponError(err.message || 'Coupon verification failed');
+      setCouponError(err.message || (language === 'bn' ? 'কুপন যাচাইকরণ ব্যর্থ হয়েছে' : 'Coupon verification failed'));
     }
   };
 
@@ -68,12 +68,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onProceedToCheckout }) =
             {cart.length === 0 ? (
               <div className="text-center py-16 space-y-3">
                 <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto" />
-                <p className="text-slate-500 font-medium text-xs">Your shopping cart is currently empty.</p>
+                <p className="text-slate-500 font-medium text-xs">
+                  {language === 'bn' ? 'আপনার শপিং কার্ট বর্তমানে খালি।' : 'Your shopping cart is currently empty.'}
+                </p>
                 <button
                   onClick={() => setIsCartOpen(false)}
                   className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-xs"
                 >
-                  Explore Products
+                  {language === 'bn' ? 'পণ্যসমূহ দেখুন' : 'Explore Products'}
                 </button>
               </div>
             ) : (

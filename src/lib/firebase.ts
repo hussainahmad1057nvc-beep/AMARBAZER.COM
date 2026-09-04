@@ -89,13 +89,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Utility to recursively sanitize objects for Firestore (omits undefined values which throw FirebaseError)
 export function sanitizeForFirestore<T>(data: T): T {
-  if (data === undefined || data === null) return data;
-  try {
-    return JSON.parse(JSON.stringify(data));
-  } catch (err) {
-    console.warn('sanitizeForFirestore serialization notice:', err);
-    return data;
+  if (data === undefined || data === null) return null as any;
+  if (typeof data !== 'object') return data;
+
+  if (Array.isArray(data)) {
+    return data
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as any;
   }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
+    if (value !== undefined) {
+      cleaned[key] = sanitizeForFirestore(value);
+    }
+  }
+  return cleaned as any;
 }
 
 // Utility to normalize products received from Firestore or API, ensuring images array and required fields are always valid
@@ -468,14 +477,51 @@ export const firebaseDb = {
     const path = `orders/${id}`;
     try {
       const docRef = doc(db, 'orders', id);
+      const snap = await getDoc(docRef);
+      let existingLogs: any[] = [];
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.courier?.statusLogs && Array.isArray(d.courier.statusLogs)) {
+          existingLogs = d.courier.statusLogs;
+        }
+      }
+
+      const logStatus = status === 'confirmed' 
+        ? 'Order Confirmed by Seller (সেলার একসেপ্ট করেছেন - কনফার্মড)' 
+        : status === 'cancelled'
+        ? 'Order Cancelled (অর্ডার বাতিল করা হয়েছে)'
+        : status === 'processing'
+        ? 'Packaging in Progress (প্যাকেজিং শুরু হয়েছে)'
+        : status === 'shipped'
+        ? 'Handed over to Courier (কুরিয়ারে হস্তান্তর করা হয়েছে)'
+        : status === 'delivered'
+        ? 'Parcel Delivered (ডেলিভারি সম্পন্ন)'
+        : `Status updated to ${status.toUpperCase()}`;
+
+      const newLog = {
+        time: new Date().toLocaleString(),
+        status: logStatus,
+        location: note || (status === 'confirmed' ? 'Seller Merchant Hub - Confirmed' : 'AmarBazar Logistics Hub')
+      };
+
+      const trackingLabel = status === 'delivered' 
+        ? 'Delivered' 
+        : status === 'shipped' 
+        ? 'Handed to Courier' 
+        : status === 'confirmed' 
+        ? 'Confirmed by Seller' 
+        : 'Order Processing';
+
       const updates = sanitizeForFirestore({ 
         status, 
-        trackingStatus: status === 'delivered' ? 'Delivered' : status === 'shipped' ? 'Handed to Courier' : 'Order Processing',
-        ...(note ? { adminNote: note } : {}) 
+        trackingStatus: trackingLabel,
+        ...(note ? { adminNote: note } : {}),
+        'courier.statusLogs': [newLog, ...existingLogs],
+        updatedAt: new Date().toISOString()
       });
       await updateDoc(docRef, updates);
-      const snap = await getDoc(docRef);
-      return { ...snap.data(), id } as Order;
+      const updatedSnap = await getDoc(docRef);
+      return { ...updatedSnap.data(), id } as Order;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
       return null;

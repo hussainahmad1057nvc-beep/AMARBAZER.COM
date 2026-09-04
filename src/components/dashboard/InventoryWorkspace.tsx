@@ -56,12 +56,56 @@ const PRESETS_BY_CAT: Record<string, { title: string; url: string }[]> = {
 };
 
 const DEFAULT_CLOTHING_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', 'Free Size'];
-const DEFAULT_CLOTHING_COLORS = [
-  'Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Orange', 'Grey',
-  'Navy Blue', 'Maroon', 'Olive Green', 'Teal', 'Magenta', 'Beige', 'Sky Blue',
-  'Purple', 'Brown', 'Lavender', 'Mustard', 'Cream', 'Coral', 'Gold', 'Silver',
+const DEFAULT_PRODUCT_COLORS = [
+  'Black', 'Brown', 'White', 'Tan', 'Navy Blue', 'Grey', 'Red', 'Blue', 'Green', 'Yellow',
+  'Pink', 'Orange', 'Maroon', 'Olive Green', 'Teal', 'Magenta', 'Beige', 'Sky Blue',
+  'Purple', 'Lavender', 'Mustard', 'Cream', 'Coral', 'Gold', 'Silver',
   'Charcoal', 'Mint Green', 'Peach', 'Rose', 'Plum', 'Wine', 'Crimson'
 ];
+const DEFAULT_CLOTHING_COLORS = DEFAULT_PRODUCT_COLORS;
+
+const getColorCode = (c: string): string => {
+  const lower = c.toLowerCase().trim();
+  const map: Record<string, string> = {
+    'white': '#ffffff',
+    'black': '#1a1a1a',
+    'brown': '#78350f',
+    'tan': '#d2b48c',
+    'khaki': '#f0e68c',
+    'red': '#ef4444',
+    'blue': '#3b82f6',
+    'green': '#22c55e',
+    'yellow': '#f59e0b',
+    'pink': '#ec4899',
+    'orange': '#f97316',
+    'grey': '#64748b',
+    'gray': '#64748b',
+    'navy blue': '#1e3a8a',
+    'navy': '#1e3a8a',
+    'maroon': '#800000',
+    'olive green': '#556b2f',
+    'olive': '#556b2f',
+    'teal': '#0d9488',
+    'magenta': '#d946ef',
+    'beige': '#f5f5dc',
+    'sky blue': '#0ea5e9',
+    'purple': '#8b5cf6',
+    'lavender': '#ddd6fe',
+    'mustard': '#ca8a04',
+    'cream': '#fffbeb',
+    'coral': '#f87171',
+    'gold': '#ca8a04',
+    'silver': '#cbd5e1',
+    'charcoal': '#374151',
+    'mint green': '#34d399',
+    'peach': '#ffedd5',
+    'rose': '#fb7185',
+    'plum': '#db2777',
+    'wine': '#881337',
+    'crimson': '#dc2626'
+  };
+  return map[lower] || (c.startsWith('#') ? c : '#64748b');
+};
 
 const DEFAULT_ELECTRONIC_STORAGE = ['4GB/64GB', '6GB/128GB', '8GB/128GB', '8GB/256GB', '12GB/256GB', '12GB/512GB', '16GB/1TB'];
 const DEFAULT_ELECTRONIC_COLORS = [
@@ -471,8 +515,8 @@ export const InventoryWorkspace: React.FC = () => {
     if (isShoeCategory) {
       return {
         type: 'shoe',
-        titleBn: '৪. জুতার সাইজ ভেরিয়েন্ট (Shoe Sizes)',
-        titleEn: '4. SHOE & FOOTWEAR SIZE VARIATIONS',
+        titleBn: '৪. জুতার সাইজ ও কালার ভেরিয়েন্ট (Shoe Sizes & Colors)',
+        titleEn: '4. SHOE & FOOTWEAR SIZE & COLOR VARIATIONS',
         labelBn: 'জুতার নম্বর / সাইজ সিলেক্ট করুন (Sizes):',
         labelEn: 'Select Shoe Sizes:',
         previewLabelBn: 'জুতার সাইজ:',
@@ -685,9 +729,20 @@ export const InventoryWorkspace: React.FC = () => {
     if (isClothingCategory) {
       setActiveEditingVariant('M');
       setSimulatedSize('M');
+      if (selectedColors.length === 0) {
+        setSelectedColors(['Black', 'Blue', 'White']);
+      }
     } else if (isElectronicsCategory) {
       setActiveEditingVariant('8GB/128GB');
       setSimulatedStorage('8GB/128GB');
+    } else if (isShoeCategory) {
+      const cfg = getCategoryVariantConfig();
+      setSelectedWeights(cfg.defaultSelected);
+      setActiveEditingVariant(cfg.defaultActive);
+      setSimulatedWeight(cfg.defaultActive);
+      if (selectedColors.length === 0) {
+        setSelectedColors(['Black', 'Brown', 'White']);
+      }
     } else {
       const cfg = getCategoryVariantConfig();
       setSelectedWeights(cfg.defaultSelected);
@@ -1096,6 +1151,141 @@ export const InventoryWorkspace: React.FC = () => {
     setCustomWeightText('');
   };
 
+  // Render Universal Product Color Selection Section
+  const renderColorSection = (customLabelBn?: string, customLabelEn?: string) => {
+    const defaultLabelBn = isShoeCategory 
+      ? 'জুতা/স্যান্ডেলের উপলব্ধ কালার নির্বাচন করুন (COLORS - ঐচ্ছিক):'
+      : isClothingCategory
+      ? 'পোশাকের উপলব্ধ কালার নির্বাচন করুন (COLORS - ঐচ্ছিক):'
+      : 'পণ্যের উপলব্ধ কালার নির্বাচন করুন (COLORS - ঐচ্ছিক):';
+
+    const defaultLabelEn = isShoeCategory
+      ? 'Select Footwear Colors (Optional):'
+      : isClothingCategory
+      ? 'Select Clothing Colors (Optional):'
+      : 'Select Product Colors (Optional):';
+
+    return (
+      <div className="space-y-2 pt-3 border-t border-slate-150 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center space-x-2">
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+              {language === 'bn' ? (customLabelBn || defaultLabelBn) : (customLabelEn || defaultLabelEn)}
+            </label>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+              selectedColors.length > 0 
+                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40' 
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}>
+              {selectedColors.length > 0 
+                ? (language === 'bn' ? `${selectedColors.length}টি কালার সিলেক্টেড` : `${selectedColors.length} Selected`)
+                : (language === 'bn' ? 'কালার ছাড়া (ঐচ্ছিক)' : 'No Colors (Optional)')}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {selectedColors.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedColors([]);
+                  playSystemSound('delete');
+                }}
+                className="text-[11px] font-bold text-red-500 hover:text-red-600 dark:hover:text-red-400 flex items-center space-x-1 cursor-pointer transition"
+                title={language === 'bn' ? 'সব কালার বাদ দিন (পণ্যটি কালার অপশন ছাড়া সেভ হবে)' : 'Remove all colors'}
+              >
+                <span>✕</span>
+                <span>{language === 'bn' ? 'সব কালার মুছুন (কালার ছাড়া)' : 'Clear Colors (No Color)'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedColors(isShoeCategory ? ['Black', 'Brown', 'White'] : ['Black', 'Blue', 'White']);
+                  playSystemSound('add');
+                }}
+                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 flex items-center space-x-1 cursor-pointer transition"
+              >
+                <span>+</span>
+                <span>{language === 'bn' ? 'ডিফল্ট কালার যোগ করুন' : 'Add Default Colors'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+          {language === 'bn'
+            ? '💡 মন চাইলে কালার নির্বাচন করুন বা পরিবর্তন করুন। পণ্যটিতে কালার ভেরিয়েন্ট না চাইলে উপরের "সব কালার মুছুন" চাপুন।'
+            : '💡 Select colors if this product has color options. Click "Clear Colors" if this product does not have color variations.'}
+        </p>
+
+        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-150 dark:border-slate-800">
+          {DEFAULT_PRODUCT_COLORS.map(col => {
+            const isIncluded = selectedColors.includes(col);
+            const bgCol = getColorCode(col);
+
+            return (
+              <button
+                key={col}
+                type="button"
+                onClick={() => {
+                  if (isIncluded) {
+                    setSelectedColors(selectedColors.filter(c => c !== col));
+                  } else {
+                    setSelectedColors([...selectedColors, col]);
+                  }
+                }}
+                className={`px-2 py-1 text-[11px] font-semibold rounded-md border flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  isIncluded
+                    ? 'bg-amber-500 border-amber-500 text-slate-950 font-black shadow-xs ring-1 ring-amber-500/50'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-950'
+                }`}
+              >
+                <span 
+                  className="w-2.5 h-2.5 rounded-full border border-black/10 dark:border-white/10 shrink-0" 
+                  style={{ backgroundColor: bgCol }} 
+                />
+                <span>{col}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Add Custom color */}
+        <div className="flex items-center space-x-2 pt-1 max-w-sm">
+          <div className="relative flex-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1">
+            <input
+              type="color"
+              onChange={(e) => setCustomColorText(e.target.value)}
+              className="w-5 h-5 rounded-md cursor-pointer border-0 p-0 shrink-0"
+              title="Choose Color Visually"
+            />
+            <input
+              type="text"
+              value={customColorText}
+              onChange={(e) => setCustomColorText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addCustomColor();
+                }
+              }}
+              placeholder={language === 'bn' ? "যেমনঃ Off-White, #e0115f, Tan" : "Color (e.g. Tan, #e0115f)"}
+              className="flex-1 min-w-0 bg-transparent text-xs focus:outline-none dark:text-white"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={addCustomColor}
+            className="px-3 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 cursor-pointer shrink-0"
+          >
+            {language === 'bn' ? 'যোগ করুন' : 'Add'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Save custom price & stock for specific variant (e.g. 500g, 1kg, M, L, etc.)
   const handleSaveVariantPrice = () => {
     const variantKey = activeEditingVariant || (
@@ -1217,6 +1407,13 @@ export const InventoryWorkspace: React.FC = () => {
             id: `v-pack-${Date.now()}`,
             name: variantName,
             options: selectedWeights
+          });
+        }
+        if (selectedColors.length > 0) {
+          variantsList.push({
+            id: `v-color-${Date.now()}`,
+            name: 'Color',
+            options: selectedColors
           });
         }
       }
@@ -2366,105 +2563,7 @@ export const InventoryWorkspace: React.FC = () => {
                   </div>
 
                   {/* Colors */}
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      {language === 'bn' ? 'পোশাকের উপলব্ধ কালার নির্বাচন করুন (Colors):' : 'Select Available Colors:'}
-                    </label>
-                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-150 dark:border-slate-800">
-                      {DEFAULT_CLOTHING_COLORS.map(col => {
-                        const isIncluded = selectedColors.includes(col);
-                        const getColorCode = (c: string) => {
-                          const lower = c.toLowerCase().trim();
-                          const map: Record<string, string> = {
-                            'white': '#ffffff',
-                            'black': '#1a1a1a',
-                            'red': '#ef4444',
-                            'blue': '#3b82f6',
-                            'green': '#22c55e',
-                            'yellow': '#f59e0b',
-                            'pink': '#ec4899',
-                            'orange': '#f97316',
-                            'grey': '#64748b',
-                            'navy blue': '#1e3a8a',
-                            'maroon': '#800000',
-                            'olive green': '#556b2f',
-                            'teal': '#0d9488',
-                            'magenta': '#d946ef',
-                            'beige': '#f5f5dc',
-                            'sky blue': '#0ea5e9',
-                            'purple': '#8b5cf6',
-                            'brown': '#78350f',
-                            'lavender': '#ddd6fe',
-                            'mustard': '#ca8a04',
-                            'cream': '#fffbeb',
-                            'coral': '#f87171',
-                            'gold': '#ca8a04',
-                            'silver': '#cbd5e1',
-                            'charcoal': '#374151',
-                            'mint green': '#34d399',
-                            'peach': '#ffedd5',
-                            'rose': '#fb7185',
-                            'plum': '#db2777',
-                            'wine': '#881337',
-                            'crimson': '#dc2626'
-                          };
-                          return map[lower] || lower;
-                        };
-
-                        const bgCol = getColorCode(col);
-
-                        return (
-                          <button
-                            key={col}
-                            type="button"
-                            onClick={() => {
-                              if (isIncluded) {
-                                setSelectedColors(selectedColors.filter(c => c !== col));
-                              } else {
-                                setSelectedColors([...selectedColors, col]);
-                              }
-                            }}
-                            className={`px-2 py-1 text-[11px] font-semibold rounded-md border flex items-center space-x-1 transition-all cursor-pointer ${
-                              isIncluded
-                                ? 'bg-amber-500 border-amber-500 text-slate-950 font-black shadow-xs'
-                                : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-950'
-                            }`}
-                          >
-                            <span 
-                              className="w-2.5 h-2.5 rounded-full border border-black/10 dark:border-white/10 shrink-0" 
-                              style={{ backgroundColor: bgCol }} 
-                            />
-                            <span>{col}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Add Custom color */}
-                    <div className="flex items-center space-x-2 pt-1 max-w-sm">
-                      <div className="relative flex-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1">
-                        <input
-                          type="color"
-                          onChange={(e) => setCustomColorText(e.target.value)}
-                          className="w-5 h-5 rounded-md cursor-pointer border-0 p-0 shrink-0"
-                          title="Choose Color Visually"
-                        />
-                        <input
-                          type="text"
-                          value={customColorText}
-                          onChange={(e) => setCustomColorText(e.target.value)}
-                          placeholder={language === 'bn' ? "যেমনঃ Off-White, #e0115f" : "Color (e.g. Olive, #e0115f)"}
-                          className="flex-1 min-w-0 bg-transparent text-xs focus:outline-none dark:text-white"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addCustomColor}
-                        className="px-3 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 cursor-pointer shrink-0"
-                      >
-                        {language === 'bn' ? 'যোগ করুন' : 'Add'}
-                      </button>
-                    </div>
-                  </div>
+                  {renderColorSection()}
                 </div>
               )}
 
@@ -2672,6 +2771,9 @@ export const InventoryWorkspace: React.FC = () => {
                       {language === 'bn' ? 'যোগ করুন' : 'Add'}
                     </button>
                   </div>
+
+                  {/* UNIVERSAL COLOR SELECTION FOR ALL CATEGORIES (SHOES, SANDALS, ETC.) */}
+                  {renderColorSection()}
                 </div>
               )}
             </div>
@@ -3308,8 +3410,8 @@ export const InventoryWorkspace: React.FC = () => {
                   </div>
                 )}
 
-                {/* 2. CLOTHING COLORS */}
-                {isClothingCategory && selectedColors.length > 0 && (
+                {/* 2. PRODUCT COLORS */}
+                {!isElectronicsCategory && selectedColors.length > 0 && (
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">
                       {language === 'bn' ? 'রঙ নির্বাচন করুন:' : 'Select Color:'}
@@ -3320,13 +3422,17 @@ export const InventoryWorkspace: React.FC = () => {
                           key={col}
                           type="button"
                           onClick={() => setSimulatedColor(col)}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition ${
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border flex items-center space-x-1.5 transition cursor-pointer ${
                             simulatedColor === col
                               ? 'bg-slate-900 border-slate-900 text-white dark:bg-amber-500 dark:border-amber-500 dark:text-slate-950 font-bold'
                               : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                           }`}
                         >
-                          {col}
+                          <span
+                            className="w-2 h-2 rounded-full border border-black/10 shrink-0"
+                            style={{ backgroundColor: getColorCode(col) }}
+                          />
+                          <span>{col}</span>
                         </button>
                       ))}
                     </div>

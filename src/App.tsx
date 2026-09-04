@@ -352,6 +352,9 @@ function MainLayout() {
   };
 
   const handleBuyNowDirect = (product: Product, quantity: number, variants: Record<string, string>) => {
+    // 1. Close Product Detail Modal (Page 1) so Payment Modal (Page 2) appears directly
+    setSelectedProduct(null);
+
     addToCart(product, quantity, variants);
     const price = getProductUnitPrice(product, variants || {});
     const sub = price * quantity;
@@ -541,7 +544,10 @@ function MainLayout() {
         {checkoutPayload && (
           <PaymentModal
             isOpen={isPaymentModalOpen}
-            onClose={() => setIsPaymentModalOpen(false)}
+            onClose={() => {
+              setIsPaymentModalOpen(false);
+              setCheckoutPayload(null);
+            }}
             cartItems={checkoutPayload.items}
             shippingAddress={checkoutPayload.shippingAddress}
             subtotal={checkoutPayload.subtotal}

@@ -243,10 +243,29 @@ async function loadProductsFromFirestoreOnBoot() {
 }
 
 // Background sync helpers
+function sanitizeForFirestore<T>(data: T): T {
+  if (data === undefined || data === null) return null as any;
+  if (typeof data !== 'object') return data;
+
+  if (Array.isArray(data)) {
+    return data
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as any;
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
+    if (value !== undefined) {
+      cleaned[key] = sanitizeForFirestore(value);
+    }
+  }
+  return cleaned as any;
+}
+
 async function syncProductToFirebase(p: Product) {
   if (!serverFirestoreDb || !p || !p.id) return;
   try {
-    const clean = JSON.parse(JSON.stringify(p));
+    const clean = sanitizeForFirestore(p);
     await serverSetDoc(serverDoc(serverFirestoreDb, 'products', p.id), clean, { merge: true });
     try {
       await serverDeleteDoc(serverDoc(serverFirestoreDb, 'deleted_products', p.id));
@@ -272,7 +291,8 @@ async function deleteProductFromFirebase(id: string) {
 async function syncSellerToFirebase(s: SellerStore) {
   if (!serverFirestoreDb || !s || !s.id) return;
   try {
-    await serverSetDoc(serverDoc(serverFirestoreDb, 'sellers', s.id), s, { merge: true });
+    const clean = sanitizeForFirestore(s);
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'sellers', s.id), clean, { merge: true });
   } catch (err) {
     console.warn('[Firebase Backend] syncSeller error:', err);
   }
@@ -281,7 +301,8 @@ async function syncSellerToFirebase(s: SellerStore) {
 async function syncOrderToFirebase(o: Order) {
   if (!serverFirestoreDb || !o || !o.id) return;
   try {
-    await serverSetDoc(serverDoc(serverFirestoreDb, 'orders', o.id), o, { merge: true });
+    const clean = sanitizeForFirestore(o);
+    await serverSetDoc(serverDoc(serverFirestoreDb, 'orders', o.id), clean, { merge: true });
   } catch (err) {
     console.warn('[Firebase Backend] syncOrder error:', err);
   }
@@ -1186,7 +1207,13 @@ async function startServer() {
       list = list.filter(o => o.userId === userId);
     }
     if (sellerId) {
-      list = list.filter(o => o.items && Array.isArray(o.items) && o.items.some(item => item.sellerId === sellerId));
+      const sId = String(sellerId).toLowerCase();
+      const cleanSId = sId.replace(/^(usr-|sel-)/, '');
+      list = list.filter(o => o.items && Array.isArray(o.items) && o.items.some(item => {
+        const itemSId = (item.sellerId || '').toLowerCase();
+        const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
+        return itemSId === sId || cleanItemSId === cleanSId || (cleanSId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+      }));
     }
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     res.json(list);
@@ -1199,6 +1226,7 @@ async function startServer() {
       o.orderNumber === rawId || 
       o.orderNumber === `ORD-${rawId}` || 
       o.order5DigitId === rawId ||
+      o.id.replace(/^ord-/, '') === rawId.replace(/^ord-/, '') ||
       o.id.includes(rawId) ||
       o.orderNumber.includes(rawId)
     );
@@ -1221,6 +1249,7 @@ async function startServer() {
     const providers: ('Pathao' | 'RedX' | 'Steadfast' | 'Paperfly' | 'eCourier')[] = ['Pathao', 'RedX', 'Steadfast', 'Paperfly', 'eCourier'];
     const chosenProvider = providers[Math.floor(Math.random() * providers.length)];
 
+    // Default status is 'pending' waiting for seller to accept & confirm
     const newOrder: Order = {
       id: `ord-${order5Digit}`,
       orderNumber: orderNum,
@@ -1233,21 +1262,21 @@ async function startServer() {
       items,
       subtotal,
       discountAmount: discountAmount || 0,
-      couponCode,
+      couponCode: couponCode || '',
       shippingFee: shippingFee || 60,
       totalAmount,
       paymentMethod,
       paymentStatus: isPaid ? 'paid' : 'unpaid',
-      transactionId: txId,
-      status: 'confirmed',
+      transactionId: txId || '',
+      status: 'pending',
       courier: {
         provider: chosenProvider,
         trackingNumber: `${chosenProvider.substring(0,3).toUpperCase()}-${Math.floor(1000000 + Math.random() * 9000000)}`,
         estimatedDays: shippingAddress?.district?.toLowerCase() === 'dhaka' ? '24-48 Hours' : '3-5 Days',
         shippingFee: shippingFee || 60,
         statusLogs: [
-          { time: new Date().toLocaleString(), status: `Order Confirmed (${paymentMethod.toUpperCase()})`, location: 'AmarBazar Central Hub' },
-          { time: new Date().toLocaleString(), status: `Dispatched to ${chosenProvider} Logistics`, location: 'Dhaka Sorting Center' }
+          { time: new Date().toLocaleString(), status: `Order Placed (পেন্ডিং - বিক্রেতার অনুমোদনের অপেক্ষায়)`, location: 'AmarBazar Marketplace' },
+          { time: new Date().toLocaleString(), status: `Awaiting Merchant Acceptance (বিক্রেতার অনুমোদনের অপেক্ষায়)`, location: 'Seller Hub' }
         ]
       },
       createdAt: new Date().toISOString(),
@@ -1256,14 +1285,14 @@ async function startServer() {
 
     db.orders.unshift(newOrder);
 
-    // Add notification
+    // Add customer notification
     db.notifications.unshift({
       id: `notif-${Date.now()}`,
       userId: newOrder.userId,
-      title: 'Order Placed Successfully',
-      titleBn: 'অর্ডার সফলভাবে গ্রহণ করা হয়েছে',
-      message: `Your order ${newOrder.orderNumber} (৳${newOrder.totalAmount}) has been confirmed.`,
-      messageBn: `আপনার অর্ডার ${newOrder.orderNumber} (৳${newOrder.totalAmount}) কনফার্ম করা হয়েছে।`,
+      title: 'Order Placed (Pending Acceptance)',
+      titleBn: 'অর্ডার পেন্ডিং রয়েছে (বিক্রেতার অনুমোদনের অপেক্ষায়)',
+      message: `Your order #${newOrder.order5DigitId || newOrder.orderNumber} (৳${newOrder.totalAmount}) is placed and awaiting seller acceptance.`,
+      messageBn: `আপনার অর্ডার #${newOrder.order5DigitId || newOrder.orderNumber} (৳${newOrder.totalAmount}) সফলভাবে সাবমিট হয়েছে। সেলার একসেপ্ট করার সাথে সাথে কনফার্ম হবে।`,
       type: 'order',
       isRead: false,
       createdAt: new Date().toISOString()
@@ -1276,16 +1305,50 @@ async function startServer() {
 
   app.patch('/api/orders/:id/status', (req, res) => {
     const { status, note } = req.body;
-    const order = db.orders.find(o => o.id === req.params.id);
+    const rawId = req.params.id.trim().replace(/^#/, '');
+    const order = db.orders.find(o => 
+      o.id === rawId || 
+      o.orderNumber === rawId || 
+      o.order5DigitId === rawId ||
+      o.id.replace(/^ord-/, '') === rawId.replace(/^ord-/, '')
+    );
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     order.status = status;
     order.updatedAt = new Date().toISOString();
     if (order.courier) {
-      order.courier.statusLogs.push({
+      if (!order.courier.statusLogs) order.courier.statusLogs = [];
+      const logStatus = status === 'confirmed' 
+        ? 'Order Confirmed by Seller (সেলার একসেপ্ট করেছেন - কনফার্মড)' 
+        : status === 'cancelled'
+        ? 'Order Cancelled (অর্ডার বাতিল করা হয়েছে)'
+        : status === 'processing'
+        ? 'Packaging in Progress (প্যাকেজিং শুরু হয়েছে)'
+        : status === 'shipped'
+        ? 'Handed over to Courier (কুরিয়ারে হস্তান্তর করা হয়েছে)'
+        : status === 'delivered'
+        ? 'Parcel Delivered (ডেলিভারি সম্পন্ন)'
+        : `Status updated to ${status.toUpperCase()}`;
+
+      order.courier.statusLogs.unshift({
         time: new Date().toLocaleString(),
-        status: `Status updated to ${status.toUpperCase()}`,
-        location: note || 'Regional Courier Hub'
+        status: logStatus,
+        location: note || (status === 'confirmed' ? 'Seller Merchant Hub - Confirmed' : 'AmarBazar Logistics Hub')
+      });
+    }
+
+    // When seller accepts order, notify the customer
+    if (status === 'confirmed') {
+      db.notifications.unshift({
+        id: `notif-${Date.now()}`,
+        userId: order.userId,
+        title: 'Order Confirmed by Seller!',
+        titleBn: 'সেলার আপনার অর্ডার কনফার্ম করেছেন!',
+        message: `Your order #${order.order5DigitId || order.orderNumber} has been accepted and confirmed by the seller.`,
+        messageBn: `সেলার আপনার অর্ডার #${order.order5DigitId || order.orderNumber} গ্রহণ করে কনফার্ম করেছেন। ট্র্যাকিং পেজে বিস্তারিত দেখুন।`,
+        type: 'order',
+        isRead: false,
+        createdAt: new Date().toISOString()
       });
     }
 

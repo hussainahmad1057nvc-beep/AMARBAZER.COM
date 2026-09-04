@@ -1933,7 +1933,7 @@ export const CustomerProfilePanel: React.FC = () => {
                   <div className="hidden print:block absolute inset-0 bg-white text-slate-950 p-12 text-sm font-sans z-50">
                     <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-6">
                       <div>
-                        <h1 className="text-3xl font-serif italic font-black text-slate-900">আমার বাজার (AmarBazar)</h1>
+                        <h1 className="text-3xl font-serif italic font-black text-slate-900">{language === 'bn' ? 'আমার বাজার' : 'AmarBazar'}</h1>
                         <p className="text-xs text-slate-500 mt-1">SaaS Multi-Vendor Marketplace Ecosystem • Dhaka, Bangladesh</p>
                       </div>
                       <div className="text-right">

@@ -638,15 +638,18 @@ export const SellerDashboard: React.FC = () => {
         setSellerProducts(allProds);
 
         const allOrds = await api.getOrders({ sellerId: currentS.id });
-        const storeSId = currentS.id;
-        const storeUId = currentS.sellerId;
-        const curUId = currentUser?.id;
+        const matchSeller = (sIdToCheck?: string) => {
+          if (!sIdToCheck) return false;
+          const cleanCheck = String(sIdToCheck).toLowerCase().replace(/^(usr-|sel-)/, '');
+          const targets = [currentS.id, currentS.sellerId, currentUser?.id].filter(Boolean) as string[];
+          return targets.some(t => {
+            const cleanT = t.toLowerCase().replace(/^(usr-|sel-)/, '');
+            return sIdToCheck.toLowerCase() === t.toLowerCase() || cleanCheck === cleanT || (cleanT === 'seller-1' && (cleanCheck === '1' || cleanCheck === 'seller-1'));
+          });
+        };
+
         const strictlyMine = (allOrds || []).filter(o => 
-          o.items && Array.isArray(o.items) && o.items.some(item => 
-            item.sellerId === storeSId ||
-            item.sellerId === storeUId ||
-            (curUId && item.sellerId === curUId)
-          )
+          o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId))
         );
         setSellerOrders(strictlyMine);
 
@@ -671,13 +674,18 @@ export const SellerDashboard: React.FC = () => {
 
     const unsubscribe = firebaseDb.subscribeToOrders((allFbOrders) => {
       if (!allFbOrders || !Array.isArray(allFbOrders)) return;
+      const targets = [myStoreId, myStoreSellerId, curUserId].filter(Boolean) as string[];
+      const matchSeller = (sIdToCheck?: string) => {
+        if (!sIdToCheck) return false;
+        const cleanCheck = String(sIdToCheck).toLowerCase().replace(/^(usr-|sel-)/, '');
+        return targets.some(t => {
+          const cleanT = t.toLowerCase().replace(/^(usr-|sel-)/, '');
+          return sIdToCheck.toLowerCase() === t.toLowerCase() || cleanCheck === cleanT || (cleanT === 'seller-1' && (cleanCheck === '1' || cleanCheck === 'seller-1'));
+        });
+      };
+
       const matched = allFbOrders.filter(o => 
-        o.items && Array.isArray(o.items) && o.items.some(item => 
-          (myStoreId && item.sellerId === myStoreId) ||
-          (myStoreSellerId && item.sellerId === myStoreSellerId) ||
-          (curUserId && item.sellerId === curUserId) ||
-          (curUserId && item.sellerId === `sel-${curUserId.replace(/^usr-/, '')}`)
-        )
+        o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId))
       );
       setSellerOrders(matched);
     });
@@ -1146,13 +1154,14 @@ export const SellerDashboard: React.FC = () => {
     }
     const updated = await api.updateOrderStatus(orderId, status);
     if (status === 'confirmed') {
-      const targetOrder = sellerOrders.find(o => o.id === orderId);
+      const targetOrder = sellerOrders.find(o => o.id === orderId || o.orderNumber === orderId || o.order5DigitId === orderId);
       if (targetOrder) {
         setSelectedInvoiceOrder({ ...targetOrder, status: 'confirmed' });
       } else if (updated) {
         setSelectedInvoiceOrder(updated);
       }
     }
+    setSellerOrders(prev => prev.map(o => (o.id === orderId || o.orderNumber === orderId || o.order5DigitId === orderId) ? { ...o, status: status as any, updatedAt: new Date().toISOString() } : o));
     fetchData();
   };
 
@@ -1186,11 +1195,20 @@ export const SellerDashboard: React.FC = () => {
     const storeId = storeInfo?.id;
     const storeSellerId = storeInfo?.sellerId;
     const curUserId = currentUser?.id;
+    const itemSId = String(item.sellerId).toLowerCase();
+    const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
+
+    const checkMatch = (targetId?: string) => {
+      if (!targetId) return false;
+      const tId = String(targetId).toLowerCase();
+      const cleanTId = tId.replace(/^(usr-|sel-)/, '');
+      return itemSId === tId || cleanItemSId === cleanTId || (cleanTId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+    };
+
     return (
-      (storeId && item.sellerId === storeId) ||
-      (storeSellerId && item.sellerId === storeSellerId) ||
-      (curUserId && item.sellerId === curUserId) ||
-      (curUserId && item.sellerId === `sel-${curUserId.replace(/^usr-/, '')}`)
+      checkMatch(storeId) ||
+      checkMatch(storeSellerId) ||
+      checkMatch(curUserId)
     );
   };
 

@@ -16,7 +16,7 @@ export const BD_DIVISIONS_DISTRICTS: Record<string, string[]> = {
 };
 
 export const INITIAL_SYSTEM_SETTINGS: SystemSettings = {
-  siteName: 'AmarBazar (আমার বাজার)',
+  siteName: 'AmarBazar',
   siteNameBn: 'আমার বাজার',
   supportPhone: '+880 1700-000000',
   supportEmail: 'support@amarbazar.com.bd',
@@ -276,4 +276,58 @@ export const INITIAL_USERS: User[] = [
   }
 ];
 
-export const INITIAL_ORDERS: Order[] = [];
+export const INITIAL_ORDERS: Order[] = [
+  {
+    id: 'ord-84920',
+    orderNumber: 'ORD-84920',
+    order5DigitId: '84920',
+    userId: 'usr-demo-cust',
+    customerName: 'Rahim Chowdhury',
+    customerPhone: '01712345678',
+    customerEmail: 'rahim@example.com',
+    shippingAddress: {
+      id: 'addr-1',
+      title: 'Home',
+      recipientName: 'Rahim Chowdhury',
+      phone: '01712345678',
+      division: 'Dhaka',
+      district: 'Dhaka',
+      thana: 'Dhanmondi',
+      fullAddress: 'House 42, Road 10/A, Dhanmondi R/A, Dhaka-1209',
+      isDefault: true
+    },
+    items: [
+      {
+        productId: 'prod-1',
+        productTitle: 'Sony WH-1000XM5 Wireless Noise Canceling Headphones',
+        productImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
+        sellerId: 'sel-1',
+        sellerName: 'Dhaka Tech Ltd.',
+        quantity: 1,
+        price: 34500,
+        sku: 'SKU-SNY-001'
+      }
+    ],
+    subtotal: 34500,
+    discountAmount: 0,
+    couponCode: '',
+    shippingFee: 60,
+    totalAmount: 34560,
+    paymentMethod: 'cod',
+    paymentStatus: 'unpaid',
+    transactionId: '',
+    status: 'pending',
+    courier: {
+      provider: 'Steadfast',
+      trackingNumber: 'STEAD-8492011',
+      estimatedDays: '24-48 Hours',
+      shippingFee: 60,
+      statusLogs: [
+        { time: 'Today, 10:15 AM', status: 'Order Placed (পেন্ডিং - বিক্রেতার অনুমোদনের অপেক্ষায়)', location: 'AmarBazar Marketplace' },
+        { time: 'Today, 10:16 AM', status: 'Awaiting Merchant Confirmation (সেলার কনফার্মেশনের অপেক্ষায়)', location: 'Seller Store Node' }
+      ]
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];

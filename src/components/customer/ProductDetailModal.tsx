@@ -3,7 +3,7 @@ import {
   X, Star, Heart, ShoppingCart, Truck, ShieldCheck, MapPin, 
   Check, Share2, MessageSquare, ThumbsUp, Send, RotateCcw, 
   HelpCircle, BadgeCheck, AlertCircle, ShoppingBag, ArrowRight,
-  ZoomIn, Sparkles, Store, Globe, PhoneCall
+  ZoomIn, Sparkles, Store, Globe, PhoneCall, Languages, FileText
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { getTranslation } from '../../translations';
@@ -62,6 +62,49 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
+  const getColorCode = (c: string): string => {
+    const lower = c.toLowerCase().trim();
+    const map: Record<string, string> = {
+      'white': '#ffffff',
+      'black': '#1a1a1a',
+      'brown': '#78350f',
+      'tan': '#d2b48c',
+      'khaki': '#f0e68c',
+      'red': '#ef4444',
+      'blue': '#3b82f6',
+      'green': '#22c55e',
+      'yellow': '#f59e0b',
+      'pink': '#ec4899',
+      'orange': '#f97316',
+      'grey': '#64748b',
+      'gray': '#64748b',
+      'navy blue': '#1e3a8a',
+      'navy': '#1e3a8a',
+      'maroon': '#800000',
+      'olive green': '#556b2f',
+      'olive': '#556b2f',
+      'teal': '#0d9488',
+      'magenta': '#d946ef',
+      'beige': '#f5f5dc',
+      'sky blue': '#0ea5e9',
+      'purple': '#8b5cf6',
+      'lavender': '#ddd6fe',
+      'mustard': '#ca8a04',
+      'cream': '#fffbeb',
+      'coral': '#f87171',
+      'gold': '#ca8a04',
+      'silver': '#cbd5e1',
+      'charcoal': '#374151',
+      'mint green': '#34d399',
+      'peach': '#ffedd5',
+      'rose': '#fb7185',
+      'plum': '#db2777',
+      'wine': '#881337',
+      'crimson': '#dc2626'
+    };
+    return map[lower] || (c.startsWith('#') ? c : '#64748b');
+  };
+
   // Memoized product variants list
   const productVariants = useMemo(() => {
     if (!product) return [];
@@ -71,7 +114,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     
     const defaults: { id: string; name: string; nameBn?: string; options: string[] }[] = [];
     
-    if (product.categoryId === 'cat-2') {
+    const isShoe = product.categoryId === 'cat-shoes' 
+      || /shoe|sneaker|loafer|sandal|slipper|boot|জুতা|স্যান্ডেল|কেডস/i.test(product.title + ' ' + (product.categoryName || ''));
+
+    if (isShoe) {
+      defaults.push({
+        id: 'var-def-shoe-size',
+        name: 'Shoe Size',
+        nameBn: 'জুতার সাইজ',
+        options: ['39', '40', '41', '42', '43', '44']
+      });
+      defaults.push({
+        id: 'var-def-color',
+        name: 'Color',
+        nameBn: 'রং',
+        options: ['Black', 'Brown', 'White', 'Tan']
+      });
+    } else if (product.categoryId === 'cat-2') {
       defaults.push({
         id: 'var-def-size',
         name: 'Size',
@@ -136,7 +195,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     const translations: Record<string, string> = {
       'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'XXL': 'XXL',
       'Black': 'কালো', 'White': 'সাদা', 'Blue': 'নীল', 'Red': 'লাল',
-      'Gray': 'ধূসর', 'Silver': 'রুপালি', 'Navy Blue': 'নেভি ব্লু',
+      'Brown': 'বাদামী', 'Tan': 'ট্যান', 'Green': 'সবুজ', 'Yellow': 'হলুদ',
+      'Pink': 'গোলাপি', 'Orange': 'কমলা', 'Purple': 'বেগুনি', 'Maroon': 'মেরুন',
+      'Gray': 'ধূসর', 'Silver': 'রুপালি', 'Navy Blue': 'নেভি ব্লু', 'Gold': 'সোনালী',
       'Standard': 'সাধারণ', 'Pro / Plus': 'প্রো / প্লাস',
       '250g': '২৫০ গ্রাম', '500g': '৫০০ গ্রাম', '1kg': '১ কেজি', '2kg': '২ কেজি'
     };
@@ -340,13 +401,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <div className="space-y-3 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                   {productVariants.map((vGroup) => {
                     const currentVal = selectedVariants[vGroup.name] || vGroup.options[0];
+                    const isColorGroup = vGroup.name.toLowerCase().includes('color') || (vGroup.nameBn && vGroup.nameBn.includes('রং'));
                     return (
                       <div key={vGroup.id} className="space-y-1.5">
                         <div className="flex justify-between text-xs">
                           <span className="font-bold text-slate-700 dark:text-slate-300">
-                            {language === 'bn' ? (vGroup.nameBn || vGroup.name) : vGroup.name}:
+                            {vGroup.name}{vGroup.nameBn && vGroup.nameBn !== vGroup.name ? ` • ${vGroup.nameBn}` : ''}:
                           </span>
-                          <span className="font-black text-red-600 dark:text-red-400">
+                          <span className="font-black text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                            {isColorGroup && (
+                              <span 
+                                className="w-2.5 h-2.5 rounded-full border border-black/15 shadow-xs shrink-0 inline-block"
+                                style={{ backgroundColor: getColorCode(currentVal) }}
+                              />
+                            )}
                             {translateOption(currentVal)}
                           </span>
                         </div>
@@ -357,13 +425,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               <button
                                 key={opt}
                                 onClick={() => handleVariantSelect(vGroup.name, opt)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
                                   isSelected
                                     ? 'bg-red-600 text-white border-red-600 shadow-xs'
                                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-slate-400'
                                 }`}
                               >
-                                {translateOption(opt)}
+                                {isColorGroup && (
+                                  <span 
+                                    className="w-2.5 h-2.5 rounded-full border border-black/15 shadow-xs shrink-0" 
+                                    style={{ backgroundColor: getColorCode(opt) }} 
+                                  />
+                                )}
+                                <span>{translateOption(opt)}</span>
                               </button>
                             );
                           })}
@@ -377,13 +451,41 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* COLUMN 2: Details & Highlights */}
             <div className="lg:col-span-4 space-y-4">
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-md">
-                  {product.brand || 'AmarBazar Verified'}
-                </span>
-                <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1.5 leading-snug">
-                  {productTitle}
-                </h1>
+              {/* Product Brand & Category */}
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded-md">
+                    {product.brand || (language === 'bn' ? 'অমরবাজার ভেরিফাইড' : 'AmarBazar Verified')}
+                  </span>
+                  {product.categoryName && (
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      {product.categoryName}
+                    </span>
+                  )}
+                </div>
+
+                {/* DUAL-LANGUAGE PRODUCT TITLE: Both English and Bengali always visible in Product Details */}
+                <div className="space-y-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/70">
+                  {/* English Title */}
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-mono mt-0.5">
+                      EN
+                    </span>
+                    <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">
+                      {product.title}
+                    </h1>
+                  </div>
+
+                  {/* Bengali Title */}
+                  <div className="flex items-start gap-2 border-t border-slate-200 dark:border-slate-700/60 pt-2">
+                    <span className="shrink-0 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">
+                      বাংলা
+                    </span>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                      {product.titleBn || product.title}
+                    </h2>
+                  </div>
+                </div>
               </div>
 
               {/* Rating & reviews overview */}
@@ -424,14 +526,75 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </p>
               </div>
 
-              {/* Key Highlights */}
-              <div className="space-y-2 text-xs">
-                <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
-                  {language === 'bn' ? 'মূল বৈশিষ্ট্যসমূহ:' : 'Key Highlights:'}
-                </h4>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {productDescription}
-                </p>
+              {/* DUAL-LANGUAGE DETAILS & SPECIFICATIONS (English + Bengali) */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
+                  <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-red-600" />
+                    <span>{language === 'bn' ? 'পণ্যের বিস্তারিত বিবরণ (English & বাংলা)' : 'Product Details (English & Bangla)'}</span>
+                  </h4>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 rounded-full border border-purple-200 dark:border-purple-800/50 flex items-center gap-1">
+                    <Languages className="w-3 h-3" />
+                    <span>Dual Language</span>
+                  </span>
+                </div>
+
+                {/* Bangla Description Box */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-emerald-800 dark:text-emerald-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>বাংলা বিবরণ (Bangla Details):</span>
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
+                    {product.descriptionBn || product.description}
+                  </p>
+                </div>
+
+                {/* English Description Box */}
+                <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-blue-800 dark:text-blue-300">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span>English Description & Details:</span>
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
+                    {product.description || product.descriptionBn}
+                  </p>
+                </div>
+
+                {/* Bilingual Specifications Table */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+                  <p className="font-black text-slate-800 dark:text-slate-200 text-[11px] uppercase tracking-wider">
+                    {language === 'bn' ? 'স্পেসিফিকেশন ও তথ্য (Specifications):' : 'Specifications & Highlights:'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="flex justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Brand / ব্র্যান্ড:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{product.brand || 'AmarBazar'}</span>
+                    </div>
+                    <div className="flex justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Category / ক্যাটাগরি:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{product.categoryName}</span>
+                    </div>
+                    <div className="flex justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Stock / মজুদ:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {product.stock > 0 ? `${product.stock} Pcs / পিস` : (language === 'bn' ? 'স্টক শেষ' : 'Out of Stock')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Warranty / ওয়ারেন্টি:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {product.warranty || (language === 'bn' ? '৭ দিনের রিপ্লেসমেন্ট' : '7 Days Replacement')}
+                      </span>
+                    </div>
+                    {product.sku && (
+                      <div className="flex justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-800 sm:col-span-2">
+                        <span className="text-slate-500">SKU / পণ্য কোড:</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{product.sku}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Delivery info box */}
@@ -462,7 +625,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               {/* Quantity Selector */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {language === 'bn' ? 'পরিমাণ (Quantity):' : 'Quantity:'}
+                  {language === 'bn' ? 'পরিমাণ:' : 'Quantity:'}
                 </label>
                 <div className="flex items-center border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 overflow-hidden w-fit shadow-xs">
                   <button
@@ -498,7 +661,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   className="w-full py-3 bg-linear-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span>{language === 'bn' ? 'এখনই কিনুন (Buy Now)' : 'Buy Now'}</span>
+                  <span>{language === 'bn' ? 'এখনই কিনুন' : 'Buy Now'}</span>
                 </button>
 
                 <button

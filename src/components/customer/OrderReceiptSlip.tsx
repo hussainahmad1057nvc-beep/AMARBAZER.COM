@@ -135,18 +135,18 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
 
   <div class="grid">
     <div class="info-box">
-      <h4>${language === 'bn' ? 'গ্রাহকের বিবরণ ও ডেলিভারি ঠিকানা (Ship To)' : 'CUSTOMER & DELIVERY DETAILS'}</h4>
+      <h4>${language === 'bn' ? 'গ্রাহকের বিবরণ ও ডেলিভারি ঠিকানা' : 'CUSTOMER & DELIVERY DETAILS'}</h4>
       <strong style="font-size: 13px; color: #0f172a;">${order.customerName}</strong><br/>
-      <span>📞 ফোন: <strong>${order.customerPhone}</strong></span><br/>
-      <span>🏠 ঠিকানা: ${order.shippingAddress?.fullAddress || 'Address on file'}</span><br/>
-      <span>📍 থানা: <strong>${order.shippingAddress?.thana || 'Dhanmondi'}</strong>, জেলা: <strong>${order.shippingAddress?.district || 'Dhaka'}</strong> (${order.shippingAddress?.division || 'Bangladesh'})</span>
+      <span>${language === 'bn' ? '📞 ফোন:' : '📞 Phone:'} <strong>${order.customerPhone}</strong></span><br/>
+      <span>${language === 'bn' ? '🏠 ঠিকানা:' : '🏠 Address:'} ${order.shippingAddress?.fullAddress || (language === 'bn' ? 'সংরক্ষিত ঠিকানা' : 'Address on file')}</span><br/>
+      <span>${language === 'bn' ? '📍 থানা:' : '📍 Thana:'} <strong>${order.shippingAddress?.thana || 'Dhanmondi'}</strong>, ${language === 'bn' ? 'জেলা:' : 'District:'} <strong>${order.shippingAddress?.district || 'Dhaka'}</strong> (${order.shippingAddress?.division || (language === 'bn' ? 'বাংলাদেশ' : 'Bangladesh')})</span>
     </div>
     <div class="info-box">
-      <h4>${language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ট্র্যাকিং (Logistics)' : 'PAYMENT & LOGISTICS INFO'}</h4>
-      <div><strong>পেমেন্ট মাধ্যম:</strong> <span class="status-tag ${order.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${order.paymentMethod.toUpperCase()} (${order.paymentStatus.toUpperCase()})</span></div>
+      <h4>${language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ট্র্যাকিং' : 'PAYMENT & LOGISTICS INFO'}</h4>
+      <div><strong>${language === 'bn' ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</strong> <span class="status-tag ${order.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${order.paymentMethod.toUpperCase()} (${order.paymentStatus.toUpperCase()})</span></div>
       ${order.transactionId ? `<div><strong>Txn ID:</strong> <span style="font-family: monospace; font-weight: bold;">${order.transactionId}</span></div>` : ''}
-      <div style="margin-top: 4px;"><strong>কুরিয়ার পার্টনার:</strong> ${order.courier?.provider || 'Pathao Express'}</div>
-      <div><strong>ট্র্যাকিং কোড:</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${order.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
+      <div style="margin-top: 4px;"><strong>${language === 'bn' ? 'কুরিয়ার পার্টনার:' : 'Courier Partner:'}</strong> ${order.courier?.provider || 'Pathao Express'}</div>
+      <div><strong>${language === 'bn' ? 'ট্র্যাকিং কোড:' : 'Tracking Code:'}</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${order.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
     </div>
   </div>
 
@@ -207,7 +207,7 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
   <!-- Financial Calculation Breakdown -->
   <table class="calculation-table">
     <tr>
-      <td>${language === 'bn' ? 'পণ্য উপ-মোট (Subtotal):' : 'Items Subtotal:'}</td>
+      <td>${language === 'bn' ? 'পণ্য উপ-মোট:' : 'Items Subtotal:'}</td>
       <td class="text-right">৳${order.subtotal.toLocaleString()}</td>
     </tr>
     ${order.discountAmount > 0 ? `
@@ -216,11 +216,11 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
       <td class="text-right">-৳${order.discountAmount.toLocaleString()}</td>
     </tr>` : ''}
     <tr>
-      <td>${language === 'bn' ? 'ডেলিভারি চার্জ (Shipping):' : 'Delivery Fee:'}</td>
-      <td class="text-right">${order.shippingFee === 0 ? 'ফ্রি' : `৳${order.shippingFee.toLocaleString()}`}</td>
+      <td>${language === 'bn' ? 'ডেলিভারি চার্জ:' : 'Delivery Fee:'}</td>
+      <td class="text-right">${order.shippingFee === 0 ? (language === 'bn' ? 'ফ্রি' : 'FREE') : `৳${order.shippingFee.toLocaleString()}`}</td>
     </tr>
     <tr class="total-row">
-      <td><strong>${language === 'bn' ? 'সর্বমোট প্রদেয় (Grand Total):' : 'Grand Total:'}</strong></td>
+      <td><strong>${language === 'bn' ? 'সর্বমোট প্রদেয়:' : 'Grand Total:'}</strong></td>
       <td class="text-right"><strong>৳${order.totalAmount.toLocaleString()}</strong></td>
     </tr>
   </table>
@@ -451,7 +451,7 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
           <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-900/40 rounded-2xl p-3.5 space-y-2">
             <div className="flex items-center space-x-2 text-amber-900 dark:text-amber-300 font-black text-xs uppercase tracking-wider">
               <ClipboardCheck className="w-4 h-4 text-amber-600" />
-              <span>{language === 'bn' ? 'পণ্যের গুণমান ও ডেলিভারি হ্যান্ডওভার চেকলিস্ট (Verification Audit)' : 'Product Quality & Handover Verification Checklist'}</span>
+              <span>{language === 'bn' ? 'পণ্যের গুণমান ও ডেলিভারি হ্যান্ডওভার চেকলিস্ট' : 'Product Quality & Handover Verification Checklist'}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700 dark:text-slate-300">
               <div className="flex items-center space-x-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-amber-200/50 dark:border-slate-800">

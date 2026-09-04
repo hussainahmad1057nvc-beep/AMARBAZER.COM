@@ -656,7 +656,13 @@ export const api = {
       ordersList = ordersList.filter(o => o.userId === params.userId);
     }
     if (params?.sellerId) {
-      ordersList = ordersList.filter(o => o.items && o.items.some(item => item.sellerId === params.sellerId || (item as any).product?.sellerId === params.sellerId));
+      const sId = String(params.sellerId).toLowerCase();
+      const cleanSId = sId.replace(/^(usr-|sel-)/, '');
+      ordersList = ordersList.filter(o => o.items && o.items.some(item => {
+        const itemSId = (item.sellerId || (item as any).product?.sellerId || '').toLowerCase();
+        const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
+        return itemSId === sId || cleanItemSId === cleanSId || (cleanSId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+      }));
     }
     return ordersList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   },
