@@ -172,38 +172,31 @@ export const StoreDirectory: React.FC = () => {
     setSubModule('panel');
   }, [activePanel]);
 
-  const mockStores = useMemo(() => {
-    return [
-      {
-        id: 'sel-1',
-        name: 'Dhaka Tech Store',
-        logo: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=150&h=150&q=80',
-        district: 'Dhaka',
-        category: 'Electronics & Gadgets',
-      },
-      {
-        id: 'sel-2',
-        name: 'Heritage Dhaka weavers',
-        logo: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=150&h=150&q=80',
-        district: 'Narayanganj',
-        category: 'Fashion & Clothing',
-      },
-      {
-        id: 'sel-3',
-        name: 'Sundarbans Pure Honey & Organic',
-        logo: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=150&h=150&q=80',
-        district: 'Khulna',
-        category: 'BD Foods & Organic',
-      },
-      {
-        id: 'sel-4',
-        name: 'Sylhet Tea Estate Direct',
-        logo: 'https://images.unsplash.com/photo-1563911302283-d2bc129e7570?auto=format&fit=crop&w=150&h=150&q=80',
-        district: 'Sylhet',
-        category: 'BD Foods & Organic',
+  const [realSellers, setRealSellers] = useState<any[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    api.getSellers().then(sellers => {
+      if (mounted && sellers && sellers.length > 0) {
+        setRealSellers(sellers);
+        setSelectedStoreId(prev => (sellers.some(s => s.id === prev) ? prev : sellers[0].id));
       }
-    ];
+    }).catch(console.error);
+    return () => { mounted = false; };
   }, []);
+
+  const mockStores = useMemo(() => {
+    if (realSellers.length > 0) {
+      return realSellers.map(s => ({
+        id: s.id,
+        name: s.storeName,
+        logo: s.logo || 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=150&h=150&q=80',
+        district: s.district || 'Dhaka',
+        category: s.category || 'General',
+      }));
+    }
+    return [];
+  }, [realSellers]);
 
   // Form Fields State
   const [selectedStoreId, setSelectedStoreId] = useState('sel-3'); // default Sundarbans Honey & Organic

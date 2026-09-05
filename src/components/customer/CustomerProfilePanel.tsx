@@ -128,21 +128,32 @@ export const CustomerProfilePanel: React.FC = () => {
   // Wallet and Points state
   const [walletBalance, setWalletBalance] = useState(() => {
     const saved = localStorage.getItem(`wallet_${currentUser?.id}`);
-    return saved ? Number(saved) : 5400; // Simulated BDT Balance
+    return saved !== null ? Number(saved) : 0;
   });
   const [rewardPoints, setRewardPoints] = useState(() => {
     const saved = localStorage.getItem(`points_${currentUser?.id}`);
-    return saved ? Number(saved) : 1250; // Points
+    return saved !== null ? Number(saved) : 0;
   });
   const [walletTopUpOpen, setWalletTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('1000');
   const [topUpPhone, setTopUpPhone] = useState(currentUser?.phone || '');
   const [topUpProvider, setTopUpProvider] = useState<'bkash' | 'nagad' | 'rocket'>('bkash');
-  const [walletHistory, setWalletHistory] = useState<Array<{id: string, type: 'credit' | 'debit', amount: number, desc: string, date: string}>>([
-    { id: 'tx-1', type: 'credit', amount: 2000, desc: 'Simulated bKash Wallet Cash-In', date: '2026-08-01 14:30' },
-    { id: 'tx-2', type: 'debit', amount: 1250, desc: 'Payment for Order #BD-2026-9021', date: '2026-07-28 11:15' },
-    { id: 'tx-3', type: 'credit', amount: 150, desc: 'Reward Points Conversion (1,500 pts)', date: '2026-07-20 18:40' }
-  ]);
+  const [walletHistory, setWalletHistory] = useState<Array<{id: string, type: 'credit' | 'debit', amount: number, desc: string, date: string}>>(() => {
+    try {
+      const saved = localStorage.getItem(`wallet_history_${currentUser?.id || 'guest'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`wallet_history_${currentUser?.id || 'guest'}`, JSON.stringify(walletHistory));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [walletHistory, currentUser]);
 
   // Coupons / Vouchers state
   const [vouchers, setVouchers] = useState<Coupon[]>([
@@ -153,39 +164,37 @@ export const CustomerProfilePanel: React.FC = () => {
   const [couponInput, setCouponInput] = useState('');
 
   // Support Tickets & Live Chat state
-  const [tickets, setTickets] = useState<Array<{id: string, subject: string, category: string, priority: string, status: 'open' | 'closed', date: string, messages: Array<{sender: 'user' | 'agent', text: string, time: string}>}>>([
-    {
-      id: 't-101',
-      subject: 'Delay in Himsagar Mango Delivery',
-      category: 'Delivery',
-      priority: 'high',
-      status: 'open',
-      date: '2026-08-02',
-      messages: [
-        { sender: 'user', text: 'My mango order has been pending for 3 days. When will it ship?', time: '2026-08-02 10:00' },
-        { sender: 'agent', text: 'Hello Rahim, due to heavy rains in Rajshahi highway, some courier trucks are delayed. Your mangoes will reach Dhaka warehouse tonight. It will deliver tomorrow morning!', time: '2026-08-02 12:45' }
-      ]
-    },
-    {
-      id: 't-102',
-      subject: 'Damaged Walton TV Box Received',
-      category: 'Refund',
-      priority: 'high',
-      status: 'closed',
-      date: '2026-07-25',
-      messages: [
-        { sender: 'user', text: 'The external cartoon of the TV package is torn. Is the internal panel safe?', time: '2026-07-25 14:00' },
-        { sender: 'agent', text: 'Sir, our Walton TVs have solid internal thermocol casing. Please unpack it and check if screen is fine. If there is damage, we will replace immediately.', time: '2026-07-25 15:10' },
-        { sender: 'user', text: 'Verified, TV screen is pristine. Thank you for prompt response!', time: '2026-07-25 16:30' }
-      ]
+  const [tickets, setTickets] = useState<Array<{id: string, subject: string, category: string, priority: string, status: 'open' | 'closed', date: string, messages: Array<{sender: 'user' | 'agent', text: string, time: string}>}>>(() => {
+    try {
+      const saved = localStorage.getItem(`support_tickets_${currentUser?.id || 'guest'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
-  ]);
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`support_tickets_${currentUser?.id || 'guest'}`, JSON.stringify(tickets));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [tickets, currentUser]);
+
   const [newTicketSubject, setNewTicketSubject] = useState('');
   const [newTicketCategory, setNewTicketCategory] = useState('Delivery');
   const [newTicketPriority, setNewTicketPriority] = useState('medium');
   const [newTicketMsg, setNewTicketMsg] = useState('');
   const [showTicketForm, setShowTicketForm] = useState(false);
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>('t-101');
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem(`support_tickets_${currentUser?.id || 'guest'}`);
+      const list = saved ? JSON.parse(saved) : [];
+      return list.length > 0 ? list[0].id : null;
+    } catch {
+      return null;
+    }
+  });
   const [ticketReplyText, setTicketReplyText] = useState('');
 
   // Order Details Modal or Panel state
@@ -900,16 +909,47 @@ export const CustomerProfilePanel: React.FC = () => {
                 {/* Simulated Spending Progress & Active Coupons */}
                 <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-150 dark:border-slate-850 shadow-xs space-y-4">
                   <h4 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-wider">{language === 'bn' ? 'মাসিক শপিং অগ্রগতি' : 'Monthly Shopping Progress'}</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-extrabold">
-                      <span className="text-slate-500">Savings Challenge (Bronze tier)</span>
-                      <span className="text-slate-800 dark:text-white">65% Achieved</span>
-                    </div>
-                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 w-[65%] rounded-full" />
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-semibold">Spend ৳3,500 more this month to unlock Gold Coupon and free delivery forever!</p>
-                  </div>
+                  {(() => {
+                    const now = new Date();
+                    const currentMonthSpent = orders
+                      .filter(o => {
+                        if (o.status === 'cancelled') return false;
+                        const d = new Date(o.createdAt);
+                        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                      })
+                      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+                    const targetTierAmount = 5000;
+                    const progressPercent = Math.min(100, Math.round((currentMonthSpent / targetTierAmount) * 100));
+                    const remainingForGoal = Math.max(0, targetTierAmount - currentMonthSpent);
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs font-extrabold">
+                          <span className="text-slate-500">
+                            {currentMonthSpent >= targetTierAmount 
+                              ? (language === 'bn' ? 'গোল্ড মেম্বারশিপ চ্যালেঞ্জ' : 'Savings Challenge (Gold tier)')
+                              : (language === 'bn' ? 'ব্রোঞ্জ মেম্বারশিপ চ্যালেঞ্জ' : 'Savings Challenge (Bronze tier)')}
+                          </span>
+                          <span className="text-slate-800 dark:text-white">{progressPercent}% {language === 'bn' ? 'অর্জিত' : 'Achieved'}</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all duration-500" 
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold">
+                          {remainingForGoal > 0 
+                            ? (language === 'bn' 
+                                ? `এই মাসে গোল্ড কুপন ও ফ্রি ডেলিভারি পেতে আরও ৳${remainingForGoal.toLocaleString()} কেনাকাটা করুন!` 
+                                : `Spend ৳${remainingForGoal.toLocaleString()} more this month to unlock Gold Coupon and free delivery!`)
+                            : (language === 'bn' 
+                                ? 'অভিনন্দন! আপনি এই মাসের সেভিংস রিওয়ার্ডস সম্পন্ন করেছেন।' 
+                                : 'Congratulations! You unlocked this month\'s premier savings reward.')}
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2">
                     <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === 'bn' ? 'সুপার কুপন সমূহ' : 'Active Savings Vouchers'}</h5>
@@ -926,24 +966,30 @@ export const CustomerProfilePanel: React.FC = () => {
                 {/* Support and Ticket Center Snapshot */}
                 <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-150 dark:border-slate-850 shadow-xs space-y-4">
                   <h4 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-wider">{language === 'bn' ? 'সহায়তা ও পরামর্শ' : 'Support Ticket Center'}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Need help with an order, item delivery, or refund payout? Our 24/7 client happiness team is always active.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{language === 'bn' ? 'অর্ডার, ডেলিভারি বা রিফান্ড সংক্রান্ত যে কোনো প্রয়োজনে আমাদের সাপোর্ট টিম সক্রিয় আছে।' : 'Need help with an order, item delivery, or refund payout? Our 24/7 client happiness team is always active.'}</p>
                   
                   <div className="space-y-2">
-                    {tickets.slice(0, 1).map(t => (
-                      <div key={t.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center">
-                        <div className="min-w-0">
-                          <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest">{t.category} Ticket</span>
-                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate mt-0.5">{t.subject}</p>
-                          <span className="text-[10px] text-slate-400 font-semibold block">{t.messages.length} messages • Last updated: {t.date}</span>
-                        </div>
-                        <button onClick={() => { setActiveTab('tickets'); setSelectedTicketId(t.id); }} className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] rounded-lg shadow-sm transition">View Replies</button>
+                    {tickets.length === 0 ? (
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700/60 text-center text-xs text-slate-400 font-medium">
+                        {language === 'bn' ? 'কোনো সক্রিয় সাপোর্ট টিকিট বা অভিযোগ নেই' : 'No active support tickets found'}
                       </div>
-                    ))}
+                    ) : (
+                      tickets.slice(0, 1).map(t => (
+                        <div key={t.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center">
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest">{t.category} Ticket</span>
+                            <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate mt-0.5">{t.subject}</p>
+                            <span className="text-[10px] text-slate-400 font-semibold block">{t.messages.length} messages • Last updated: {t.date}</span>
+                          </div>
+                          <button onClick={() => { setActiveTab('tickets'); setSelectedTicketId(t.id); }} className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] rounded-lg shadow-sm transition">View Replies</button>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <button onClick={() => { setActiveTab('tickets'); setShowTicketForm(true); }} className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-extrabold transition text-center flex items-center justify-center space-x-1.5">
                     <Ticket className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Open New Support Ticket</span>
+                    <span>{language === 'bn' ? 'নতুন সাপোর্ট টিকিট খুলুন' : 'Open New Support Ticket'}</span>
                   </button>
                 </div>
 

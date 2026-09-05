@@ -545,46 +545,44 @@ export const BottomNavigation: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   {/* Language switch */}
                   <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800">
-                    <span className="text-[8px] font-black text-slate-400 px-1.5 uppercase block mb-1">Language</span>
-                    <div className="grid grid-cols-3 gap-0.5">
-                      <button
-                        onClick={() => setLanguage('en')}
-                        className={`py-1 text-[9px] font-bold rounded-lg ${language === 'en' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500'}`}
-                      >
-                        EN
-                      </button>
-                      <button
-                        onClick={() => setLanguage('ar')}
-                        className={`py-1 text-[9px] font-bold rounded-lg ${language === 'ar' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500'}`}
-                      >
-                        AR
-                      </button>
+                    <span className="text-[8px] font-black text-slate-400 px-1.5 uppercase block mb-1">
+                      {language === 'bn' ? 'ভাষা (Language)' : 'Language'}
+                    </span>
+                    <div className="grid grid-cols-2 gap-1">
                       <button
                         onClick={() => setLanguage('bn')}
-                        className={`py-1 text-[9px] font-bold rounded-lg ${language === 'bn' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500'}`}
+                        className={`py-1 text-[10px] font-bold rounded-lg ${language === 'bn' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500'}`}
                       >
-                        BN
+                        🇧🇩 বাংলা
+                      </button>
+                      <button
+                        onClick={() => setLanguage('en')}
+                        className={`py-1 text-[10px] font-bold rounded-lg ${language === 'en' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-500'}`}
+                      >
+                        🇬🇧 English
                       </button>
                     </div>
                   </div>
 
                   {/* Theme switch */}
                   <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800">
-                    <span className="text-[8px] font-black text-slate-400 px-1.5 uppercase block mb-1">Theme Mode</span>
+                    <span className="text-[8px] font-black text-slate-400 px-1.5 uppercase block mb-1">
+                      {language === 'bn' ? 'থিম মোড' : 'Theme Mode'}
+                    </span>
                     <div className="grid grid-cols-2 gap-1">
                       <button
                         onClick={() => setTheme('light')}
                         className={`py-1 text-[9px] font-bold rounded-lg flex items-center justify-center space-x-1 ${theme === 'light' ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-xs' : 'text-slate-400'}`}
                       >
                         <Sun className="w-3 h-3" />
-                        <span>Light</span>
+                        <span>{language === 'bn' ? 'লাইট' : 'Light'}</span>
                       </button>
                       <button
                         onClick={() => setTheme('dark')}
                         className={`py-1 text-[9px] font-bold rounded-lg flex items-center justify-center space-x-1 ${theme === 'dark' ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-xs' : 'text-slate-400'}`}
                       >
                         <Moon className="w-3 h-3" />
-                        <span>Dark</span>
+                        <span>{language === 'bn' ? 'ডার্ক' : 'Dark'}</span>
                       </button>
                     </div>
                   </div>

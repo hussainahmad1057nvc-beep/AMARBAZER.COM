@@ -344,6 +344,8 @@ export interface SellerStore {
   permissionsConfig?: Record<string, any>;
 }
 
+export type Seller = SellerStore;
+
 export interface WithdrawalRequest {
   id: string;
   sellerId: string;

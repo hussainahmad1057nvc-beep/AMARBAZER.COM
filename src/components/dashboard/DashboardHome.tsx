@@ -1,31 +1,175 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   TrendingUp, ShoppingCart, Users, Activity, Package, Star, 
   MessageSquare, Bell, Volume2, Shield, Calendar, DollarSign
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../services/api';
+import { Order, Seller } from '../../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const toBengaliNumber = (num: number | string): string => {
+  const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  return num.toString().split('').map(digit => {
+    const d = parseInt(digit);
+    return isNaN(d) ? digit : bnDigits[d];
+  }).join('');
+};
+
+const formatTimeAgo = (dateStr?: string, language: string = 'bn'): string => {
+  if (!dateStr) return language === 'bn' ? 'সম্প্রতি' : 'Just now';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return language === 'bn' ? 'এইমাত্র' : 'Just now';
+  if (mins < 60) return language === 'bn' ? `${toBengaliNumber(mins)} মিনিট আগে` : `${mins} mins ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return language === 'bn' ? `${toBengaliNumber(hours)} ঘণ্টা আগে` : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return language === 'bn' ? `${toBengaliNumber(days)} দিন আগে` : `${days} days ago`;
+};
+
 export const DashboardHome: React.FC = () => {
-  const { products, language, theme } = useApp();
+  const { products, language, theme, currentUser } = useApp();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const salesData = [
-    { name: 'Jan', Sales: 45000, Orders: 12 },
-    { name: 'Feb', Sales: 52000, Orders: 15 },
-    { name: 'Mar', Sales: 78000, Orders: 22 },
-    { name: 'Apr', Sales: 61000, Orders: 18 },
-    { name: 'May', Sales: 95000, Orders: 28 },
-    { name: 'Jun', Sales: 125000, Orders: 35 },
-    { name: 'Jul', Sales: 154900, Orders: 42 },
-  ];
+  useEffect(() => {
+    let isMounted = true;
+    const loadRealData = async () => {
+      try {
+        const [fetchedOrders, fetchedSellers] = await Promise.all([
+          api.getOrders(),
+          api.getSellers()
+        ]);
+        if (isMounted) {
+          setOrders(fetchedOrders || []);
+          setSellers(fetchedSellers || []);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load real ERP stats:', err);
+        if (isMounted) setLoading(false);
+      }
+    };
+    loadRealData();
 
-  const recentEvents = [
-    { id: '1', time: '10 mins ago', event: 'New order placed BD-2026-9411', type: 'order', status: 'success' },
-    { id: '2', time: '45 mins ago', event: 'Product price updated for Walton TV', type: 'price', status: 'info' },
-    { id: '3', time: '2 hours ago', event: 'Customer support chat resolved (Kamal H.)', type: 'chat', status: 'success' },
-    { id: '4', time: '5 hours ago', event: 'Review approved for Dhakai Jamdani Saree', type: 'review', status: 'warning' },
-    { id: '5', time: '1 day ago', event: 'New Vendor registered: Sylhet Organics', type: 'vendor', status: 'info' },
-  ];
+    const handleDataUpdate = () => {
+      loadRealData();
+    };
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('order-status-updated', handleDataUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('order-status-updated', handleDataUpdate);
+    };
+  }, []);
+
+  // Real Gross Revenue
+  const totalRevenue = useMemo(() => {
+    return orders
+      .filter(o => o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  }, [orders]);
+
+  // Real Active Orders (pending or confirmed/processing)
+  const activeOrders = useMemo(() => {
+    return orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
+  }, [orders]);
+
+  const pendingCount = useMemo(() => {
+    return orders.filter(o => o.status === 'pending').length;
+  }, [orders]);
+
+  const confirmedCount = useMemo(() => {
+    return orders.filter(o => o.status === 'confirmed').length;
+  }, [orders]);
+
+  const deliveredCount = useMemo(() => {
+    return orders.filter(o => o.status === 'delivered').length;
+  }, [orders]);
+
+  // Real Verified Stores
+  const verifiedVendorsCount = sellers.length;
+  const pendingApprovalsCount = sellers.filter(s => s.status === 'pending').length;
+
+  // Dynamic Sales by Month from real orders
+  const salesData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonthIdx = new Date().getMonth();
+    // Show last 6 months up to current
+    const monthsToShow: { name: string; monthIndex: number; year: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(currentMonthIdx - i);
+      monthsToShow.push({
+        name: monthNames[d.getMonth()],
+        monthIndex: d.getMonth(),
+        year: d.getFullYear()
+      });
+    }
+
+    return monthsToShow.map(m => {
+      const monthOrders = orders.filter(o => {
+        if (o.status === 'cancelled') return false;
+        const oDate = new Date(o.createdAt);
+        return oDate.getMonth() === m.monthIndex && oDate.getFullYear() === m.year;
+      });
+      const monthSales = monthOrders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
+      return {
+        name: m.name,
+        Sales: monthSales,
+        Orders: monthOrders.length
+      };
+    });
+  }, [orders]);
+
+  // Dynamic Recent Events based on real orders and products
+  const recentEvents = useMemo(() => {
+    const events: Array<{ id: string; time: string; event: string; type: string; status: 'success' | 'warning' | 'info' }> = [];
+    
+    // Sort latest orders
+    const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    sortedOrders.slice(0, 4).forEach(o => {
+      const orderNum = o.orderNumber || (o as any).order5DigitId || o.id;
+      const isConfirmed = o.status === 'confirmed' || o.status === 'delivered';
+      events.push({
+        id: `ord-${o.id}`,
+        time: formatTimeAgo(o.createdAt, language),
+        event: language === 'bn'
+          ? `অর্ডার #${orderNum} - মোট ৳${o.totalAmount.toLocaleString()} (${o.status === 'confirmed' ? 'অনুমোদিত' : o.status === 'delivered' ? 'ডেলিভার্ড' : 'পেন্ডিং'})`
+          : `Order #${orderNum} - ৳${o.totalAmount.toLocaleString()} (${o.status})`,
+        type: 'order',
+        status: isConfirmed ? 'success' : 'warning'
+      });
+    });
+
+    // Add recent sellers
+    sellers.slice(0, 2).forEach(s => {
+      events.push({
+        id: `sel-${s.id}`,
+        time: formatTimeAgo(s.createdAt, language),
+        event: language === 'bn' 
+          ? `ভেন্ডর শপ নথিবদ্ধ: ${s.storeName}`
+          : `Registered Store: ${s.storeName}`,
+        type: 'vendor',
+        status: 'info'
+      });
+    });
+
+    if (events.length === 0) {
+      events.push({
+        id: 'ev-empty',
+        time: language === 'bn' ? 'সচল' : 'Active',
+        event: language === 'bn' ? 'সিস্টেমে কোনো পেন্ডিং ইভেন্ট নেই' : 'All systems operating normally',
+        type: 'info',
+        status: 'info'
+      });
+    }
+
+    return events.slice(0, 5);
+  }, [orders, sellers, language]);
 
   const topSelling = useMemo(() => {
     return products.slice(0, 3);
@@ -55,7 +199,7 @@ export const DashboardHome: React.FC = () => {
 
       {/* Stats Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1 */}
+        {/* Card 1 - Real Revenue */}
         <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center space-x-4">
           <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
             <DollarSign className="w-6 h-6" />
@@ -65,16 +209,18 @@ export const DashboardHome: React.FC = () => {
               {language === 'bn' ? 'মোট বিক্রি' : 'Total Revenue'}
             </p>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              ৳১,৫৪,৯০০
+              {language === 'bn' ? `৳${toBengaliNumber(totalRevenue.toLocaleString())}` : `৳${totalRevenue.toLocaleString()}`}
             </h3>
             <p className="text-[10px] text-emerald-500 font-bold flex items-center mt-0.5">
               <TrendingUp className="w-3 h-3 mr-0.5" />
-              +14.2% {language === 'bn' ? 'এই সপ্তাহে' : 'this week'}
+              {language === 'bn' 
+                ? `${toBengaliNumber(orders.length)}টি রিয়েল অর্ডার` 
+                : `${orders.length} real orders`}
             </p>
           </div>
         </div>
 
-        {/* Card 2 */}
+        {/* Card 2 - Real Active Orders */}
         <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center space-x-4">
           <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
             <ShoppingCart className="w-6 h-6" />
@@ -84,15 +230,17 @@ export const DashboardHome: React.FC = () => {
               {language === 'bn' ? 'সক্রিয় অর্ডার' : 'Active Orders'}
             </p>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              ৪টি
+              {language === 'bn' ? `${toBengaliNumber(activeOrders.length)}টি` : `${activeOrders.length}`}
             </h3>
             <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-              {language === 'bn' ? '২টি ডেলিভারি প্রক্রিয়াধীন' : '2 processing, 2 shipped'}
+              {language === 'bn' 
+                ? `${toBengaliNumber(pendingCount)}টি পেন্ডিং, ${toBengaliNumber(confirmedCount)}টি কনফার্মড` 
+                : `${pendingCount} pending, ${confirmedCount} confirmed`}
             </p>
           </div>
         </div>
 
-        {/* Card 3 */}
+        {/* Card 3 - Real Verified Stores */}
         <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center space-x-4">
           <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl">
             <Users className="w-6 h-6" />
@@ -102,15 +250,17 @@ export const DashboardHome: React.FC = () => {
               {language === 'bn' ? 'মোট বিক্রেতা' : 'Verified Vendors'}
             </p>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              ১২টি শপ
+              {language === 'bn' ? `${toBengaliNumber(verifiedVendorsCount)}টি শপ` : `${verifiedVendorsCount} Stores`}
             </h3>
             <p className="text-[10px] text-emerald-500 font-bold mt-0.5">
-              +৩টি {language === 'bn' ? 'নতুন আবেদন' : 'new approvals'}
+              {pendingApprovalsCount > 0 
+                ? (language === 'bn' ? `+${toBengaliNumber(pendingApprovalsCount)}টি নতুন আবেদন` : `+${pendingApprovalsCount} new applications`)
+                : (language === 'bn' ? '১০০% সক্রিয় শপ' : '100% active shops')}
             </p>
           </div>
         </div>
 
-        {/* Card 4 */}
+        {/* Card 4 - Dynamic Operator Status */}
         <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center space-x-4">
           <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl">
             <Activity className="w-6 h-6" />
@@ -122,8 +272,8 @@ export const DashboardHome: React.FC = () => {
             <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
               {language === 'bn' ? 'সক্রিয়' : 'Active'}
             </h3>
-            <p className="text-[10px] text-purple-500 font-bold mt-0.5">
-              ID: admin-rahim-01
+            <p className="text-[10px] text-purple-500 font-bold mt-0.5 truncate max-w-[140px]">
+              ID: {currentUser?.name || currentUser?.id || 'admin-root'}
             </p>
           </div>
         </div>
@@ -140,12 +290,12 @@ export const DashboardHome: React.FC = () => {
                 {language === 'bn' ? 'রাজস্ব প্রবৃদ্ধি চিত্র' : 'Revenue Growth Chart'}
               </h3>
               <p className="text-[10px] text-slate-400">
-                {language === 'bn' ? 'মাসিক বিক্রয় ও অর্ডারের তুলনামূলক বিবরণী' : 'Monthly sales volume comparison (BDT)'}
+                {language === 'bn' ? 'মাসিক প্রকৃত বিক্রয় ও অর্ডারের বিবরণী' : 'Real monthly sales volume and orders (BDT)'}
               </p>
             </div>
             <div className="inline-flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-[10px] font-bold text-slate-600 dark:text-slate-300">
               <Calendar className="w-3.5 h-3.5" />
-              <span>YTD 2026</span>
+              <span>YTD {new Date().getFullYear()}</span>
             </div>
           </div>
 
@@ -169,6 +319,7 @@ export const DashboardHome: React.FC = () => {
                     fontSize: '11px',
                     color: theme === 'dark' ? '#f1f5f9' : '#0f172a'
                   }} 
+                  formatter={(value: any) => [`৳${Number(value).toLocaleString()}`, language === 'bn' ? 'বিক্রয়' : 'Sales']}
                 />
                 <Area type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" />
               </AreaChart>
@@ -176,7 +327,7 @@ export const DashboardHome: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar Mini Column (1 col wide): Recent Events */}
+        {/* Sidebar Mini Column (1 col wide): Real System Logs */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 mb-1 flex items-center">
@@ -184,7 +335,7 @@ export const DashboardHome: React.FC = () => {
               {language === 'bn' ? 'সিস্টেম লগ' : 'ERP System Logs'}
             </h3>
             <p className="text-[10px] text-slate-400 mb-4">
-              {language === 'bn' ? 'অপারেটর এবং স্টোরের শেষ কার্যক্রম' : 'Real-time trace of operator actions'}
+              {language === 'bn' ? 'প্রকৃত অর্ডার ও কার্যবিবরণী' : 'Real-time trace of live marketplace actions'}
             </p>
 
             <div className="space-y-3.5">
@@ -209,7 +360,8 @@ export const DashboardHome: React.FC = () => {
 
           <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-700 text-center">
             <span className="text-[10px] text-slate-400 italic">
-              Logged in as Security level: <strong>Super Admin</strong>
+              {language === 'bn' ? 'লগইন অ্যাকাউন্ট: ' : 'Logged in as: '}
+              <strong>{currentUser?.role === 'admin' || currentUser?.role === 'system_admin' ? 'Super Admin' : currentUser?.name || 'Operator'}</strong>
             </span>
           </div>
         </div>
@@ -240,7 +392,7 @@ export const DashboardHome: React.FC = () => {
                     {p.rating}
                   </span>
                   <span className="text-[9px] text-slate-400 font-medium">
-                    Stock: {p.stock} units
+                    {language === 'bn' ? `স্টক: ${toBengaliNumber(p.stock)} টি` : `Stock: ${p.stock} units`}
                   </span>
                 </div>
               </div>
@@ -251,3 +403,4 @@ export const DashboardHome: React.FC = () => {
     </div>
   );
 };
+

@@ -381,7 +381,7 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => setActivePanel('register_vendor')}
               className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('register_vendor')}`}
-              title="Register physical shop"
+              title={language === 'bn' ? 'বিক্রেতা নিবন্ধন করুন' : 'Register Vendor Shop'}
             >
               <Plus className="w-4 h-4 shrink-0 text-indigo-500" />
               {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'বিক্রেতা নিবন্ধন করুন' : 'Register Vendor Shop'}</span>}
@@ -402,7 +402,7 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => setActivePanel('dashboard_home')}
               className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('dashboard_home')}`}
-              title="ERP Central Control"
+              title={language === 'bn' ? 'ইআরপি ড্যাশবোর্ড' : 'ERP Central Control'}
             >
               <LayoutDashboard className="w-4 h-4 shrink-0 text-violet-500" />
               {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'ইআরপি ড্যাশবোর্ড' : 'ERP Central Control'}</span>}
@@ -412,7 +412,7 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => setActivePanel('admin')}
               className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('admin')}`}
-              title="Marketplace Core Admin"
+              title={language === 'bn' ? 'এডমিন ম্যানেজমেন্ট' : 'Admin Operations'}
             >
               <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500" />
               {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'এডমিন ম্যানেজমেন্ট' : 'Admin Operations'}</span>}
@@ -422,7 +422,7 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => setActivePanel('settings')}
               className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('settings')}`}
-              title="System Config"
+              title={language === 'bn' ? 'সিস্টেম কনফিগারেশন' : 'System Settings'}
             >
               <Sliders className="w-4 h-4 shrink-0 text-amber-500" />
               {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'সিস্টেম কনফিগারেশন' : 'System Settings'}</span>}
@@ -450,7 +450,7 @@ export const Sidebar: React.FC = () => {
                 </span>
                 {currentUser.isStaff && (
                   <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-1.5 py-0.5 rounded-sm">
-                    {currentUser.staffRoleTitle || 'Staff'}
+                    {currentUser.staffRoleTitle || (language === 'bn' ? 'স্টাফ' : 'Staff')}
                   </span>
                 )}
               </div>
@@ -565,7 +565,7 @@ export const Sidebar: React.FC = () => {
               <button
                 onClick={() => setActivePanel('inventory_workspace')}
                 className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('inventory_workspace')}`}
-                title="Inventory Workspace"
+                title={language === 'bn' ? 'ইনভেন্টরি ম্যানেজার' : 'Inventory Manager'}
               >
                 <ClipboardList className="w-4 h-4 shrink-0 text-teal-500" />
                 {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'ইনভেন্টরি তালিকা' : 'Inventory Manager'}</span>}
@@ -577,7 +577,7 @@ export const Sidebar: React.FC = () => {
               <button
                 onClick={() => setActivePanel('product_reviews')}
                 className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer ${getMenuClass('product_reviews')}`}
-                title="Customer Feedback"
+                title={language === 'bn' ? 'গ্রাহক রিভিউ ও ফিডব্যাক' : 'Customer Reviews'}
               >
                 <Star className="w-4 h-4 shrink-0 text-amber-400" />
                 {!isCollapsed && <span className="ml-3 truncate">{language === 'bn' ? 'গ্রাহক রিভিউ' : 'Product Reviews'}</span>}
@@ -589,7 +589,7 @@ export const Sidebar: React.FC = () => {
               <button
                 onClick={() => setActivePanel('customer_messages')}
                 className={`w-full flex items-center rounded-xl p-2.5 text-xs transition duration-200 cursor-pointer relative ${getMenuClass('customer_messages')}`}
-                title="Customer messages"
+                title={language === 'bn' ? 'গ্রাহক বার্তা ও হেল্পডেস্ক' : 'Customer Messages'}
               >
                 <MessageSquare className="w-4 h-4 shrink-0 text-sky-500" />
                 {!isCollapsed && (
