@@ -46,9 +46,9 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
 
   // Extract 5-digit Order ID
   const fiveDigitId = order.order5DigitId || 
-    (order.orderNumber.replace(/[^0-9]/g, '').slice(-5)) || 
-    (order.id.replace(/[^0-9]/g, '').slice(-5)) || 
-    '58392';
+    (order.orderNumber ? order.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || 
+    (order.id ? order.id.replace(/[^0-9]/g, '').slice(-5) : '') || 
+    '20712';
 
   const displayOrderCode = `#${fiveDigitId}`;
 

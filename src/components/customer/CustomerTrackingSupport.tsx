@@ -130,9 +130,9 @@ export const CustomerTrackingSupport: React.FC = () => {
     // 1. Search in existing orders state first (by orderNumber, 5-digit id, phone, or id)
     const cleanQuery = query.replace('#', '').toLowerCase();
     const foundInMemory = orders.find(o => {
-      const fiveDigit = o.order5DigitId || o.orderNumber.replace(/[^0-9]/g, '').slice(-5);
-      return o.orderNumber.toLowerCase().includes(cleanQuery) ||
-             fiveDigit.toLowerCase() === cleanQuery ||
+      const fiveDigit = o.order5DigitId || (o.orderNumber ? o.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || o.id.replace(/[^0-9]/g, '').slice(-5);
+      return (o.orderNumber && o.orderNumber.toLowerCase().includes(cleanQuery)) ||
+             (fiveDigit && fiveDigit.toLowerCase() === cleanQuery) ||
              o.id.toLowerCase() === cleanQuery ||
              (o.customerPhone && o.customerPhone.includes(cleanQuery));
     });
@@ -166,16 +166,16 @@ export const CustomerTrackingSupport: React.FC = () => {
 
   const handleOrderSelect = (order: Order) => {
     setSelectedOrder(order);
-    setSearchId(order.orderNumber);
+    setSearchId(order.orderNumber || order.order5DigitId || order.id);
     setError('');
     setActiveTab('details');
   };
 
   const getOrder5Digit = (order: Order) => {
     return order.order5DigitId || 
-           order.orderNumber.replace(/[^0-9]/g, '').slice(-5) || 
-           order.id.replace(/[^0-9]/g, '').slice(-5) || 
-           '58392';
+           (order.orderNumber ? order.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || 
+           (order.id ? order.id.replace(/[^0-9]/g, '').slice(-5) : '') || 
+           '20712';
   };
 
   const handleCopyOrderCode = (code: string) => {

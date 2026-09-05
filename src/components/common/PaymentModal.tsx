@@ -449,14 +449,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const triggerDirectPdfDownload = (orderObj: Order) => {
     try {
-      const fiveDigitId = orderObj.order5DigitId || orderObj.orderNumber.replace(/[^0-9]/g, '').slice(-5) || '58392';
+      const fiveDigitId = orderObj?.order5DigitId || 
+        (orderObj?.orderNumber ? orderObj.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || 
+        (orderObj?.id ? orderObj.id.replace(/[^0-9]/g, '').slice(-5) : '') || 
+        '20712';
+      
+      const orderDateStr = orderObj?.createdAt 
+        ? new Date(orderObj.createdAt).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')
+        : new Date().toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US');
       
       const slipHtml = `
 <!DOCTYPE html>
 <html lang="${language === 'bn' ? 'bn' : 'en'}">
 <head>
   <meta charset="UTF-8">
-  <title>AmarStore_Official_Order_Slip_${fiveDigitId}</title>
+  <title>AmarBazar_Official_Order_Slip_${fiveDigitId}</title>
   <style>
     @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
@@ -509,24 +516,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     <div style="text-align: right;">
       <h1 class="invoice-title">${language === 'bn' ? 'অফিশিয়াল অর্ডার ও ডেলিভারি স্লিপ' : 'OFFICIAL TAX INVOICE & DELIVERY SLIP'}</h1>
       <div><span class="order-badge">5-DIGIT ID: ${fiveDigitId}</span></div>
-      <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Date: ${new Date(orderObj.createdAt).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}</p>
+      <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Date: ${orderDateStr}</p>
     </div>
   </div>
 
   <div class="grid">
     <div class="info-box">
       <h4>${language === 'bn' ? 'গ্রাহকের বিবরণ ও ডেলিভারি ঠিকানা' : 'CUSTOMER & DELIVERY DETAILS'}</h4>
-      <strong style="font-size: 13px; color: #0f172a;">${orderObj.customerName}</strong><br/>
-      <span>${language === 'bn' ? '📞 ফোন:' : '📞 Phone:'} <strong>${orderObj.customerPhone}</strong></span><br/>
-      <span>${language === 'bn' ? '🏠 ঠিকানা:' : '🏠 Address:'} ${orderObj.shippingAddress?.fullAddress || (language === 'bn' ? 'সংরক্ষিত ঠিকানা' : 'Address on file')}</span><br/>
-      <span>${language === 'bn' ? '📍 থানা:' : '📍 Thana:'} <strong>${orderObj.shippingAddress?.thana || 'Dhanmondi'}</strong>, ${language === 'bn' ? 'জেলা:' : 'District:'} <strong>${orderObj.shippingAddress?.district || 'Dhaka'}</strong> (${orderObj.shippingAddress?.division || (language === 'bn' ? 'বাংলাদেশ' : 'Bangladesh')})</span>
+      <strong style="font-size: 13px; color: #0f172a;">${orderObj?.customerName || 'Customer'}</strong><br/>
+      <span>${language === 'bn' ? '📞 ফোন:' : '📞 Phone:'} <strong>${orderObj?.customerPhone || 'N/A'}</strong></span><br/>
+      <span>${language === 'bn' ? '🏠 ঠিকানা:' : '🏠 Address:'} ${orderObj?.shippingAddress?.fullAddress || (language === 'bn' ? 'সংরক্ষিত ঠিকানা' : 'Address on file')}</span><br/>
+      <span>${language === 'bn' ? '📍 থানা:' : '📍 Thana:'} <strong>${orderObj?.shippingAddress?.thana || 'Dhanmondi'}</strong>, ${language === 'bn' ? 'জেলা:' : 'District:'} <strong>${orderObj?.shippingAddress?.district || 'Dhaka'}</strong> (${orderObj?.shippingAddress?.division || (language === 'bn' ? 'বাংলাদেশ' : 'Bangladesh')})</span>
     </div>
     <div class="info-box">
       <h4>${language === 'bn' ? 'পেমেন্ট ও ডেলিভারি ট্র্যাকিং' : 'PAYMENT & LOGISTICS INFO'}</h4>
-      <div><strong>${language === 'bn' ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</strong> <span class="status-tag ${orderObj.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${orderObj.paymentMethod.toUpperCase()} (${orderObj.paymentStatus.toUpperCase()})</span></div>
-      ${orderObj.transactionId ? `<div><strong>Txn ID:</strong> <span style="font-family: monospace; font-weight: bold;">${orderObj.transactionId}</span></div>` : ''}
-      <div style="margin-top: 4px;"><strong>${language === 'bn' ? 'কুরিয়ার পার্টনার:' : 'Courier Partner:'}</strong> ${orderObj.courier?.provider || 'Pathao Express'}</div>
-      <div><strong>${language === 'bn' ? 'ট্র্যাকিং কোড:' : 'Tracking Code:'}</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${orderObj.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
+      <div><strong>${language === 'bn' ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</strong> <span class="status-tag ${orderObj?.paymentStatus === 'paid' ? 'status-paid' : 'status-cod'}">${String(orderObj?.paymentMethod || 'COD').toUpperCase()} (${String(orderObj?.paymentStatus || 'PENDING').toUpperCase()})</span></div>
+      ${orderObj?.transactionId ? `<div><strong>Txn ID:</strong> <span style="font-family: monospace; font-weight: bold;">${orderObj.transactionId}</span></div>` : ''}
+      <div style="margin-top: 4px;"><strong>${language === 'bn' ? 'কুরিয়ার পার্টনার:' : 'Courier Partner:'}</strong> ${orderObj?.courier?.provider || 'Pathao Express'}</div>
+      <div><strong>${language === 'bn' ? 'ট্র্যাকিং কোড:' : 'Tracking Code:'}</strong> <span style="font-family: monospace; font-weight: 900; color: #0284c7;">${orderObj?.courier?.trackingNumber || 'PTH-' + fiveDigitId}</span></div>
     </div>
   </div>
 
@@ -556,11 +563,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       </tr>
     </thead>
     <tbody>
-      ${orderObj.items.map((item, idx) => `
+      ${(orderObj?.items || []).map((item, idx) => `
         <tr>
           <td>${idx + 1}</td>
           <td>
-            <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${item.productTitle}</div>
+            <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${item.productTitle || 'পণ্য সামগ্রী'}</div>
             <div class="sku-code">SKU: ${item.sku || 'SKU-BD' + (item.productId?.slice(-5) || '102')} | ${language === 'bn' ? 'বিক্রেতা:' : 'Seller:'} ${item.sellerName || (language === 'bn' ? 'ভেরিফাইড মার্চেন্ট' : 'Verified Merchant')}</div>
             ${item.selectedVariants ? `<div style="font-size: 10px; color: #3b82f6; font-weight: bold; margin-top: 2px;">${Object.entries(item.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(' | ')}</div>` : ''}
           </td>
@@ -568,9 +575,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div><span class="quality-badge">⭐ ${item.qualityGrade || (language === 'bn' ? '১০০% অরিজিনাল এক্সপোর্ট কোয়ালিটি' : '100% Export Quality')}</span></div>
             <div><span class="warranty-badge">🛡️ ${item.warranty || (language === 'bn' ? '৭ দিনের রিপ্লেসমেন্ট ও জেনুইন ওয়্যারেন্টি' : '7-Day Replacement Warranty')}</span></div>
           </td>
-          <td class="text-right">৳${item.price.toLocaleString()}</td>
-          <td style="text-align: center; font-weight: 900;">${item.quantity}</td>
-          <td class="text-right" style="font-weight: 900;">৳${(item.price * item.quantity).toLocaleString()}</td>
+          <td class="text-right">৳${(item.price || 0).toLocaleString()}</td>
+          <td style="text-align: center; font-weight: 900;">${item.quantity || 1}</td>
+          <td class="text-right" style="font-weight: 900;">৳${((item.price || 0) * (item.quantity || 1)).toLocaleString()}</td>
         </tr>
       `).join('')}
     </tbody>
@@ -580,20 +587,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   <table class="calculation-table">
     <tr>
       <td>${language === 'bn' ? 'পণ্য উপ-মোট:' : 'Items Subtotal:'}</td>
-      <td class="text-right">৳${orderObj.subtotal.toLocaleString()}</td>
+      <td class="text-right">৳${(orderObj?.subtotal || 0).toLocaleString()}</td>
     </tr>
-    ${orderObj.discountAmount > 0 ? `
+    ${(orderObj?.discountAmount || 0) > 0 ? `
     <tr style="color: #16a34a; font-weight: bold;">
       <td>${language === 'bn' ? 'কুপন/ছাড় ডিসকাউন্ট:' : 'Discount Savings:'}</td>
-      <td class="text-right">-৳${orderObj.discountAmount.toLocaleString()}</td>
+      <td class="text-right">-৳${(orderObj?.discountAmount || 0).toLocaleString()}</td>
     </tr>` : ''}
     <tr>
       <td>${language === 'bn' ? 'ডেলিভারি চার্জ:' : 'Delivery Fee:'}</td>
-      <td class="text-right">${orderObj.shippingFee === 0 ? (language === 'bn' ? 'ফ্রি' : 'FREE') : `৳${orderObj.shippingFee.toLocaleString()}`}</td>
+      <td class="text-right">${orderObj?.shippingFee === 0 ? (language === 'bn' ? 'ফ্রি' : 'FREE') : `৳${(orderObj?.shippingFee || 0).toLocaleString()}`}</td>
     </tr>
     <tr class="total-row">
       <td><strong>${language === 'bn' ? 'সর্বমোট প্রদেয়:' : 'Grand Total:'}</strong></td>
-      <td class="text-right"><strong>৳${orderObj.totalAmount.toLocaleString()}</strong></td>
+      <td class="text-right"><strong>৳${(orderObj?.totalAmount || 0).toLocaleString()}</strong></td>
     </tr>
   </table>
 
@@ -625,8 +632,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       a.download = `AmarBazar_Order_Slip_${fiveDigitId}.html`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {}
+      }, 20000);
     } catch (e) {
       console.warn('Download slip error:', e);
     }
@@ -640,21 +651,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  const handleDownloadPdfAndGoHome = () => {
+  const handleDownloadPdfOnly = () => {
     if (!createdOrder) return;
     setIsDownloadingPdf(true);
     try {
       triggerDirectPdfDownload(createdOrder);
       setDownloadSuccess(true);
-      // Brief delay for the browser download to start before redirecting to home page
       setTimeout(() => {
         setIsDownloadingPdf(false);
-        handleSkipToHome();
-      }, 1200);
+      }, 1000);
     } catch (err) {
       console.error('PDF download error:', err);
       setIsDownloadingPdf(false);
-      handleSkipToHome();
     }
   };
 
@@ -1648,7 +1656,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       {language === 'bn' ? 'অর্ডার কোড' : 'Order ID'}
                     </span>
                     <span className="font-mono font-black text-sm text-[#da1c24] dark:text-red-400">
-                      #{createdOrder.order5DigitId || createdOrder.orderNumber.replace(/[^0-9]/g, '').slice(-5) || '58392'}
+                      #{createdOrder.order5DigitId || (createdOrder.orderNumber ? createdOrder.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || '20712'}
                     </span>
                   </div>
                   <div className="text-right">
@@ -1663,14 +1671,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
 
-                {/* Progress message during download */}
-                {isDownloadingPdf && (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-center space-x-2 text-xs text-emerald-700 dark:text-emerald-300 font-bold animate-pulse max-w-sm mx-auto">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                {/* Download Success / In-progress Notification */}
+                {downloadSuccess && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-center space-x-2 text-xs text-emerald-700 dark:text-emerald-300 font-bold max-w-sm mx-auto">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>
-                      {downloadSuccess 
-                        ? (language === 'bn' ? 'পিডিএফ ডাউনলোড সম্পন্ন! হোম পেজে নিয়ে যাওয়া হচ্ছে...' : 'PDF downloaded! Redirecting to home page...') 
-                        : (language === 'bn' ? 'পিডিএফ ডাউনলোড হচ্ছে...' : 'Downloading PDF receipt...')}
+                      {language === 'bn' 
+                        ? 'অফিশিয়াল রসিদের কপি সফলভাবে ডাউনলোড হয়েছে!' 
+                        : 'Official order receipt downloaded successfully!'}
+                    </span>
+                  </div>
+                )}
+
+                {isDownloadingPdf && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-800 rounded-xl flex items-center justify-center space-x-2 text-xs text-blue-700 dark:text-blue-300 font-bold animate-pulse max-w-sm mx-auto">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>
+                      {language === 'bn' ? 'পিডিএফ রসিদ জেনারেট হচ্ছে...' : 'Generating PDF receipt...'}
                     </span>
                   </div>
                 )}
@@ -1681,18 +1698,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <button
                     id="btn-download-pdf-receipt"
                     type="button"
-                    onClick={handleDownloadPdfAndGoHome}
+                    onClick={handleDownloadPdfOnly}
                     disabled={isDownloadingPdf}
                     className="w-full py-3.5 px-6 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-2xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
                   >
                     {isDownloadingPdf ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : downloadSuccess ? (
+                      <Check className="w-5 h-5" />
                     ) : (
                       <Download className="w-5 h-5" />
                     )}
                     <span>
                       {isDownloadingPdf
                         ? (language === 'bn' ? 'ডাউনলোড হচ্ছে...' : 'Downloading...')
+                        : downloadSuccess
+                        ? (language === 'bn' ? 'আবার ডাউনলোড করুন' : 'Download Again')
                         : (language === 'bn' ? 'পিডিএফ ডাউনলোড করুন' : 'Download PDF')}
                     </span>
                   </button>
@@ -1707,7 +1728,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   >
                     <Home className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     <span>
-                      {language === 'bn' ? 'স্কিপ করুন' : 'Skip'}
+                      {language === 'bn' ? 'স্কিপ করুন' : 'Skip to Home'}
                     </span>
                   </button>
                 </div>

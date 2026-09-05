@@ -83,7 +83,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     let customerName = 'সম্মানিত ক্রেতা (Valued Customer)';
     let customerPhone = '017XXXXXXXX';
     let customerAddress = 'ঢাকা, বাংলাদেশ';
-    let orderNumber = '58392';
+    let orderNumber = '';
     let items: Array<{ id: string; name: string; price: number; quantity: number; image?: string; sellerName?: string }> = [];
     let subtotal = 0;
     const deliveryFee = 60;
@@ -105,23 +105,32 @@ export class ErrorBoundary extends React.Component<Props, State> {
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const lastOrder = parsed[parsed.length - 1];
-          if (lastOrder.order5DigitId) orderNumber = lastOrder.order5DigitId;
-          else if (lastOrder.orderNumber) orderNumber = lastOrder.orderNumber.replace(/[^0-9]/g, '').slice(-5) || '58392';
+          const lastOrder = parsed[0] || parsed[parsed.length - 1];
+          if (lastOrder.order5DigitId) {
+            orderNumber = lastOrder.order5DigitId;
+          } else if (lastOrder.orderNumber) {
+            orderNumber = lastOrder.orderNumber.replace(/[^0-9]/g, '').slice(-5);
+          } else if (lastOrder.id) {
+            orderNumber = lastOrder.id.replace(/[^0-9]/g, '').slice(-5);
+          }
           
-          if (lastOrder.shippingAddress?.fullName) customerName = lastOrder.shippingAddress.fullName;
+          if (lastOrder.customerName) customerName = lastOrder.customerName;
+          if (lastOrder.shippingAddress?.recipientName) customerName = lastOrder.shippingAddress.recipientName;
+          if (lastOrder.customerPhone) customerPhone = lastOrder.customerPhone;
           if (lastOrder.shippingAddress?.phone) customerPhone = lastOrder.shippingAddress.phone;
-          if (lastOrder.shippingAddress?.address) customerAddress = `${lastOrder.shippingAddress.address}, ${lastOrder.shippingAddress.city || ''}`;
+          if (lastOrder.shippingAddress?.address || lastOrder.shippingAddress?.fullAddress) {
+            customerAddress = lastOrder.shippingAddress.fullAddress || `${lastOrder.shippingAddress.address}, ${lastOrder.shippingAddress.thana || ''} ${lastOrder.shippingAddress.district || ''}`;
+          }
           if (lastOrder.paymentMethod) paymentMethod = String(lastOrder.paymentMethod).toUpperCase();
 
           if (Array.isArray(lastOrder.items) && lastOrder.items.length > 0) {
             items = lastOrder.items.map((it: any) => ({
               id: it.id || it.productId || '1',
-              name: it.product?.title || it.title || it.productName || 'অমরবাজার ডিজিটাল পণ্য সামগ্রী',
+              name: it.productTitle || it.product?.title || it.title || it.productName || 'অমরবাজার ডিজিটাল পণ্য সামগ্রী',
               price: Number(it.price || it.unitPrice || 650),
               quantity: Number(it.quantity || 1),
               image: it.product?.images?.[0] || it.image,
-              sellerName: it.product?.sellerName || 'অমরবাজার অথেন্টিক শপ'
+              sellerName: it.sellerName || it.product?.sellerName || 'অমরবাজার অথেন্টিক শপ'
             }));
           }
         }
@@ -148,31 +157,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
       console.warn('Error reading stored receipt details:', e);
     }
 
-    // Default Fallback Sample Items if nothing in cache
-    if (items.length === 0) {
-      items = [
-        {
-          id: 'item-1',
-          name: 'অমরবাজার প্রিমিয়াম স্মার্ট ফ্যাশন ও গ্যাজেট সামগ্রী (Official Product)',
-          price: 1250,
-          quantity: 1,
-          sellerName: 'অমরবাজার অফিসিয়াল ভেরিফাইড শপ'
-        },
-        {
-          id: 'item-2',
-          name: 'অর্গানিক কোয়ালিটি স্পেশাল প্যাকেজ (Organic Quality Pack)',
-          price: 450,
-          quantity: 2,
-          sellerName: 'অমরবাজার প্রিমিয়াম মার্কেট'
-        }
-      ];
-    }
-
     subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
     const total = subtotal + deliveryFee;
 
     return {
-      orderNumber,
+      orderNumber: orderNumber || '20712',
+      hasRealOrder: Boolean(orderNumber),
       customerName,
       customerPhone,
       customerAddress,
@@ -393,6 +383,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             </div>
 
             {/* 🧾 UPGRADED RECEIPT DOWNLOAD SECTION (রিসিভ ডাউনলোড ও চালান) */}
+            {receiptData.hasRealOrder && receiptData.items.length > 0 && (
             <div className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 border-2 border-emerald-500/30 rounded-2xl p-4 sm:p-5 text-left space-y-4 shadow-sm">
               
               <div className="flex items-start justify-between gap-2">
@@ -524,6 +515,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               )}
 
             </div>
+            )}
 
             {/* Optional Small Technical Debug Details at Bottom */}
             {this.state.error && (

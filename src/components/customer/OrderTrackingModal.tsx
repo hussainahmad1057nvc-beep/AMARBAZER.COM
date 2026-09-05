@@ -40,7 +40,7 @@ export const OrderTrackingModal: React.FC = () => {
         const allOrders = await api.getOrders();
         ord = allOrders.find(o => 
           o.id === cleanId || 
-          o.orderNumber.toLowerCase() === cleanId.toLowerCase() ||
+          (o.orderNumber && o.orderNumber.toLowerCase() === cleanId.toLowerCase()) ||
           (o.order5DigitId && o.order5DigitId === cleanId) ||
           (o.customerPhone && o.customerPhone.includes(cleanId))
         ) || null;
@@ -78,9 +78,9 @@ export const OrderTrackingModal: React.FC = () => {
 
   const getOrder5Digit = (ord: Order) => {
     return ord.order5DigitId || 
-           ord.orderNumber.replace(/[^0-9]/g, '').slice(-5) || 
-           ord.id.replace(/[^0-9]/g, '').slice(-5) || 
-           '58392';
+           (ord.orderNumber ? ord.orderNumber.replace(/[^0-9]/g, '').slice(-5) : '') || 
+           (ord.id ? ord.id.replace(/[^0-9]/g, '').slice(-5) : '') || 
+           '20712';
   };
 
   const handleCopyCode = (code: string) => {

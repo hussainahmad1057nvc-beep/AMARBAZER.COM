@@ -670,14 +670,62 @@ export const api = {
   getOrderById: (id: string) => fetchJson<Order>(`/api/orders/${id}`),
   
   createOrder: async (order: Partial<Order>): Promise<Order> => {
+    const fiveDigit = order.order5DigitId || Math.floor(10000 + Math.random() * 90000).toString();
+    const orderNum = order.orderNumber || `ORD-${fiveDigit}`;
+    const fullOrderPayload: Order = {
+      id: order.id || `ord-${fiveDigit}`,
+      createdAt: order.createdAt || new Date().toISOString(),
+      updatedAt: order.updatedAt || new Date().toISOString(),
+      status: order.status || 'pending',
+      courier: order.courier || {
+        provider: 'Pathao',
+        trackingNumber: `PTH-${fiveDigit}`,
+        status: 'assigned'
+      },
+      ...order,
+      orderNumber: orderNum,
+      order5DigitId: fiveDigit
+    } as Order;
+
+    // Persist locally immediately
     try {
-      const created = await fetchJson<Order>('/api/orders', { method: 'POST', body: JSON.stringify(order) });
-      firebaseDb.insertOrder(created).catch(() => {});
-      return created;
+      const existing = safeStorage.getJSON<Order[]>(STORAGE_KEY_ORDERS, []);
+      const updated = [fullOrderPayload, ...existing.filter(o => o.id !== fullOrderPayload.id)];
+      safeStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(updated));
+    } catch (e) {}
+
+    try {
+      const created = await fetchJson<Order>('/api/orders', { method: 'POST', body: JSON.stringify(fullOrderPayload) });
+      const enriched: Order = {
+        ...fullOrderPayload,
+        ...created,
+        orderNumber: created.orderNumber || orderNum,
+        order5DigitId: created.order5DigitId || fiveDigit
+      };
+      firebaseDb.insertOrder(enriched).catch(() => {});
+      // Update local storage with server confirmed data
+      try {
+        const existing = safeStorage.getJSON<Order[]>(STORAGE_KEY_ORDERS, []);
+        const updated = [enriched, ...existing.filter(o => o.id !== enriched.id)];
+        safeStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(updated));
+      } catch (e) {}
+      return enriched;
     } catch (err) {
-      const fbOrder = await firebaseDb.insertOrder(order);
-      if (fbOrder) return fbOrder;
-      throw err;
+      console.warn('Server createOrder fallback to Firebase & local store:', err);
+      try {
+        const fbOrder = await firebaseDb.insertOrder(fullOrderPayload);
+        if (fbOrder) {
+          return {
+            ...fullOrderPayload,
+            ...fbOrder,
+            orderNumber: fbOrder.orderNumber || orderNum,
+            order5DigitId: fbOrder.order5DigitId || fiveDigit
+          };
+        }
+      } catch (fbErr) {
+        console.warn('Firebase insertOrder notice:', fbErr);
+      }
+      return fullOrderPayload;
     }
   },
 

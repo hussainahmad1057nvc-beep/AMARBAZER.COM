@@ -429,8 +429,16 @@ export const firebaseDb = {
   },
 
   async insertOrder(order: Partial<Order>): Promise<Order> {
-    const id = order.id || `ord-${Date.now()}`;
-    const fullOrder = { ...order, id } as Order;
+    const fiveDigit = order.order5DigitId || Math.floor(10000 + Math.random() * 90000).toString();
+    const id = order.id || `ord-${fiveDigit}`;
+    const orderNumber = order.orderNumber || `ORD-${fiveDigit}`;
+    const fullOrder = { 
+      ...order, 
+      id,
+      order5DigitId: fiveDigit,
+      orderNumber,
+      createdAt: order.createdAt || new Date().toISOString()
+    } as Order;
     const path = `orders/${id}`;
     try {
       const sanitized = sanitizeForFirestore(fullOrder);
