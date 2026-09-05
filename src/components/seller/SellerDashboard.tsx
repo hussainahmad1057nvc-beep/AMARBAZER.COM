@@ -593,8 +593,14 @@ export const SellerDashboard: React.FC = () => {
         (currentUser?.phone && s.phone && s.phone === currentUser.phone)
       );
 
-      // If user is Tanvir / demo seller or no other store found and user is usr-seller-1
-      if (!currentS && (currentUser?.id === 'usr-seller-1' || currentUser?.email === 'tanvir@dhakatech.com.bd')) {
+      // If user is Tanvir / demo seller or admin or no other store found and user is usr-seller-1
+      if (!currentS && (
+        currentUser?.id === 'usr-seller-1' || 
+        currentUser?.email === 'tanvir@dhakatech.com.bd' || 
+        currentUser?.role === 'admin' || 
+        currentUser?.role === 'system_admin' || 
+        !currentUser
+      )) {
         currentS = sellersList.find(s => s.id === 'sel-1') || sellersList[0];
       }
 
@@ -637,20 +643,32 @@ export const SellerDashboard: React.FC = () => {
         const allProds = await api.getProducts({ sellerId: currentS.id });
         setSellerProducts(allProds);
 
-        const allOrds = await api.getOrders({ sellerId: currentS.id });
+        const allOrds = await api.getOrders();
+        const myStoreId = currentS.id;
+        const myStoreSellerId = currentS.sellerId;
+        const curUserId = currentUser?.id;
+        const isMainStore = myStoreId === 'sel-1' || myStoreSellerId === 'usr-seller-1' || currentUser?.role === 'admin' || currentUser?.role === 'system_admin';
+
         const matchSeller = (sIdToCheck?: string) => {
           if (!sIdToCheck) return false;
           const cleanCheck = String(sIdToCheck).toLowerCase().replace(/^(usr-|sel-)/, '');
-          const targets = [currentS.id, currentS.sellerId, currentUser?.id].filter(Boolean) as string[];
+          const isCheckOne = cleanCheck === '1' || cleanCheck === 'seller-1';
+
+          if (isMainStore && isCheckOne) return true;
+
+          const targets = [myStoreId, myStoreSellerId, curUserId].filter(Boolean) as string[];
           return targets.some(t => {
             const cleanT = t.toLowerCase().replace(/^(usr-|sel-)/, '');
-            return sIdToCheck.toLowerCase() === t.toLowerCase() || cleanCheck === cleanT || (cleanT === 'seller-1' && (cleanCheck === '1' || cleanCheck === 'seller-1'));
+            const isTargetOne = cleanT === '1' || cleanT === 'seller-1';
+            return sIdToCheck.toLowerCase() === t.toLowerCase() || 
+                   cleanCheck === cleanT || 
+                   (isTargetOne && isCheckOne);
           });
         };
 
         const strictlyMine = (allOrds || []).filter(o => 
-          o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId))
-        );
+          o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId || (item as any).product?.sellerId))
+        ).map(o => ({ ...o, status: o.status || 'pending' }));
         setSellerOrders(strictlyMine);
 
         const allWithdraw = await api.getWithdrawals(currentS.id);
@@ -667,27 +685,41 @@ export const SellerDashboard: React.FC = () => {
 
   // Real-time synchronization for orders from Firestore across all devices
   useEffect(() => {
-    if (!storeInfo?.id && !currentUser?.id) return;
     const myStoreId = storeInfo?.id;
     const myStoreSellerId = storeInfo?.sellerId;
     const curUserId = currentUser?.id;
+    const isMainStore = myStoreId === 'sel-1' || myStoreSellerId === 'usr-seller-1' || currentUser?.role === 'admin' || currentUser?.role === 'system_admin';
 
     const unsubscribe = firebaseDb.subscribeToOrders((allFbOrders) => {
       if (!allFbOrders || !Array.isArray(allFbOrders)) return;
-      const targets = [myStoreId, myStoreSellerId, curUserId].filter(Boolean) as string[];
+      
       const matchSeller = (sIdToCheck?: string) => {
         if (!sIdToCheck) return false;
         const cleanCheck = String(sIdToCheck).toLowerCase().replace(/^(usr-|sel-)/, '');
+        const isCheckOne = cleanCheck === '1' || cleanCheck === 'seller-1';
+
+        if (isMainStore && isCheckOne) return true;
+
+        const targets = [myStoreId, myStoreSellerId, curUserId].filter(Boolean) as string[];
         return targets.some(t => {
           const cleanT = t.toLowerCase().replace(/^(usr-|sel-)/, '');
-          return sIdToCheck.toLowerCase() === t.toLowerCase() || cleanCheck === cleanT || (cleanT === 'seller-1' && (cleanCheck === '1' || cleanCheck === 'seller-1'));
+          const isTargetOne = cleanT === '1' || cleanT === 'seller-1';
+          return sIdToCheck.toLowerCase() === t.toLowerCase() || 
+                 cleanCheck === cleanT || 
+                 (isTargetOne && isCheckOne);
         });
       };
 
       const matched = allFbOrders.filter(o => 
-        o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId))
-      );
-      setSellerOrders(matched);
+        o.items && Array.isArray(o.items) && o.items.some(item => matchSeller(item.sellerId || (item as any).product?.sellerId))
+      ).map(o => ({ ...o, status: o.status || 'pending' }));
+
+      setSellerOrders(prev => {
+        const map = new Map<string, Order>();
+        (prev || []).forEach(o => map.set(o.id, o));
+        matched.forEach(o => map.set(o.id, o));
+        return Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      });
     });
 
     return () => {
@@ -695,7 +727,7 @@ export const SellerDashboard: React.FC = () => {
         unsubscribe();
       }
     };
-  }, [storeInfo?.id, storeInfo?.sellerId, currentUser?.id]);
+  }, [storeInfo?.id, storeInfo?.sellerId, currentUser?.id, currentUser?.role]);
 
       // Real-time synchronization for seller products when global products change across any device
   useEffect(() => {
@@ -1191,18 +1223,26 @@ export const SellerDashboard: React.FC = () => {
 
   // Strict dynamic calculation for seller items, revenue, balance and orders
   const isSellerItem = (item: any) => {
-    if (!item || !item.sellerId) return false;
+    if (!item) return false;
+    const itemSellerId = item.sellerId || (item as any).product?.sellerId;
+    if (!itemSellerId) return false;
+
     const storeId = storeInfo?.id;
     const storeSellerId = storeInfo?.sellerId;
     const curUserId = currentUser?.id;
-    const itemSId = String(item.sellerId).toLowerCase();
+    const itemSId = String(itemSellerId).toLowerCase();
     const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
+    const isItemOne = cleanItemSId === '1' || cleanItemSId === 'seller-1';
+
+    const isMainStore = storeId === 'sel-1' || storeSellerId === 'usr-seller-1' || currentUser?.role === 'admin' || currentUser?.role === 'system_admin';
+    if (isMainStore && isItemOne) return true;
 
     const checkMatch = (targetId?: string) => {
       if (!targetId) return false;
       const tId = String(targetId).toLowerCase();
       const cleanTId = tId.replace(/^(usr-|sel-)/, '');
-      return itemSId === tId || cleanItemSId === cleanTId || (cleanTId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+      const isTargetOne = cleanTId === '1' || cleanTId === 'seller-1';
+      return itemSId === tId || cleanItemSId === cleanTId || (isTargetOne && isItemOne);
     };
 
     return (
@@ -6243,10 +6283,10 @@ export const SellerDashboard: React.FC = () => {
 
       {/* Printable Official Delivery Memo & Slip Modal */}
       {selectedInvoiceOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 my-8">
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-2xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 my-auto flex flex-col max-h-[92vh]">
             {/* Modal Header (Hidden on Print) */}
-            <div className="bg-slate-900 text-white p-4.5 flex justify-between items-center print:hidden border-b border-slate-800">
+            <div className="bg-slate-900 text-white p-3.5 sm:p-4.5 flex justify-between items-center print:hidden border-b border-slate-800 shrink-0 sticky top-0 z-10">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
                   <FileText className="w-4 h-4" />
@@ -6263,14 +6303,14 @@ export const SellerDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSlipFormat('a4')}
-                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${slipFormat === 'a4' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${slipFormat === 'a4' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                     A4 Memo
                   </button>
                   <button
                     type="button"
                     onClick={() => setSlipFormat('pos80')}
-                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${slipFormat === 'pos80' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${slipFormat === 'pos80' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                     POS Thermal
                   </button>
@@ -6279,7 +6319,7 @@ export const SellerDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3.5 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>{language === 'bn' ? 'প্রিন্ট করুন' : 'Print Slip'}</span>
@@ -6295,10 +6335,10 @@ export const SellerDashboard: React.FC = () => {
             </div>
 
             {/* Printable Area */}
-            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 flex justify-center">
+            <div className="p-3 sm:p-6 bg-slate-50 dark:bg-slate-950 flex justify-center flex-1 overflow-y-auto">
               <div
                 id={slipFormat === 'pos80' ? 'printable-slip-pos80' : 'printable-slip-a4'}
-                className="bg-white text-slate-950 p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 w-full max-w-xl space-y-6"
+                className="bg-white text-slate-950 p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 w-full max-w-xl space-y-6 my-2"
               >
                 {/* Header */}
                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
@@ -6438,6 +6478,30 @@ export const SellerDashboard: React.FC = () => {
                 <div className="text-[9px] text-slate-400 text-center border-t border-slate-100 pt-2">
                   ধন্যবাদ অমরবাজারের সাথে থাকার জন্য! পণ্য বুঝে পেয়ে মূল্য পরিশোধ করুন।
                 </div>
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions (Hidden on Print) */}
+            <div className="p-3 bg-slate-100 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between print:hidden shrink-0">
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+                {language === 'bn' ? 'অর্ডার স্লিপটি প্রিন্ট বা ডাউনলোড করে কুরিয়ারের সাথে দিন।' : 'Print or attach this slip with the shipment.'}
+              </p>
+              <div className="flex items-center space-x-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{language === 'bn' ? 'প্রিন্ট স্লিপ' : 'Print Slip'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceOrder(null)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+                </button>
               </div>
             </div>
           </div>

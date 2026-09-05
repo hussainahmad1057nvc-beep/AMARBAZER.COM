@@ -645,11 +645,21 @@ export const api = {
 
     const orderMap = new Map<string, Order>();
     if (serverRes.status === 'fulfilled' && Array.isArray(serverRes.value)) {
-      serverRes.value.forEach(o => orderMap.set(o.id, o));
+      serverRes.value.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
     }
     if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
-      fbRes.value.forEach(o => orderMap.set(o.id, o));
+      fbRes.value.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
     }
+    try {
+      const localOrders = safeStorage.getJSON<Order[]>(STORAGE_KEY_ORDERS, []);
+      if (Array.isArray(localOrders)) {
+        localOrders.forEach(o => {
+          if (o && o.id && !orderMap.has(o.id)) {
+            orderMap.set(o.id, o);
+          }
+        });
+      }
+    } catch (e) {}
 
     let ordersList = Array.from(orderMap.values());
     if (params?.userId) {
@@ -658,10 +668,12 @@ export const api = {
     if (params?.sellerId) {
       const sId = String(params.sellerId).toLowerCase();
       const cleanSId = sId.replace(/^(usr-|sel-)/, '');
-      ordersList = ordersList.filter(o => o.items && o.items.some(item => {
+      const isTargetOne = cleanSId === '1' || cleanSId === 'seller-1';
+      ordersList = ordersList.filter(o => o.items && Array.isArray(o.items) && o.items.some(item => {
         const itemSId = (item.sellerId || (item as any).product?.sellerId || '').toLowerCase();
         const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
-        return itemSId === sId || cleanItemSId === cleanSId || (cleanSId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+        const isItemOne = cleanItemSId === '1' || cleanItemSId === 'seller-1';
+        return itemSId === sId || cleanItemSId === cleanSId || (isTargetOne && isItemOne);
       }));
     }
     return ordersList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -733,9 +745,19 @@ export const api = {
     try {
       const res = await fetchJson<Order>(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, note }) });
       firebaseDb.updateOrderStatus(id, status, note).catch(() => {});
+      try {
+        const existing = safeStorage.getJSON<Order[]>(STORAGE_KEY_ORDERS, []);
+        const updated = existing.map(o => (o.id === id || o.orderNumber === id || o.order5DigitId === id) ? { ...o, status: status as any, updatedAt: new Date().toISOString() } : o);
+        safeStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(updated));
+      } catch (e) {}
       return res;
     } catch (err) {
       const updated = await firebaseDb.updateOrderStatus(id, status, note);
+      try {
+        const existing = safeStorage.getJSON<Order[]>(STORAGE_KEY_ORDERS, []);
+        const upList = existing.map(o => (o.id === id || o.orderNumber === id || o.order5DigitId === id) ? { ...o, status: status as any, updatedAt: new Date().toISOString() } : o);
+        safeStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(upList));
+      } catch (e) {}
       if (updated) return updated;
       throw err;
     }

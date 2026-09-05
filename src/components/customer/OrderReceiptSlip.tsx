@@ -286,10 +286,10 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static">
       <div 
         ref={printRef}
-        className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl border border-slate-200 dark:border-slate-800 overflow-hidden text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-200 print:border-none print:shadow-none print:max-w-none print:w-full print:rounded-none my-auto"
+        className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl border border-slate-200 dark:border-slate-800 overflow-hidden text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-200 print:border-none print:shadow-none print:max-w-none print:w-full print:rounded-none my-auto flex flex-col max-h-[92vh]"
       >
         {/* Top Control Bar (Hidden on Print) */}
-        <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 print:hidden">
+        <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 print:hidden shrink-0 sticky top-0 z-10">
           <div className="flex items-center space-x-2">
             <div className="bg-[#da1c24] text-white px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider flex items-center space-x-1 shadow-xs">
               <FileText className="w-3.5 h-3.5" />
@@ -340,7 +340,7 @@ export const OrderReceiptSlip: React.FC<OrderReceiptSlipProps> = ({
         )}
 
         {/* Printable Official Invoice Body */}
-        <div className="p-4 sm:p-7 space-y-5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+        <div className="p-4 sm:p-7 space-y-5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex-1 overflow-y-auto">
           
           {/* Header with Brand and 5-Digit Order ID Badge */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b-2 border-slate-200 dark:border-slate-800">

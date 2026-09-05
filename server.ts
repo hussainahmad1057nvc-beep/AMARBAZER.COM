@@ -196,9 +196,32 @@ try {
     serverFirestoreDb = getFirebaseServerDb(serverApp);
     console.log('[Firebase Backend] Initialized with project:', firebaseConfig.projectId);
     loadProductsFromFirestoreOnBoot();
+    loadOrdersFromFirestoreOnBoot();
   }
 } catch (err) {
   console.warn('[Firebase Backend] Init notice:', err);
+}
+
+async function loadOrdersFromFirestoreOnBoot() {
+  if (!serverFirestoreDb) return;
+  try {
+    const snap = await serverGetDocs(serverCollection(serverFirestoreDb, 'orders'));
+    if (!snap.empty) {
+      const cloudOrdersMap = new Map<string, Order>();
+      (db.orders || []).forEach(o => { if (o && o.id) cloudOrdersMap.set(o.id, o); });
+      snap.forEach((d: any) => {
+        const data = d.data() as Order;
+        if (data && d.id) {
+          cloudOrdersMap.set(d.id, { ...data, id: d.id });
+        }
+      });
+      db.orders = Array.from(cloudOrdersMap.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      saveDb();
+      console.log(`[Firebase Backend] Synced ${db.orders.length} orders from Firestore cloud.`);
+    }
+  } catch (e) {
+    console.warn('[Firebase Backend] Error syncing orders from Firestore on boot:', e);
+  }
 }
 
 async function loadProductsFromFirestoreOnBoot() {
@@ -1202,17 +1225,19 @@ async function startServer() {
   // Orders API
   app.get('/api/orders', (req, res) => {
     const { userId, sellerId } = req.query;
-    let list = [...db.orders];
+    let list = (db.orders || []).map(o => ({ ...o, status: o.status || 'pending' }));
     if (userId) {
       list = list.filter(o => o.userId === userId);
     }
     if (sellerId) {
       const sId = String(sellerId).toLowerCase();
       const cleanSId = sId.replace(/^(usr-|sel-)/, '');
+      const isTargetOne = cleanSId === '1' || cleanSId === 'seller-1';
       list = list.filter(o => o.items && Array.isArray(o.items) && o.items.some(item => {
-        const itemSId = (item.sellerId || '').toLowerCase();
+        const itemSId = (item.sellerId || (item as any).product?.sellerId || '').toLowerCase();
         const cleanItemSId = itemSId.replace(/^(usr-|sel-)/, '');
-        return itemSId === sId || cleanItemSId === cleanSId || (cleanSId === 'seller-1' && (cleanItemSId === '1' || cleanItemSId === 'seller-1'));
+        const isItemOne = cleanItemSId === '1' || cleanItemSId === 'seller-1';
+        return itemSId === sId || cleanItemSId === cleanSId || (isTargetOne && isItemOne);
       }));
     }
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
